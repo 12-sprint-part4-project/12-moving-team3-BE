@@ -1,44 +1,15 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
-    // File Layout
-    // "rootDir": "./src",
-    // "outDir": "./dist",
-
-    // Environment Settings
-    // See also https://aka.ms/tsconfig/module
-    "module": "nodenext",
-    "target": "esnext",
-    "types": [],
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
-
-    // Other Outputs
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-
-    // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-    // Style Options
-    // "noImplicitReturns": true,
-    // "noImplicitOverride": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noPropertyAccessFromIndexSignature": true,
-
-    // Recommended Options
+    "target": "ES2016", // 또는 더 최신 버전
+    "module": "CommonJS", // Node.js 환경
+    "outDir": "./dist", // 컴파일 결과물 경로
+    "rootDir": "./src", // 타입스크립트 소스코드 루트
     "strict": true,
-    "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
-    "moduleDetection": "force",
+    "esModuleInterop": true, // CommonJS 모듈 호환성
     "skipLibCheck": true,
-  }
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true // 디버깅용 소스맵 생성
+  },
+  "include": ["src/**/*"], // 컴파일 대상 폴더
+  "exclude": ["node_modules"] // 컴파일 제외 폴더
 }

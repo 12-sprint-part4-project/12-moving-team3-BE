@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node src/app.ts",
+    "dev": "ts-node-dev --respawn src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js"
   },
@@ -15,7 +15,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "bugs": {
     "url": "https://github.com/12-sprint-part4-project/12-moving-team3-BE/issues"
   },
