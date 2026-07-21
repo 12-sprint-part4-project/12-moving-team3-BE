@@ -20,5 +20,11 @@
   "homepage": "https://github.com/12-sprint-part4-project/12-moving-team3-BE#readme",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^7.0.2"
   }
 }
