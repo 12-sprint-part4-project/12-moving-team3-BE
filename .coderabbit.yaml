@@ -1,0 +1,138 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: ko-KR
+
+reviews:
+  profile: assertive
+
+  auto_review:
+    enabled: true
+
+  path_filters:
+    - '!package-lock.json'
+    - '!coverage/**'
+    - '!dist/**'
+    - '!generated/**'
+
+  path_instructions:
+    - path: '**/*.ts'
+      instructions: |
+        다음 TypeScript 규칙을 기준으로 리뷰한다.
+
+        [TypeScript]
+        - 객체의 구조를 정의할 때는 interface를 사용한다.
+        - union, intersection, primitive alias, tuple 등 객체 구조가 아닌 타입은 type을 사용한다.
+        - any 대신 구체적인 타입 또는 unknown을 사용한다.
+        - 불필요한 타입 단언과 non-null assertion 사용을 지적한다.
+        - 사용하지 않는 변수, 타입 및 import를 지적한다.
+
+        [Naming]
+        - 변수와 함수는 camelCase를 사용한다.
+        - 클래스와 객체 interface는 PascalCase를 사용한다.
+        - 상수는 UPPER_SNAKE_CASE를 사용한다.
+        - 폴더명은 kebab-case를 사용한다.
+        - 백엔드 모듈 파일은 도메인.역할.ts 형식을 사용한다.
+          예: study.routes.ts, study.controller.ts, study.service.ts
+
+        [Code Quality]
+        - 중복 코드와 불필요하게 복잡한 로직을 지적한다.
+        - 하나의 함수나 모듈이 지나치게 많은 책임을 담당하면 분리를 제안한다.
+        - 입력값 검증, 오류 처리 및 경계 조건 누락을 확인한다.
+        - 토큰, 비밀번호 및 개인정보가 로그나 응답에 노출되지 않는지 확인한다.
+        - 불필요한 console.log를 지적한다.
+
+    - path: 'prisma/schema.prisma'
+      instructions: |
+        다음 Prisma 및 데이터베이스 규칙을 기준으로 리뷰한다.
+
+        - Prisma 모델명은 PascalCase를 사용한다.
+        - Prisma 모델 필드명은 camelCase를 사용한다.
+        - DB 테이블명과 컬럼명은 snake_case를 사용한다.
+        - Prisma 모델은 @@map을 사용해 snake_case 테이블명으로 매핑한다.
+        - 필요한 필드는 @map을 사용해 snake_case 컬럼명으로 매핑한다.
+        - DB 테이블명은 복수형을 사용한다.
+        - 기본키 이름은 테이블과 관계없이 id로 통일한다.
+        - 관계, unique 제약조건, 인덱스 및 삭제 정책이 적절한지 확인한다.
+        - createdAt과 updatedAt 등의 시간 필드 설정이 적절한지 확인한다.
+
+    - path: '**/*.routes.ts'
+      instructions: |
+        다음 REST API 설계 규칙을 기준으로 리뷰한다.
+
+        - 리소스는 복수형 명사를 사용한다.
+        - URL에 get, create 등의 동사를 사용하지 않는다.
+        - 계층 관계는 URL path로 표현한다.
+        - URL 경로는 kebab-case를 사용한다.
+        - HTTP Method와 상태 코드가 동작에 적합한지 확인한다.
+        - 인증, 권한 검사 및 입력값 검증 미들웨어가 필요한 경로에 적용되었는지 확인한다.
+
+    - path: '**/*.controller.ts'
+      instructions: |
+        다음 Controller 규칙을 기준으로 리뷰한다.
+
+        - Controller는 요청 데이터 추출과 응답 처리에 집중한다.
+        - 비즈니스 로직이 포함되면 Service 계층으로 분리하도록 제안한다.
+        - Controller가 Prisma를 직접 호출하면 지적한다.
+        - 공통 성공 및 실패 응답 형식을 준수하는지 확인한다.
+
+        성공 응답:
+        {
+          "success": true,
+          "data": {},
+          "error": null
+        }
+
+        실패 응답:
+        {
+          "success": false,
+          "data": null,
+          "error": {
+            "code": "ERROR_CODE",
+            "message": "오류 메시지"
+          }
+        }
+
+        - 페이지네이션, 검색 결과 수, 정렬 정보 등의 부가 정보가 필요한 경우에만 meta를 사용한다.
+
+    - path: '**/*.service.ts'
+      instructions: |
+        다음 Service 규칙을 기준으로 리뷰한다.
+
+        - Service는 비즈니스 로직과 트랜잭션 경계를 담당한다.
+        - 여러 데이터 변경이 원자적으로 처리되어야 한다면 트랜잭션을 사용한다.
+        - Controller 또는 HTTP 응답 객체에 직접 의존하면 지적한다.
+        - 권한, 상태 전이 및 오류 상황이 일관되게 처리되는지 확인한다.
+        - Repository에 있어야 할 단순 데이터 접근 코드가 과도하게 포함되면 분리를 제안한다.
+
+    - path: '**/*.repository.ts'
+      instructions: |
+        다음 Repository 규칙을 기준으로 리뷰한다.
+
+        - Repository는 Prisma를 이용한 데이터 접근 로직을 담당한다.
+        - HTTP 요청, HTTP 응답 또는 비즈니스 정책을 직접 처리하면 지적한다.
+        - 불필요한 N+1 쿼리를 확인한다.
+        - 필요 이상의 필드나 관계를 조회하면 지적한다.
+        - select, include, where 및 index 활용이 적절한지 확인한다.
+        - 트랜잭션 클라이언트를 전달받아 사용할 수 있는 구조인지 필요한 경우 확인한다.
+
+    - path: '**/*.middleware.ts'
+      instructions: |
+        다음 Middleware 규칙을 기준으로 리뷰한다.
+
+        - 인증과 권한 검사가 올바른 순서로 수행되는지 확인한다.
+        - 검증 실패 시 공통 오류 형식을 사용하는지 확인한다.
+        - 민감한 정보를 로그 또는 오류 응답에 노출하지 않는지 확인한다.
+        - 요청이 중복 처리되거나 next가 여러 번 호출될 가능성을 확인한다.
+
+    - path: '**/*.{test,spec}.ts'
+      instructions: |
+        다음 테스트 규칙을 기준으로 리뷰한다.
+
+        - 테스트 이름만으로 검증 목적을 알 수 있어야 한다.
+        - 성공 사례뿐 아니라 잘못된 입력, 인증 실패, 권한 부족 및 경계 조건을 검증한다.
+        - 원자성이 필요한 작업은 실패 시 트랜잭션 롤백 여부를 검증한다.
+
+    - path: '**/*'
+      instructions: |
+        - Prettier가 처리하는 들여쓰기, 줄 바꿈, 따옴표 등의 단순 포맷 차이는 불필요하게 지적하지 않는다.
+        - ESLint 오류가 남아 있거나 규칙을 임의로 비활성화한 코드가 있으면 지적한다.
