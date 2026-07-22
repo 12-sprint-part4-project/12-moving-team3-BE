@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+---
+
+# Global Rules
+
+- Follow the existing project patterns and coding style before generating or modifying code.
+- Do not perform unnecessary refactoring.
+- Make only the minimum changes required.
+- Remove unused variables and imports.
+- Do not leave `console.log` statements in the code.

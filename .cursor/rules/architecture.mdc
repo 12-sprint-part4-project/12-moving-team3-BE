@@ -1,0 +1,23 @@
+---
+alwaysApply: true
+---
+
+# Architecture
+
+## Request Flow
+
+```
+Route
+→ Controller
+→ Service
+→ Repository
+→ Database
+```
+
+## Layer Responsibilities
+
+- Routes define API endpoints and apply middleware.
+- Controllers are responsible only for handling requests and responses.
+- Services contain business logic and manage transactions.
+- Repositories are responsible only for data access using Prisma.
+- Controllers must not access Prisma directly.

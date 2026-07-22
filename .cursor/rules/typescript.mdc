@@ -1,0 +1,29 @@
+---
+globs:
+  - '**/*.ts'
+alwaysApply: false
+---
+
+# TypeScript
+
+- Prefer arrow functions for standalone functions and callbacks.
+- Do not convert class methods or constructors to arrow functions.
+- Prefer early returns to reduce nesting.
+- Use `interface` for object types.
+- Use `type` for unions, intersections, tuples, primitive aliases, and other non-object types.
+- Do not use `any`; use `unknown` or a more specific type instead.
+- Avoid unnecessary type assertions (`as`).
+- Avoid non-null assertions (`!`).
+
+# Naming
+
+- Use camelCase for variables and functions.
+- Use PascalCase for classes and interfaces.
+- Use UPPER_SNAKE_CASE for constants.
+- Use kebab-case for folder names.
+
+# File Naming
+
+- Use the `domain.role.ts` naming convention.
+
+Examples:
