@@ -77,15 +77,11 @@ reviews:
 
         성공 응답:
         {
-          "success": true,
           "data": {},
-          "error": null
         }
 
         실패 응답:
         {
-          "success": false,
-          "data": null,
           "error": {
             "code": "ERROR_CODE",
             "message": "오류 메시지"
