@@ -6,6 +6,8 @@ alwaysApply: false
 
 # TypeScript
 
+- Use arrow functions.
+- Prefer early returns.
 - Use `interface` for object types.
 - Use `type` for unions, intersections, tuples, primitive aliases, and other non-object types.
 - Do not use `any`; use `unknown` or a more specific type instead.

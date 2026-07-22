@@ -1,4 +1,7 @@
 ---
+description: Prisma schema conventions
+globs:
+  - '**/*.prisma'
 alwaysApply: false
 ---
 
