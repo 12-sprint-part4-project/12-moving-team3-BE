@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2016", // 또는 더 최신 버전
+    "module": "CommonJS", // Node.js 환경
+    "outDir": "./dist", // 컴파일 결과물 경로
+    "rootDir": "./src", // 타입스크립트 소스코드 루트
+    "strict": true,
+    "esModuleInterop": true, // CommonJS 모듈 호환성
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true // 디버깅용 소스맵 생성
+  },
+  "include": ["src/**/*"], // 컴파일 대상 폴더
+  "exclude": ["node_modules"] // 컴파일 제외 폴더
+}
