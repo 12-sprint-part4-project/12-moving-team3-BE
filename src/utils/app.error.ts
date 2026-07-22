@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ErrorCode } from "../constants/errorCodes";
+import { ERROR_CODES, type ErrorCode } from '../constants/error.codes';
 
 export class AppError extends Error {
   status: number;
