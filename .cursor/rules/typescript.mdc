@@ -6,8 +6,9 @@ alwaysApply: false
 
 # TypeScript
 
-- Use arrow functions.
-- Prefer early returns.
+- Prefer arrow functions for standalone functions and callbacks.
+- Do not convert class methods or constructors to arrow functions.
+- Prefer early returns to reduce nesting.
 - Use `interface` for object types.
 - Use `type` for unions, intersections, tuples, primitive aliases, and other non-object types.
 - Do not use `any`; use `unknown` or a more specific type instead.
