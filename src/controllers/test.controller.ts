@@ -6,6 +6,8 @@ export const getTest = (_req: Request, res: Response) => {
   const result = testService.getTest();
 
   res.json({
-    message: result,
+    data: {
+      message: result,
+    },
   });
 };
