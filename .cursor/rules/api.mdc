@@ -1,0 +1,36 @@
+---
+alwaysApply: true
+---
+
+# API
+
+## REST Conventions
+
+- Use plural nouns for resource names.
+- Use kebab-case for URL paths.
+- Do not use verbs such as `get`, `create`, or `update` in URLs.
+
+## Success Response
+
+```json
+{
+  "data": {},
+  "meta": {}
+}
+```
+
+- Use `meta` only when additional information is required (e.g., pagination, sorting, total count).
+
+## Error Response
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Error message"
+  }
+}
+```
+
+- Do not include a `success` field in the response.
+- Use `AppError` and `ERROR_CODES` for application errors.
