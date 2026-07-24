@@ -26,7 +26,11 @@ Thumbs.db
 generated/
 /src/generated/prisma
 
-logs/
-*.log
+# archives
+*.zip
 
-.zip
+# AI tools
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
