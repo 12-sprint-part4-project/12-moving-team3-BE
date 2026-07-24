@@ -1,6 +1,11 @@
 import swaggerJSDoc from 'swagger-jsdoc';
 
+// 배포 환경에서는 .env의 API_BASE_URL을 실제 공개 주소로 설정
+export const SWAGGER_BASE_URL =
+  process.env.API_BASE_URL || 'http://localhost:3000';
+
 const options: swaggerJSDoc.Options = {
+  failOnErrors: true, // @swagger 주석 파싱 오류 시 서버 시작을 실패시켜 문서 누락을 조기에 발견
   definition: {
     openapi: '3.0.0',
     info: {
@@ -8,7 +13,13 @@ const options: swaggerJSDoc.Options = {
       version: '1.0.0',
       description: '이사 견적 매칭 서비스 API 문서',
     },
-    servers: [{ url: 'http://localhost:3000', description: 'Local' }],
+    servers: [
+      {
+        url: SWAGGER_BASE_URL,
+        description:
+          process.env.NODE_ENV === 'production' ? 'Production' : 'Local',
+      },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {

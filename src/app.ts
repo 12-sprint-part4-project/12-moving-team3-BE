@@ -1,7 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
-import { swaggerSpec } from './config/swagger';
+import { SWAGGER_BASE_URL, swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
 import testRouter from './routes/test.route';
 
@@ -21,5 +21,7 @@ app.use(errorHandler);
 
 app.listen(3000, () => {
   console.log('Server is running on port 3000');
-  console.log('Swagger docs: http://localhost:3000/api-docs');
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Swagger docs: ${SWAGGER_BASE_URL}/api-docs`);
+  }
 });
