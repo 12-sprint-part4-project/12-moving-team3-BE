@@ -1,17 +1,25 @@
 import express from 'express';
 import helmet from 'helmet';
-import testRouter from './routes/test.route';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
+import testRouter from './routes/test.route';
 
 const app = express();
 
 app.use(helmet());
 app.use(express.json());
 
-app.use('/', testRouter); //예시 코드(이후 삭제)
+// Swagger 문서 - 프로덕션 배포 시에는 노출 X
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
+
+app.use('/', testRouter);
 
 app.use(errorHandler);
 
 app.listen(3000, () => {
   console.log('Server is running on port 3000');
+  console.log('Swagger docs: http://localhost:3000/api-docs');
 });
