@@ -25,17 +25,17 @@ const getRequiredEnv = (key: string): string => {
 
 const getAdminAccessSignOptions = (): SignOptions => ({
   expiresIn: getRequiredEnv(
-    'ADMIN_JWT_ACCESS_EXPIRES_IN',
+    'ADMIN_JWT_ACCESS_EXPIRES_IN'
   ) as SignOptions['expiresIn'],
 });
 
 const getAdminRefreshSignOptions = (): SignOptions => ({
   expiresIn: getRequiredEnv(
-    'ADMIN_JWT_REFRESH_EXPIRES_IN',
+    'ADMIN_JWT_REFRESH_EXPIRES_IN'
   ) as SignOptions['expiresIn'],
 });
 
-/** 관리자 Access Token을 발급한다. (일반 유저 JWT secret과 분리) */
+// 일반 유저 JWT secret과 분리
 export const createAdminAccessToken = (adminId: number): string => {
   const payload: AdminAccessTokenPayload = {
     sub: adminId,
@@ -45,11 +45,11 @@ export const createAdminAccessToken = (adminId: number): string => {
   return jwt.sign(
     payload,
     getRequiredEnv('ADMIN_JWT_ACCESS_SECRET'),
-    getAdminAccessSignOptions(),
+    getAdminAccessSignOptions()
   );
 };
 
-/** 관리자 Refresh Token을 발급한다. (일반 유저 JWT secret과 분리) */
+// 일반 유저 JWT secret과 분리
 export const createAdminRefreshToken = (adminId: number): string => {
   const payload: AdminRefreshTokenPayload = {
     sub: adminId,
@@ -59,6 +59,28 @@ export const createAdminRefreshToken = (adminId: number): string => {
   return jwt.sign(
     payload,
     getRequiredEnv('ADMIN_JWT_REFRESH_SECRET'),
-    getAdminRefreshSignOptions(),
+    getAdminRefreshSignOptions()
   );
+};
+
+/** JWT exp와 Cookie maxAge / DB expiresAt을 맞추기 위해 사용한다. */
+export const getAdminRefreshTokenExpiry = (
+  refreshToken: string
+): { expiresAt: Date; maxAgeMs: number } => {
+  const decoded = jwt.decode(refreshToken);
+
+  if (
+    !decoded ||
+    typeof decoded === 'string' ||
+    typeof decoded.exp !== 'number'
+  ) {
+    throw new Error('Invalid admin refresh token expiry');
+  }
+
+  const expiresAt = new Date(decoded.exp * 1000);
+
+  return {
+    expiresAt,
+    maxAgeMs: Math.max(expiresAt.getTime() - Date.now(), 0),
+  };
 };
