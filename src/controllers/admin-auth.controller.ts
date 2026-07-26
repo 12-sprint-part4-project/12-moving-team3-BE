@@ -20,7 +20,7 @@ export const login = async (req: Request, res: Response) => {
   setAdminRefreshTokenCookie(
     res,
     result.refreshToken,
-    result.refreshTokenMaxAgeMs,
+    result.refreshTokenMaxAgeMs
   );
 
   res.status(200).json({

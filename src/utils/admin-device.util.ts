@@ -5,7 +5,7 @@ import { UAParser } from 'ua-parser-js';
  * UA 위조·누락이 가능하므로 보안 판정이 아니라 세션 메타데이터용이다.
  */
 export const resolveAdminDeviceType = (
-  userAgent: string | undefined,
+  userAgent: string | undefined
 ): DeviceType => {
   if (!userAgent?.trim()) {
     // UA가 없는 API 클라이언트·프록시 요청은 데스크톱으로 간주

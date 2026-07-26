@@ -1,4 +1,5 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 
 export type AdminAccessTokenTyp = 'admin_access';
 export type AdminRefreshTokenTyp = 'admin_refresh';
@@ -11,6 +12,7 @@ export interface AdminAccessTokenPayload {
 export interface AdminRefreshTokenPayload {
   sub: number;
   typ: AdminRefreshTokenTyp;
+  jti: string;
 }
 
 const getRequiredEnv = (key: string): string => {
@@ -54,6 +56,7 @@ export const createAdminRefreshToken = (adminId: number): string => {
   const payload: AdminRefreshTokenPayload = {
     sub: adminId,
     typ: 'admin_refresh',
+    jti: randomUUID(),
   };
 
   return jwt.sign(

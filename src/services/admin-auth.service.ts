@@ -6,7 +6,10 @@ import {
   createAdminRefreshToken,
   getAdminRefreshTokenExpiry,
 } from '../utils/admin-jwt.util';
-import { compareAdminPassword } from '../utils/admin-password.util';
+import {
+  ADMIN_PASSWORD_DUMMY_HASH,
+  compareAdminPassword,
+} from '../utils/admin-password.util';
 import { hashAdminRefreshToken } from '../utils/admin-token-hash.util';
 
 export interface AdminLoginServiceInput {
@@ -27,21 +30,17 @@ export interface AdminLoginServiceResult {
 }
 
 export const login = async (
-  input: AdminLoginServiceInput,
+  input: AdminLoginServiceInput
 ): Promise<AdminLoginServiceResult> => {
   const admin = await adminAuthRepository.findAdminByEmail(input.email);
 
-  // 계정 존재 여부를 응답으로 구분하지 않기 위함
-  if (!admin) {
-    throw new AppError('ADMIN_INVALID_CREDENTIALS');
-  }
-
+  // 계정 존재 여부를 응답/시간으로 구분하지 않기 위함
   const isPasswordMatched = await compareAdminPassword(
     input.password,
-    admin.passwordHash,
+    admin?.passwordHash ?? ADMIN_PASSWORD_DUMMY_HASH
   );
 
-  if (!isPasswordMatched) {
+  if (!admin || !isPasswordMatched) {
     throw new AppError('ADMIN_INVALID_CREDENTIALS');
   }
 

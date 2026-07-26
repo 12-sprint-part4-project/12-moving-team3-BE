@@ -1,9 +1,9 @@
 ---
 name: 작업 이슈
 about: 새로운 작업을 생성합니다.
-title: "[Feat] "
-labels: ""
-assignees: ""
+title: '[Feat] '
+labels: ''
+assignees: ''
 ---
 
 ## 📌 작업 내용

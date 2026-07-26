@@ -6,7 +6,7 @@ import { hashAdminPassword } from '../src/utils/admin-password.util';
 // 관리자 회원가입 API가 없으므로, 사전 등록용 부트스트랩 스크립트로 계정을 만든다.
 const getBootstrapEnv = () => {
   const email = process.env.ADMIN_BOOTSTRAP_EMAIL?.trim();
-  const password = process.env.ADMIN_BOOTSTRAP_PASSWORD?.trim();
+  const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
   const name = process.env.ADMIN_BOOTSTRAP_NAME?.trim();
 
   const missingKeys: string[] = [];
@@ -26,6 +26,13 @@ const getBootstrapEnv = () => {
   if (missingKeys.length > 0 || !email || !password || !name) {
     throw new Error(
       `Missing required environment variable(s): ${missingKeys.join(', ')}`
+    );
+  }
+
+  // 비밀번호는 값을 바꾸지 않고, 앞뒤 공백이 있으면 검증 오류로 처리한다.
+  if (password !== password.trim()) {
+    throw new Error(
+      'ADMIN_BOOTSTRAP_PASSWORD must not have leading or trailing whitespace'
     );
   }
 
@@ -60,8 +67,6 @@ const main = async () => {
 
   console.log('Admin bootstrap succeeded');
   console.log(`id: ${admin.id}`);
-  console.log(`email: ${admin.email}`);
-  console.log(`name: ${admin.name}`);
 };
 
 main()

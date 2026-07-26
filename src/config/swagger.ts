@@ -75,6 +75,7 @@ const options: swaggerJSDoc.Options = {
         },
         AdminLoginResponse: {
           type: 'object',
+          required: ['data'],
           properties: {
             data: {
               type: 'object',
