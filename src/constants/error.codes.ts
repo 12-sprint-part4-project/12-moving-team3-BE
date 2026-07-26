@@ -120,6 +120,22 @@ export const ERROR_CODES = {
     status: 404,
     message: '찜하지 않은 기사님입니다.',
   },
+
+  // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
+  ADMIN_INVALID_LOGIN_BODY: {
+    status: 400,
+    message: '로그인 요청 형식이 올바르지 않습니다.',
+  },
+  ADMIN_INVALID_CREDENTIALS: {
+    status: 401,
+    // 이메일/비밀번호 중 무엇을 틀렸는지 노출하지 않기 위함
+    message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+  },
+  ADMIN_UNAUTHORIZED: {
+    status: 401,
+    message: '관리자 인증이 필요합니다.',
+  },
+
   INTERNAL_SERVER_ERROR: {
     status: 500,
     message: '서버 내부 오류가 발생했습니다.',
