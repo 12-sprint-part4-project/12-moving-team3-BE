@@ -1,9 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
-import {
-  estimateRequestListQuerySchema,
-  type EstimateRequestListQuery,
-} from '../schemas/estimate-request.schema';
+import type { EstimateRequestListQuery } from '../schemas/estimate-request.schema';
 import * as estimateRequestService from '../services/estimate-request.service';
 import { AppError } from '../utils/app.error';
 
@@ -31,18 +28,16 @@ const getMoverIdFromHeader = (req: Request): string => {
 };
 
 /**
- * validateRequest 미들웨어가 남긴 검증 결과를 스키마로 재확인해 타입 반환
+ * validateRequest 미들웨어가 남긴 검증·변환된 쿼리 반환
  */
 const getValidatedListQuery = (res: Response): EstimateRequestListQuery => {
-  const parsed = estimateRequestListQuerySchema.safeParse(
-    res.locals.validated?.query
-  );
+  const query = res.locals.validated?.query;
 
-  if (!parsed.success) {
+  if (query == null || typeof query !== 'object') {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  return parsed.data;
+  return query as EstimateRequestListQuery;
 };
 
 /**
