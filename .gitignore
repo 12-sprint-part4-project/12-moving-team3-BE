@@ -34,3 +34,4 @@ generated/
 .claude/
 .windsurf/
 skills-lock.json
+.cursor/rules/chat.mdc

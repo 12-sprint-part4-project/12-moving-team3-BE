@@ -23,9 +23,25 @@ export const ERROR_CODES = {
     status: 413,
     message: '이미지 용량은 5MB 이하만 업로드할 수 있습니다.',
   },
+  INVALID_REQUEST: {
+    status: 400,
+    message: '요청 형식이 올바르지 않습니다.',
+  },
   UNAUTHORIZED: {
     status: 401,
     message: '로그인이 필요합니다.',
+  },
+  ROOM_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 채팅방입니다.',
+  },
+  ESTIMATE_REQUEST_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 견적 요청입니다.',
+  },
+  DESIGNATED_MOVER_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 지정 요청입니다.',
   },
   USER_TYPE_FORBIDDEN: {
     status: 403,
