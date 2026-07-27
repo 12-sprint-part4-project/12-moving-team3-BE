@@ -1,7 +1,9 @@
 -- AlterTable
 ALTER TABLE "chat_rooms" ADD COLUMN "updated_at" TIMESTAMP(3);
 
-UPDATE "chat_rooms" SET "updated_at" = "created_at" WHERE "updated_at" IS NULL;
+UPDATE "chat_rooms" 
+SET "updated_at" = "created_at" 
+WHERE "updated_at" IS NULL;
 
 ALTER TABLE "chat_rooms" ALTER COLUMN "updated_at" SET NOT NULL;
 
