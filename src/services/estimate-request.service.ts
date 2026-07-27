@@ -1,4 +1,5 @@
 import type { MoveType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import type {
   EstimateRequestCursor,
@@ -49,6 +50,7 @@ export interface GetReceivedEstimateRequestsResult {
 
 /**
  * unknown 값이 커서 페이로드({ id, value }) 형태인지 좁힘
+ * value 는 buildCursorCondition 에서 Date 로 쓰이므로 파싱 가능한 날짜 문자열만 허용
  */
 const isEstimateRequestCursor = (
   value: unknown
@@ -61,7 +63,11 @@ const isEstimateRequestCursor = (
     return false;
   }
 
-  return typeof value.id === 'number' && typeof value.value === 'string';
+  return (
+    Number.isSafeInteger(value.id) &&
+    typeof value.value === 'string' &&
+    !Number.isNaN(Date.parse(value.value))
+  );
 };
 
 /**
@@ -115,7 +121,7 @@ const toEstimateRequestListItem = (
 /**
  * 기사님이 받은 견적 요청 목록을 조회하는 메인 유스케이스.
  * 1) 기사 프로필/서비스 지역을 조회해 미등록 여부 검증
- * 2) 목록/전체 개수/필터별 카운트를 병렬 조회
+ * 2) 목록/전체 개수/필터별 카운트를 동일 트랜잭션에서 조회
  * 3) 다음 페이지 존재 여부에 따라 nextCursor 생성
  */
 export const getReceivedEstimateRequests = async (
@@ -145,19 +151,32 @@ export const getReceivedEstimateRequests = async (
     moveTypeCounts,
     designatedCount,
     serviceAreaCount,
-  ] = await Promise.all([
-    estimateRequestRepository.findEstimateRequests({
-      ...filterParams,
-      sort: input.sort,
-      cursor,
-      limit: input.limit,
-    }),
-    estimateRequestRepository.countEstimateRequests(filterParams),
-    estimateRequestRepository.countEstimateRequestsByMoveType(filterParams),
-    estimateRequestRepository.countDesignatedEstimateRequests(filterParams),
-    estimateRequestRepository.countServiceAreaEstimateRequests(filterParams),
-  ]);
-
+  ] = await prisma.$transaction((tx) =>
+    Promise.all([
+      estimateRequestRepository.findEstimateRequests(
+        {
+          ...filterParams,
+          sort: input.sort,
+          cursor,
+          limit: input.limit,
+        },
+        tx
+      ),
+      estimateRequestRepository.countEstimateRequests(filterParams, tx),
+      estimateRequestRepository.countEstimateRequestsByMoveType(
+        filterParams,
+        tx
+      ),
+      estimateRequestRepository.countDesignatedEstimateRequests(
+        filterParams,
+        tx
+      ),
+      estimateRequestRepository.countServiceAreaEstimateRequests(
+        filterParams,
+        tx
+      ),
+    ])
+  );
   const lastRow = rows.length > 0 ? rows[rows.length - 1] : undefined;
   const lastSortValue =
     input.sort === 'MOVE_DATE_ASC' ? lastRow?.moveDate : lastRow?.createdAt;

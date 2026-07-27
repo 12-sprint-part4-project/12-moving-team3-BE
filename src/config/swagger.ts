@@ -56,6 +56,183 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        SignupRequest: {
+          type: 'object',
+          required: [
+            'userType',
+            'name',
+            'nickname',
+            'email',
+            'phoneNumber',
+            'password',
+            'passwordConfirmation',
+          ],
+          properties: {
+            userType: {
+              type: 'string',
+              enum: ['CUSTOMER', 'MOVER'],
+              example: 'CUSTOMER',
+            },
+            name: { type: 'string', example: '박소정' },
+            nickname: { type: 'string', example: 'sojeong' },
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'customer@example.com',
+            },
+            phoneNumber: {
+              type: 'string',
+              example: '01012345678',
+              description: '숫자 11자리',
+            },
+            password: {
+              type: 'string',
+              format: 'password',
+              example: 'Password123!',
+              description: '8~20자, 영문·숫자·특수문자 포함',
+            },
+            passwordConfirmation: {
+              type: 'string',
+              format: 'password',
+              example: 'Password123!',
+            },
+          },
+        },
+        SignupResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['user', 'accessToken'],
+              properties: {
+                user: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'userType',
+                    'name',
+                    'nickname',
+                    'email',
+                    'phoneNumber',
+                    'isProfileCompleted',
+                    'createdAt',
+                  ],
+                  properties: {
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    userType: {
+                      type: 'string',
+                      enum: ['CUSTOMER', 'MOVER'],
+                      example: 'CUSTOMER',
+                    },
+                    name: { type: 'string', example: '박소정' },
+                    nickname: { type: 'string', example: 'sojeong' },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'customer@example.com',
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '01012345678',
+                    },
+                    isProfileCompleted: {
+                      type: 'boolean',
+                      example: false,
+                      description:
+                        'CustomerProfile 또는 MoverProfile 존재 여부로 계산',
+                    },
+                    createdAt: {
+                      type: 'string',
+                      format: 'date-time',
+                      example: '2026-07-20T13:30:00.000Z',
+                    },
+                  },
+                },
+                accessToken: {
+                  type: 'string',
+                  description: 'Access Token (JWT)',
+                },
+              },
+            },
+          },
+        },
+        LoginRequest: {
+          type: 'object',
+          required: ['userType', 'email', 'password'],
+          properties: {
+            userType: {
+              type: 'string',
+              enum: ['CUSTOMER', 'MOVER'],
+              example: 'CUSTOMER',
+            },
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'customer@example.com',
+            },
+            password: {
+              type: 'string',
+              format: 'password',
+              example: 'Password123!',
+            },
+          },
+        },
+        LoginResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['user', 'accessToken'],
+              properties: {
+                user: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'userType',
+                    'email',
+                    'phoneNumber',
+                    'isProfileCompleted',
+                  ],
+                  properties: {
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    userType: {
+                      type: 'string',
+                      enum: ['CUSTOMER', 'MOVER'],
+                      example: 'CUSTOMER',
+                    },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'customer@example.com',
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '01012345678',
+                    },
+                    isProfileCompleted: {
+                      type: 'boolean',
+                      example: true,
+                    },
+                  },
+                },
+                accessToken: {
+                  type: 'string',
+                  description: 'Access Token (JWT)',
+                },
+              },
+            },
+          },
+        },
         AdminLoginRequest: {
           type: 'object',
           required: ['email', 'password'],

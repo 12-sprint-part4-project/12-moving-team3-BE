@@ -1,17 +1,447 @@
-// 무빙(이사 견적 비교 플랫폼) ERD - Notion "ERD 최종" 페이지 기반 변환
-// 원본: docs erd.dbml (피드백 반영 버전)
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-//=========================================
-// ENUM
-//=========================================
+model User {
+  id                        String                    @id @default(uuid()) @db.Uuid
+  name                      String
+  nickname                  String                    @unique @db.VarChar(50)
+  email                     String                    @unique
+  phoneNumber               String?                   @unique @map("phone_number") @db.VarChar(20)
+  profileImageKey           String?                   @map("profile_image_key") @db.VarChar(500)
+  userType                  UserType                  @map("user_type")
+  createdAt                 DateTime                  @default(now()) @map("created_at")
+  updatedAt                 DateTime                  @updatedAt @map("updated_at")
+  deletedAt                 DateTime?                 @map("deleted_at")
+  authAccounts              AuthAccount[]
+  sentChatMessages          ChatMessage[]
+  chatReadStatuses          ChatReadStatus[]
+  chatRoomParticipations    ChatRoomParticipant[]
+  comments                  Comment[]
+  customerProfile           CustomerProfile?
+  designatedRequestsAsMover EstimateDesignatedMover[]
+  estimateRequests          EstimateRequest[]
+  favoritesAsMover          Favorite[]                @relation("FavoriteMover")
+  favoritesAsUser           Favorite[]                @relation("FavoriteUser")
+  histories                 History[]
+  moverProfile              MoverProfile?
+  notificationsReceived     Notification[]
+  postLikes                 PostLike[]
+  posts                     Post[]
+  quotesAsMover             Quote[]
+  refreshTokens             RefreshToken[]
+  reviews                   Review[]
+  reportsAsReporter         UserReport[]
+  userStatus                UserStatusInfo?
+
+  @@map("users")
+}
+
+model UserStatusInfo {
+  userId         String     @id @map("user_id") @db.Uuid
+  status         UserStatus @default(ACTIVE)
+  suspendedUntil DateTime?  @map("suspended_until")
+  suspendedAt    DateTime?  @map("suspended_at")
+  user           User       @relation(fields: [userId], references: [id])
+
+  @@map("user_statuses")
+}
+
+model AuthAccount {
+  id                Int          @id @default(autoincrement())
+  userId            String       @map("user_id") @db.Uuid
+  provider          AuthProvider
+  providerAccountId String?      @map("provider_account_id")
+  passwordHash      String?      @map("password_hash")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  user              User         @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@map("auth_accounts")
+}
+
+model RefreshToken {
+  id        Int        @id @default(autoincrement())
+  userId    String     @map("user_id") @db.Uuid
+  tokenHash String     @unique @map("token_hash")
+  device    DeviceType
+  expiresAt DateTime   @map("expires_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+  user      User       @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model CustomerProfile {
+  id        Int        @id @default(autoincrement())
+  userId    String     @unique @map("user_id") @db.Uuid
+  region    Region?
+  service   MoveType[] @default([])
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  user      User       @relation(fields: [userId], references: [id])
+
+  @@map("customer_profiles")
+}
+
+model MoverProfile {
+  id               Int                  @id @default(autoincrement())
+  userId           String               @unique @map("user_id") @db.Uuid
+  service          MoveType[]           @default([])
+  career           Int?
+  description      String?
+  shortDescription String?              @map("short_description") @db.VarChar(500)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  user             User                 @relation(fields: [userId], references: [id])
+  serviceRegions   MoverServiceRegion[]
+
+  @@map("mover_profiles")
+}
+
+model MoverServiceRegion {
+  id             Int          @id @default(autoincrement())
+  moverProfileId Int          @map("mover_profile_id")
+  region         Region
+  moverProfile   MoverProfile @relation(fields: [moverProfileId], references: [id])
+
+  @@map("mover_service_regions")
+}
+
+/// 입력 단계별로 채워지는 임시 저장(DRAFT) 흐름이라 대부분 필드가 nullable
+model EstimateRequest {
+  id                     Int                       @id @default(autoincrement())
+  userId                 String                    @map("user_id") @db.Uuid
+  moveType               MoveType?                 @map("move_type")
+  moveDate               DateTime?                 @map("move_date") @db.Date
+  departureZipCode       String?                   @map("departure_zip_code")
+  departureAddress       String?                   @map("departure_address")
+  departureDetailAddress String?                   @map("departure_detail_address")
+  arrivalZipCode         String?                   @map("arrival_zip_code")
+  arrivalAddress         String?                   @map("arrival_address")
+  arrivalDetailAddress   String?                   @map("arrival_detail_address")
+  currentStep            Int                       @default(1) @map("current_step")
+  totalSteps             Int                       @default(4) @map("total_steps")
+  status                 EstimateRequestStatus     @default(DRAFT)
+  confirmedQuoteId       Int?                      @unique @map("confirmed_quote_id")
+  submittedAt            DateTime?                 @map("submitted_at")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
+  chatRooms              ChatRoom[]
+  designatedMovers       EstimateDesignatedMover[]
+  confirmedQuote         Quote?                    @relation("ConfirmedQuote", fields: [confirmedQuoteId], references: [id])
+  user                   User                      @relation(fields: [userId], references: [id])
+  notifications          Notification[]
+  quotes                 Quote[]                   @relation("EstimateRequestQuotes")
+
+  @@index([userId, status])
+  @@index([status, moveDate])
+  @@map("estimate_requests")
+}
+
+model EstimateDesignatedMover {
+  id              Int             @id @default(autoincrement())
+  estimateId      Int             @map("estimate_id")
+  moverId         String          @map("mover_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  chatRooms       ChatRoom[]
+  estimateRequest EstimateRequest @relation(fields: [estimateId], references: [id])
+  mover           User            @relation(fields: [moverId], references: [id])
+
+  @@unique([estimateId, moverId])
+  @@index([moverId])
+  @@map("estimate_designated_movers")
+}
+
+model Quote {
+  id                  Int              @id @default(autoincrement())
+  estimateRequestId   Int              @map("estimate_request_id")
+  moverId             String?          @map("mover_id") @db.Uuid
+  price               Int?
+  comment             String?
+  rejectReason        String?          @map("reject_reason")
+  status              QuoteStatus      @default(PENDING)
+  isDesignated        Boolean          @map("is_designated")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  deletedAt           DateTime?        @map("deleted_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  chatRooms           ChatRoom[]
+  confirmedForRequest EstimateRequest? @relation("ConfirmedQuote")
+  notifications       Notification[]
+  estimateRequest     EstimateRequest  @relation("EstimateRequestQuotes", fields: [estimateRequestId], references: [id], onDelete: Cascade)
+  mover               User?            @relation(fields: [moverId], references: [id])
+  reviews             Review[]
+
+  @@unique([estimateRequestId, moverId])
+  @@index([estimateRequestId])
+  @@index([moverId, status])
+  @@map("quotes")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    String?  @map("user_id") @db.Uuid
+  moverId   String?  @map("mover_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  mover     User?    @relation("FavoriteMover", fields: [moverId], references: [id])
+  user      User?    @relation("FavoriteUser", fields: [userId], references: [id])
+
+  @@unique([userId, moverId])
+  @@map("favorites")
+}
+
+model Review {
+  id            Int            @id @default(autoincrement())
+  userId        String         @map("user_id") @db.Uuid
+  quoteId       Int            @map("quote_id")
+  rating        Int
+  content       String
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime?      @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
+  notifications Notification[]
+  quote         Quote          @relation(fields: [quoteId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+
+  @@unique([userId, quoteId])
+  @@map("reviews")
+}
+
+model Notification {
+  id                Int              @id @default(autoincrement())
+  receiverId        String           @map("receiver_id") @db.Uuid
+  type              NotificationType
+  content           String           @db.VarChar(500)
+  isRead            Boolean          @default(false) @map("is_read")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  commentId         Int?             @map("comment_id")
+  estimateRequestId Int?             @map("estimate_request_id")
+  quoteId           Int?             @map("quote_id")
+  reviewId          Int?             @map("review_id")
+  userReportId      Int?             @map("user_report_id")
+  comment           Comment?         @relation(fields: [commentId], references: [id])
+  estimateRequest   EstimateRequest? @relation(fields: [estimateRequestId], references: [id])
+  quote             Quote?           @relation(fields: [quoteId], references: [id])
+  receiver          User             @relation(fields: [receiverId], references: [id])
+  review            Review?          @relation(fields: [reviewId], references: [id])
+  userReport        UserReport?      @relation(fields: [userReportId], references: [id])
+
+  @@map("notifications")
+}
+
+/// userId, adminUserId는 배치/시스템 처리(예: move_date 경과로 자동 COMPLETED 전환) 시 null
+model History {
+  id            Int           @id @default(autoincrement())
+  userId        String?       @map("user_id") @db.Uuid
+  adminUserId   Int?          @map("admin_user_id")
+  tableName     String        @map("table_name")
+  tableRowId    String        @map("table_row_id")
+  operationType HistoryAction @map("operation_type")
+  beforeData    Json?         @map("before_data")
+  afterData     Json?         @map("after_data")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  adminUser     AdminUser?    @relation(fields: [adminUserId], references: [id])
+  user          User?         @relation(fields: [userId], references: [id])
+
+  @@map("histories")
+}
+
+model ChatRoom {
+  id                Int                      @id @default(autoincrement())
+  estimateRequestId Int?                     @map("estimate_request_id")
+  quoteId           Int?                     @map("quote_id")
+  designatedMoverId Int?                     @map("designated_mover_id")
+  roomType          ChatRoomType             @map("room_type")
+  lastMessageAt     DateTime?                @map("last_message_at")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  messages          ChatMessage[]
+  participants      ChatRoomParticipant[]
+  designatedMover   EstimateDesignatedMover? @relation(fields: [designatedMoverId], references: [id])
+  estimateRequest   EstimateRequest?         @relation(fields: [estimateRequestId], references: [id])
+  quote             Quote?                   @relation(fields: [quoteId], references: [id])
+
+  @@map("chat_rooms")
+}
+
+/// participant_id는 users.id를 참조하는 FK
+model ChatRoomParticipant {
+  id            Int       @id @default(autoincrement())
+  roomId        Int       @map("room_id")
+  participantId String    @map("participant_id") @db.Uuid
+  joinedAt      DateTime  @default(now()) @map("joined_at")
+  leftAt        DateTime? @map("left_at")
+  user          User      @relation(fields: [participantId], references: [id])
+  room          ChatRoom  @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, participantId], map: "chat_room_participants_active_unique", where: raw("(left_at IS NULL)"))
+  @@index([participantId, leftAt])
+  @@map("chat_room_participants")
+}
+
+/// sender_id는 메시지를 보낸 users.id를 참조하는 FK
+model ChatMessage {
+  id           Int                @id @default(autoincrement())
+  roomId       Int                @map("room_id")
+  senderId     String             @map("sender_id") @db.Uuid
+  content      String
+  messageType  MessageType        @map("message_type")
+  isFiltered   Boolean            @default(false) @map("is_filtered")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  attachments  ChatAttachment[]
+  rawLog       ChatMessageRawLog?
+  room         ChatRoom           @relation(fields: [roomId], references: [id])
+  sender       User               @relation(fields: [senderId], references: [id])
+  readStatuses ChatReadStatus[]
+
+  @@index([roomId, id])
+  @@map("chat_messages")
+}
+
+model ChatAttachment {
+  id           Int         @id @default(autoincrement())
+  messageId    Int         @map("message_id")
+  fileKey      String      @map("file_key")
+  thumbnailKey String?     @map("thumbnail_key")
+  fileSize     Int         @map("file_size")
+  message      ChatMessage @relation(fields: [messageId], references: [id])
+
+  @@map("chat_attachments")
+}
+
+model ChatReadStatus {
+  id        Int         @id @default(autoincrement())
+  messageId Int         @map("message_id")
+  readerId  String      @map("reader_id") @db.Uuid
+  readAt    DateTime    @default(now()) @map("read_at")
+  message   ChatMessage @relation(fields: [messageId], references: [id])
+  reader    User        @relation(fields: [readerId], references: [id])
+
+  @@map("chat_read_statuses")
+}
+
+model ChatMessageRawLog {
+  id         Int         @id @default(autoincrement())
+  messageId  Int         @unique @map("message_id")
+  rawContent String      @map("raw_content")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  message    ChatMessage @relation(fields: [messageId], references: [id])
+
+  @@map("chat_message_raw_logs")
+}
+
+model AdminUser {
+  id            Int                 @id @default(autoincrement())
+  email         String              @unique
+  passwordHash  String              @map("password_hash")
+  name          String
+  createdAt     DateTime            @default(now()) @map("created_at")
+  refreshTokens AdminRefreshToken[]
+  histories     History[]
+  userReports   UserReport[]
+
+  @@map("admin_users")
+}
+
+model AdminRefreshToken {
+  id        Int        @id @default(autoincrement())
+  adminId   Int        @map("admin_id")
+  tokenHash String     @unique @map("token_hash")
+  device    DeviceType
+  expiresAt DateTime   @map("expires_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+  admin     AdminUser  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("admin_refresh_tokens")
+}
+
+/// target_id는 target 값에 따라 user/review/chat_room/message/article/comment 중 하나를 가리키는 폴리모픽 컬럼 - FK 미설정
+model UserReport {
+  id            Int                @id @default(autoincrement())
+  reporterId    String             @map("reporter_id") @db.Uuid
+  target        UserReportTarget
+  targetId      Int                @map("target_id")
+  category      UserReportCategory
+  status        UserReportStatus   @default(PENDING)
+  adminId       Int?               @map("admin_id")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  notifications Notification[]
+  admin         AdminUser?         @relation(fields: [adminId], references: [id])
+  reporter      User               @relation(fields: [reporterId], references: [id])
+
+  @@map("user_reports")
+}
+
+model Post {
+  id           Int           @id @default(autoincrement())
+  userId       String        @map("user_id") @db.Uuid
+  category     PostsCategory
+  region       Region?
+  title        String        @db.VarChar(100)
+  content      String
+  viewCount    Int           @default(0) @map("view_count")
+  likeCount    Int           @default(0) @map("like_count")
+  commentCount Int           @default(0) @map("comment_count")
+  latitude     Decimal?      @db.Decimal(10, 7)
+  longitude    Decimal?      @db.Decimal(10, 7)
+  isCompleted  Boolean?      @map("is_completed")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  deletedAt    DateTime?     @map("deleted_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  comments     Comment[]
+  images       PostImage[]
+  likes        PostLike[]
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@map("posts")
+}
+
+model PostImage {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  imageKey  String   @map("image_key") @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@map("post_images")
+}
+
+model PostLike {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+model Comment {
+  id            Int            @id @default(autoincrement())
+  postId        Int            @map("post_id")
+  userId        String         @map("user_id") @db.Uuid
+  parentId      Int?           @map("parent_id")
+  content       String
+  createdAt     DateTime       @default(now()) @map("created_at")
+  deletedAt     DateTime?      @map("deleted_at")
+  parent        Comment?       @relation("CommentReplies", fields: [parentId], references: [id])
+  replies       Comment[]      @relation("CommentReplies")
+  post          Post           @relation(fields: [postId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  notifications Notification[]
+
+  @@map("comments")
+}
 
 enum UserType {
   CUSTOMER
@@ -132,491 +562,4 @@ enum PostsCategory {
   REVIEW
   ETC
   FURNITURE_SHARE
-}
-
-//=========================================
-// 사용자 / 인증
-//=========================================
-
-model User {
-  id              String    @id @default(uuid()) @db.Uuid
-  name            String
-  nickname        String    @unique @db.VarChar(50)
-  email           String    @unique
-  phoneNumber     String?   @unique @map("phone_number") @db.VarChar(20)
-  profileImageKey String?   @map("profile_image_key") @db.VarChar(500)
-  userType        UserType  @map("user_type")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  deletedAt       DateTime? @map("deleted_at")
-
-  authAccounts              AuthAccount[]
-  refreshTokens             RefreshToken[]
-  customerProfile           CustomerProfile?
-  moverProfile              MoverProfile?
-  estimateRequests          EstimateRequest[]
-  designatedRequestsAsMover EstimateDesignatedMover[]
-  quotesAsMover             Quote[]
-  favoritesAsUser           Favorite[]                @relation("FavoriteUser")
-  favoritesAsMover          Favorite[]                @relation("FavoriteMover")
-  reviews                   Review[]
-  notificationsReceived     Notification[]
-  histories                 History[]
-  reportsAsReporter         UserReport[]
-  posts                     Post[]
-  postLikes                 PostLike[]
-  comments                  Comment[]
-  chatRoomParticipations    ChatRoomParticipant[]
-  sentChatMessages          ChatMessage[]
-  chatReadStatuses          ChatReadStatus[]
-
-  userStatus UserStatusInfo?
-
-  @@map("users")
-}
-
-model UserStatusInfo {
-  userId         String     @id @map("user_id") @db.Uuid
-  status         UserStatus @default(ACTIVE)
-  suspendedUntil DateTime?  @map("suspended_until")
-  suspendedAt    DateTime?  @map("suspended_at")
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("user_statuses")
-}
-
-model AuthAccount {
-  id                Int          @id @default(autoincrement())
-  userId            String       @map("user_id") @db.Uuid
-  provider          AuthProvider
-  providerAccountId String?      @map("provider_account_id")
-  passwordHash      String?      @map("password_hash")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([provider, providerAccountId])
-  @@unique([userId, provider])
-  @@map("auth_accounts")
-}
-
-model RefreshToken {
-  id        Int        @id @default(autoincrement())
-  userId    String     @map("user_id") @db.Uuid
-  tokenHash String     @unique @map("token_hash")
-  device    DeviceType
-  expiresAt DateTime   @map("expires_at")
-  createdAt DateTime   @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("refresh_tokens")
-}
-
-model CustomerProfile {
-  id        Int        @id @default(autoincrement())
-  userId    String     @unique @map("user_id") @db.Uuid
-  region    Region?
-  service   MoveType[] @default([])
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("customer_profiles")
-}
-
-model MoverProfile {
-  id               Int        @id @default(autoincrement())
-  userId           String     @unique @map("user_id") @db.Uuid
-  service          MoveType[] @default([])
-  career           Int?
-  description      String?
-  shortDescription String?    @map("short_description") @db.VarChar(500)
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @updatedAt @map("updated_at")
-
-  user           User                 @relation(fields: [userId], references: [id])
-  serviceRegions MoverServiceRegion[]
-
-  @@map("mover_profiles")
-}
-
-model MoverServiceRegion {
-  id             Int    @id @default(autoincrement())
-  moverProfileId Int    @map("mover_profile_id")
-  region         Region
-
-  moverProfile MoverProfile @relation(fields: [moverProfileId], references: [id])
-
-  @@map("mover_service_regions")
-}
-
-//=========================================
-// 견적 요청 / 견적
-//=========================================
-
-/// 입력 단계별로 채워지는 임시 저장(DRAFT) 흐름이라 대부분 필드가 nullable
-model EstimateRequest {
-  id                     Int                   @id @default(autoincrement())
-  userId                 String                @map("user_id") @db.Uuid
-  moveType               MoveType?             @map("move_type")
-  moveDate               DateTime?             @map("move_date") @db.Date
-  departureZipCode       String?               @map("departure_zip_code")
-  departureAddress       String?               @map("departure_address")
-  departureDetailAddress String?               @map("departure_detail_address")
-  arrivalZipCode         String?               @map("arrival_zip_code")
-  arrivalAddress         String?               @map("arrival_address")
-  arrivalDetailAddress   String?               @map("arrival_detail_address")
-  currentStep            Int                   @default(1) @map("current_step")
-  totalSteps             Int                   @default(4) @map("total_steps")
-  status                 EstimateRequestStatus @default(DRAFT)
-  confirmedQuoteId       Int?                  @unique @map("confirmed_quote_id")
-  submittedAt            DateTime?             @map("submitted_at")
-  createdAt              DateTime              @default(now()) @map("created_at")
-  updatedAt              DateTime              @updatedAt @map("updated_at")
-
-  user             User                      @relation(fields: [userId], references: [id])
-  confirmedQuote   Quote?                    @relation("ConfirmedQuote", fields: [confirmedQuoteId], references: [id])
-  designatedMovers EstimateDesignatedMover[]
-  quotes           Quote[]                   @relation("EstimateRequestQuotes")
-  chatRooms        ChatRoom[]
-  notifications    Notification[]
-
-  @@index([userId, status])
-  @@index([status, moveDate])
-  @@map("estimate_requests")
-}
-
-model EstimateDesignatedMover {
-  id         Int      @id @default(autoincrement())
-  estimateId Int      @map("estimate_id")
-  moverId    String   @map("mover_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  estimateRequest EstimateRequest @relation(fields: [estimateId], references: [id])
-  mover           User            @relation(fields: [moverId], references: [id])
-  chatRooms       ChatRoom[]
-
-  @@unique([estimateId, moverId])
-  @@index([moverId])
-  @@map("estimate_designated_movers")
-}
-
-model Quote {
-  id                Int         @id @default(autoincrement())
-  estimateRequestId Int         @map("estimate_request_id")
-  moverId           String?     @map("mover_id") @db.Uuid
-  price             Int?
-  comment           String?
-  rejectReason      String?     @map("reject_reason")
-  status            QuoteStatus @default(PENDING)
-  isDesignated      Boolean     @map("is_designated")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  deletedAt         DateTime?   @map("deleted_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
-
-  estimateRequest     EstimateRequest  @relation("EstimateRequestQuotes", fields: [estimateRequestId], references: [id], onDelete: Cascade)
-  mover               User?            @relation(fields: [moverId], references: [id])
-  confirmedForRequest EstimateRequest? @relation("ConfirmedQuote")
-  reviews             Review[]
-  chatRooms           ChatRoom[]
-  notifications       Notification[]
-
-  @@unique([estimateRequestId, moverId])
-  @@index([estimateRequestId])
-  @@index([moverId, status])
-  @@map("quotes")
-}
-
-model Favorite {
-  id        Int      @id @default(autoincrement())
-  userId    String?  @map("user_id") @db.Uuid
-  moverId   String?  @map("mover_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user  User? @relation("FavoriteUser", fields: [userId], references: [id])
-  mover User? @relation("FavoriteMover", fields: [moverId], references: [id])
-
-  @@unique([userId, moverId])
-  @@map("favorites")
-}
-
-model Review {
-  id        Int       @id @default(autoincrement())
-  userId    String    @map("user_id") @db.Uuid
-  quoteId   Int       @map("quote_id")
-  rating    Int
-  content   String
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime? @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
-
-  user          User           @relation(fields: [userId], references: [id])
-  quote         Quote          @relation(fields: [quoteId], references: [id])
-  notifications Notification[]
-
-  @@unique([userId, quoteId])
-  @@map("reviews")
-}
-
-//=========================================
-// 알림 / 시스템
-//=========================================
-
-model Notification {
-  id                Int              @id @default(autoincrement())
-  receiverId        String           @map("receiver_id") @db.Uuid
-  type              NotificationType
-  estimateRequestId Int?             @map("estimate_request_id")
-  quoteId           Int?             @map("quote_id")
-  reviewId          Int?             @map("review_id")
-  commentId         Int?             @map("comment_id")
-  userReportId      Int?             @map("user_report_id")
-  content           String           @db.VarChar(500)
-  isRead            Boolean          @default(false) @map("is_read")
-  createdAt         DateTime         @default(now()) @map("created_at")
-
-  receiver        User             @relation(fields: [receiverId], references: [id])
-  estimateRequest EstimateRequest? @relation(fields: [estimateRequestId], references: [id], onDelete: SetNull)
-  quote           Quote?           @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  review          Review?          @relation(fields: [reviewId], references: [id], onDelete: SetNull)
-  comment         Comment?         @relation(fields: [commentId], references: [id], onDelete: SetNull)
-  userReport      UserReport?      @relation(fields: [userReportId], references: [id], onDelete: SetNull)
-
-  @@map("notifications")
-}
-
-/// userId, adminUserId는 배치/시스템 처리(예: move_date 경과로 자동 COMPLETED 전환) 시 null
-model History {
-  id            Int           @id @default(autoincrement())
-  userId        String?       @map("user_id") @db.Uuid
-  adminUserId   Int?          @map("admin_user_id")
-  tableName     String        @map("table_name")
-  tableRowId    String        @map("table_row_id")
-  operationType HistoryAction @map("operation_type")
-  beforeData    Json?         @map("before_data")
-  afterData     Json?         @map("after_data")
-  createdAt     DateTime      @default(now()) @map("created_at")
-
-  user      User?      @relation(fields: [userId], references: [id])
-  adminUser AdminUser? @relation(fields: [adminUserId], references: [id])
-
-  @@map("histories")
-}
-
-//=========================================
-// 채팅
-//=========================================
-
-model ChatRoom {
-  id                Int          @id @default(autoincrement())
-  estimateRequestId Int?         @map("estimate_request_id")
-  quoteId           Int?         @map("quote_id")
-  designatedMoverId Int?         @map("designated_mover_id")
-  roomType          ChatRoomType @map("room_type")
-  lastMessageAt     DateTime?    @map("last_message_at")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
-
-  estimateRequest EstimateRequest?         @relation(fields: [estimateRequestId], references: [id])
-  quote           Quote?                   @relation(fields: [quoteId], references: [id])
-  designatedMover EstimateDesignatedMover? @relation(fields: [designatedMoverId], references: [id])
-  participants    ChatRoomParticipant[]
-  messages        ChatMessage[]
-
-  @@map("chat_rooms")
-}
-
-/// participant_id는 users.id를 참조하는 FK
-model ChatRoomParticipant {
-  id            Int       @id @default(autoincrement())
-  roomId        Int       @map("room_id")
-  participantId String    @map("participant_id") @db.Uuid
-  joinedAt      DateTime  @default(now()) @map("joined_at")
-  leftAt        DateTime? @map("left_at")
-
-  room ChatRoom @relation(fields: [roomId], references: [id])
-  user User     @relation(fields: [participantId], references: [id])
-
-  @@index([participantId, leftAt])
-  @@map("chat_room_participants")
-}
-
-/// sender_id는 메시지를 보낸 users.id를 참조하는 FK
-model ChatMessage {
-  id          Int         @id @default(autoincrement())
-  roomId      Int         @map("room_id")
-  senderId    String      @map("sender_id") @db.Uuid
-  content     String
-  messageType MessageType @map("message_type")
-  isFiltered  Boolean     @default(false) @map("is_filtered")
-  createdAt   DateTime    @default(now()) @map("created_at")
-
-  room         ChatRoom           @relation(fields: [roomId], references: [id])
-  sender       User               @relation(fields: [senderId], references: [id])
-  attachments  ChatAttachment[]
-  readStatuses ChatReadStatus[]
-  rawLog       ChatMessageRawLog?
-
-  @@index([roomId, id])
-  @@map("chat_messages")
-}
-
-model ChatAttachment {
-  id           Int     @id @default(autoincrement())
-  messageId    Int     @map("message_id")
-  fileKey      String  @map("file_key")
-  thumbnailKey String? @map("thumbnail_key")
-  fileSize     Int     @map("file_size")
-
-  message ChatMessage @relation(fields: [messageId], references: [id])
-
-  @@map("chat_attachments")
-}
-
-model ChatReadStatus {
-  id        Int      @id @default(autoincrement())
-  messageId Int      @map("message_id")
-  readerId  String   @map("reader_id") @db.Uuid
-  readAt    DateTime @default(now()) @map("read_at")
-
-  message ChatMessage @relation(fields: [messageId], references: [id])
-  reader  User        @relation(fields: [readerId], references: [id])
-
-  @@map("chat_read_statuses")
-}
-
-model ChatMessageRawLog {
-  id         Int      @id @default(autoincrement())
-  messageId  Int      @unique @map("message_id")
-  rawContent String   @map("raw_content")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  message ChatMessage @relation(fields: [messageId], references: [id])
-
-  @@map("chat_message_raw_logs")
-}
-
-//=========================================
-// 관리자 / 신고
-//=========================================
-
-model AdminUser {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  name         String
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  refreshTokens AdminRefreshToken[]
-  userReports   UserReport[]
-  histories     History[]
-
-  @@map("admin_users")
-}
-
-model AdminRefreshToken {
-  id        Int        @id @default(autoincrement())
-  adminId   Int        @map("admin_id")
-  tokenHash String     @unique @map("token_hash")
-  device    DeviceType
-  expiresAt DateTime   @map("expires_at")
-  createdAt DateTime   @default(now()) @map("created_at")
-
-  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
-
-  @@index([adminId])
-  @@map("admin_refresh_tokens")
-}
-
-/// target_id는 target 값에 따라 user/review/chat_room/message/article/comment 중 하나를 가리키는 폴리모픽 컬럼 - FK 미설정
-model UserReport {
-  id         Int                @id @default(autoincrement())
-  reporterId String             @map("reporter_id") @db.Uuid
-  target     UserReportTarget
-  targetId   Int                @map("target_id")
-  category   UserReportCategory
-  status     UserReportStatus   @default(PENDING)
-  adminId    Int?               @map("admin_id")
-  createdAt  DateTime           @default(now()) @map("created_at")
-
-  reporter      User           @relation(fields: [reporterId], references: [id])
-  admin         AdminUser?     @relation(fields: [adminId], references: [id])
-  notifications Notification[]
-
-  @@map("user_reports")
-}
-
-//=========================================
-// 커뮤니티 (게시판)
-//=========================================
-
-model Post {
-  id           Int           @id @default(autoincrement())
-  userId       String        @map("user_id") @db.Uuid
-  category     PostsCategory
-  region       Region?
-  title        String        @db.VarChar(100)
-  content      String
-  viewCount    Int           @default(0) @map("view_count")
-  likeCount    Int           @default(0) @map("like_count")
-  commentCount Int           @default(0) @map("comment_count")
-  latitude     Decimal?      @db.Decimal(10, 7)
-  longitude    Decimal?      @db.Decimal(10, 7)
-  isCompleted  Boolean?      @map("is_completed")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  deletedAt    DateTime?     @map("deleted_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-
-  user     User        @relation(fields: [userId], references: [id])
-  images   PostImage[]
-  likes    PostLike[]
-  comments Comment[]
-
-  @@map("posts")
-}
-
-model PostImage {
-  id        Int      @id @default(autoincrement())
-  postId    Int      @map("post_id")
-  imageKey  String   @map("image_key") @db.VarChar(500)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  post Post @relation(fields: [postId], references: [id])
-
-  @@map("post_images")
-}
-
-model PostLike {
-  id        Int      @id @default(autoincrement())
-  postId    Int      @map("post_id")
-  userId    String   @map("user_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-
-  post Post @relation(fields: [postId], references: [id])
-  user User @relation(fields: [userId], references: [id])
-
-  @@unique([postId, userId])
-  @@map("post_likes")
-}
-
-model Comment {
-  id        Int       @id @default(autoincrement())
-  postId    Int       @map("post_id")
-  userId    String    @map("user_id") @db.Uuid
-  parentId  Int?      @map("parent_id")
-  content   String
-  createdAt DateTime  @default(now()) @map("created_at")
-  deletedAt DateTime? @map("deleted_at")
-
-  post          Post           @relation(fields: [postId], references: [id])
-  user          User           @relation(fields: [userId], references: [id])
-  parent        Comment?       @relation("CommentReplies", fields: [parentId], references: [id])
-  replies       Comment[]      @relation("CommentReplies")
-  notifications Notification[]
-
-  @@map("comments")
 }

@@ -1,6 +1,6 @@
 import {
   EstimateRequestStatus,
-  type MoveType,
+  MoveType,
   type Prisma,
   type Region,
 } from '@prisma/client';
@@ -8,6 +8,7 @@ import { prisma } from '../lib/prisma';
 import type { EstimateRequestSort } from '../schemas/estimate-request.schema';
 import { getRegionAddressKeywords } from '../utils/region.util';
 
+type DbClient = Prisma.TransactionClient;
 export interface MoverProfileWithRegions {
   serviceRegions: Region[];
 }
@@ -176,7 +177,8 @@ const listSelect = {
  * limit 보다 1개 더 조회해 다음 페이지 존재 여부(hasNextPage) 판단
  */
 export const findEstimateRequests = async (
-  params: FindEstimateRequestsParams
+  params: FindEstimateRequestsParams,
+  db: DbClient = prisma
 ): Promise<{ items: EstimateRequestListRow[]; hasNextPage: boolean }> => {
   const now = new Date();
   const baseWhere = buildWhere(params, now);
@@ -189,7 +191,7 @@ export const findEstimateRequests = async (
       ? [{ moveDate: 'asc' }, { id: 'asc' }]
       : [{ createdAt: 'asc' }, { id: 'asc' }];
 
-  const rows = await prisma.estimateRequest.findMany({
+  const rows = await db.estimateRequest.findMany({
     where,
     orderBy,
     take: params.limit + 1,
@@ -215,9 +217,10 @@ export const findEstimateRequests = async (
  * 현재 적용된 모든 필터 조건을 만족하는 견적 요청의 전체 개수 카운트
  */
 export const countEstimateRequests = async (
-  params: EstimateRequestFilterParams
+  params: EstimateRequestFilterParams,
+  db: DbClient = prisma
 ): Promise<number> => {
-  return prisma.estimateRequest.count({
+  return db.estimateRequest.count({
     where: buildWhere(params, new Date()),
   });
 };
@@ -226,17 +229,20 @@ export const countEstimateRequests = async (
  * moveType 별 개수 카운트
  */
 export const countEstimateRequestsByMoveType = async (
-  params: Omit<EstimateRequestFilterParams, 'moveTypes'>
+  params: Omit<EstimateRequestFilterParams, 'moveTypes'>,
+  db: DbClient = prisma
 ): Promise<Record<MoveType, number>> => {
   const where = buildWhere({ ...params, moveTypes: undefined }, new Date());
 
-  const grouped = await prisma.estimateRequest.groupBy({
+  const grouped = await db.estimateRequest.groupBy({
     by: ['moveType'],
     where,
     _count: { _all: true },
   });
 
-  const counts: Record<MoveType, number> = { SMALL: 0, HOME: 0, OFFICE: 0 };
+  const counts = Object.fromEntries(
+    Object.values(MoveType).map((moveType) => [moveType, 0])
+  ) as Record<MoveType, number>;
 
   for (const row of grouped) {
     if (row.moveType) {
@@ -251,18 +257,20 @@ export const countEstimateRequestsByMoveType = async (
  * 지정 견적 요청 개수 카운트
  */
 export const countDesignatedEstimateRequests = async (
-  params: Omit<EstimateRequestFilterParams, 'designated'>
+  params: Omit<EstimateRequestFilterParams, 'designated'>,
+  db: DbClient = prisma
 ): Promise<number> => {
   const where = buildWhere({ ...params, designated: true }, new Date());
-  return prisma.estimateRequest.count({ where });
+  return db.estimateRequest.count({ where });
 };
 
 /**
  * 서비스 지역 매칭 요청 개수 카운트
  */
 export const countServiceAreaEstimateRequests = async (
-  params: Omit<EstimateRequestFilterParams, 'serviceArea'>
+  params: Omit<EstimateRequestFilterParams, 'serviceArea'>,
+  db: DbClient = prisma
 ): Promise<number> => {
   const where = buildWhere({ ...params, serviceArea: true }, new Date());
-  return prisma.estimateRequest.count({ where });
+  return db.estimateRequest.count({ where });
 };
