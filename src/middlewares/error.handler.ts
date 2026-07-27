@@ -1,6 +1,7 @@
 import { type ErrorRequestHandler } from 'express';
-import { AppError } from '../utils/app.error';
 import { ERROR_CODES } from '../constants/error.codes';
+import { AppError } from '../utils/app.error';
+import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 
 export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   if (error instanceof AppError) {
@@ -8,6 +9,18 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
       error: {
         code: error.code,
         message: error.message,
+      },
+    });
+    return;
+  }
+
+  const prismaAppError = toAppErrorFromPrisma(error);
+
+  if (prismaAppError) {
+    res.status(prismaAppError.status).json({
+      error: {
+        code: prismaAppError.code,
+        message: prismaAppError.message,
       },
     });
     return;
