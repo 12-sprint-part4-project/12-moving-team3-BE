@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import * as adminAuthController from '../controllers/admin-auth.controller';
+import { validateRequest } from '../middlewares/validate.middleware';
+import { adminLoginBodySchema } from '../schemas/admin-auth.schema';
 
 const router = Router();
 
@@ -74,6 +76,13 @@ const router = Router();
  *                 code: INTERNAL_SERVER_ERROR
  *                 message: 서버 내부 오류가 발생했습니다.
  */
-router.post('/login', adminAuthController.login);
+router.post(
+  '/login',
+  validateRequest({
+    body: adminLoginBodySchema,
+    errorCode: 'ADMIN_INVALID_LOGIN_BODY',
+  }),
+  adminAuthController.loginAdmin
+);
 
 export default router;

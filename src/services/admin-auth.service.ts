@@ -29,7 +29,7 @@ export interface AdminLoginServiceResult {
   };
 }
 
-export const login = async (
+export const loginAdmin = async (
   input: AdminLoginServiceInput
 ): Promise<AdminLoginServiceResult> => {
   const admin = await adminAuthRepository.findAdminByEmail(input.email);
