@@ -27,6 +27,13 @@ const options: swaggerJSDoc.Options = {
           scheme: 'bearer',
           bearerFormat: 'JWT',
         },
+        // 일반 유저 bearerAuth와 분리 — 관리자 Access Token 전용
+        adminBearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: '관리자 Access Token (Authorization: Bearer <token>)',
+        },
       },
       schemas: {
         // AppError가 던지는 에러 응답 공통 포맷
@@ -44,6 +51,52 @@ const options: swaggerJSDoc.Options = {
                 message: {
                   type: 'string',
                   example: '등록된 프로필을 찾을 수 없습니다.',
+                },
+              },
+            },
+          },
+        },
+        AdminLoginRequest: {
+          type: 'object',
+          required: ['email', 'password'],
+          properties: {
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'admin@example.com',
+            },
+            password: {
+              type: 'string',
+              format: 'password',
+              minLength: 1,
+              example: 'AdminPass1!',
+            },
+          },
+        },
+        AdminLoginResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['accessToken', 'admin'],
+              properties: {
+                accessToken: {
+                  type: 'string',
+                  description: '관리자 Access Token (JWT)',
+                },
+                admin: {
+                  type: 'object',
+                  required: ['id', 'email', 'name'],
+                  properties: {
+                    id: { type: 'integer', example: 1 },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'admin@example.com',
+                    },
+                    name: { type: 'string', example: '관리자' },
+                  },
                 },
               },
             },
