@@ -7,8 +7,9 @@ export const getMovers = async (
   next: NextFunction
 ) => {
   try {
-    const queryParams = req.query;
-    const movers = await moversService.getMovers(queryParams);
+    const movers = await moversService.getMovers(
+      req.query as Record<string, unknown>
+    );
 
     res.status(200).json({
       data: movers,
@@ -24,10 +25,11 @@ export const getMoverDetail = async (
   next: NextFunction
 ) => {
   try {
-    const { id } = req.params;
-    const mover = await moversService.getMoverDetail(id);
+    const id = String(req.params.id);
+    const moverDetail = await moversService.getMoverDetail(id);
+
     res.status(200).json({
-      data: mover,
+      data: moverDetail,
     });
   } catch (error) {
     next(error);
