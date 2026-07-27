@@ -5,7 +5,7 @@ import { estimateRequestListQuerySchema } from '../schemas/estimate-request.sche
 
 const router = Router();
 
-// 기사님이 받은 견적 요청 목록 조회 (Swagger 문서: src/docs/driver.swagger.yaml)
+// 기사님이 받은 견적 요청 목록 조회 (Swagger 문서: src/docs/mover.swagger.yaml)
 router.get(
   '/estimate-requests',
   validateRequest({

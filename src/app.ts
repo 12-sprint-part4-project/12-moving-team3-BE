@@ -6,7 +6,7 @@ import swaggerUi from 'swagger-ui-express';
 import { SWAGGER_BASE_URL, swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
 import adminAuthRouter from './routes/admin-auth.route';
-import driverRouter from './routes/driver.route';
+import moverRouter from './routes/mover.route';
 import testRouter from './routes/test.route';
 
 const app = express();
@@ -55,7 +55,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use('/', testRouter);
 app.use('/api/admin/auth', adminAuthRouter);
-app.use('/api/users/drivers', driverRouter);
+app.use('/api/users/movers', moverRouter);
 
 app.use(errorHandler);
 
