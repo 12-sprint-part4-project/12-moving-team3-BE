@@ -419,6 +419,7 @@ model ChatRoom {
   roomType          ChatRoomType @map("room_type")
   lastMessageAt     DateTime?    @map("last_message_at")
   createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
   estimateRequest EstimateRequest?         @relation(fields: [estimateRequestId], references: [id])
   quote           Quote?                   @relation(fields: [quoteId], references: [id])
@@ -440,6 +441,7 @@ model ChatRoomParticipant {
   room ChatRoom @relation(fields: [roomId], references: [id])
   user User     @relation(fields: [participantId], references: [id])
 
+  @@index([participantId, leftAt])
   @@map("chat_room_participants")
 }
 
@@ -459,6 +461,7 @@ model ChatMessage {
   readStatuses ChatReadStatus[]
   rawLog       ChatMessageRawLog?
 
+  @@index([roomId, id])
   @@map("chat_messages")
 }
 
