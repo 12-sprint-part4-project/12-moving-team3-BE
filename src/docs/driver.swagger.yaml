@@ -1,0 +1,212 @@
+components:
+  schemas:
+    EstimateRequestListItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        customer:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+              example: 홍길동
+        moveType:
+          type: string
+          enum: [SMALL, HOME, OFFICE]
+          nullable: true
+        moveDate:
+          type: string
+          format: date
+          nullable: true
+        departure:
+          type: object
+          properties:
+            address:
+              type: string
+              nullable: true
+              example: 서울특별시 강남구 테헤란로 123
+            regionLabel:
+              type: string
+              nullable: true
+              example: 서울
+        arrival:
+          type: object
+          properties:
+            address:
+              type: string
+              nullable: true
+              example: 경기도 성남시 분당구 판교역로 456
+            regionLabel:
+              type: string
+              nullable: true
+              example: 경기
+        isDesignated:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    EstimateRequestListResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/EstimateRequestListItem'
+        meta:
+          type: object
+          properties:
+            totalCount:
+              type: integer
+              example: 42
+            nextCursor:
+              type: string
+              nullable: true
+              description: 다음 페이지 조회에 사용할 커서. 없으면 마지막 페이지.
+            hasNextPage:
+              type: boolean
+            filterCounts:
+              type: object
+              description: 현재 커서와 무관하게 집계한, 뱃지 표시용 카운트
+              properties:
+                moveType:
+                  type: object
+                  properties:
+                    SMALL:
+                      type: integer
+                    HOME:
+                      type: integer
+                    OFFICE:
+                      type: integer
+                serviceAreaOnly:
+                  type: integer
+                designated:
+                  type: integer
+
+paths:
+  /api/users/drivers/estimate-requests:
+    get:
+      tags: [Driver EstimateRequest]
+      summary: 기사님이 받은 견적 요청 목록 조회
+      description: |
+        기사(Mover)에게 들어온 견적 요청 목록을 커서 기반으로 조회합니다.
+        이미 견적을 제출/반려했거나 이사일이 지난 요청은 기본적으로 제외됩니다.
+        인증/인가 미들웨어 연결 전이라 `x-mover-id` 헤더로 기사를 임시 식별합니다.
+      # TODO: 인증/인가 미들웨어 구현 후 주석 해제하고, 아래 x-mover-id 파라미터는 제거
+      # security:
+      #   - bearerAuth: []
+      parameters:
+        # TODO: 인증/인가 미들웨어 구현 후 이 파라미터 제거
+        - name: x-mover-id
+          in: header
+          required: true
+          description: 기사(User) UUID. 인증 미들웨어 적용 전 임시 식별자.
+          schema:
+            type: string
+            format: uuid
+        - name: keyword
+          in: query
+          required: false
+          description: 고객 이름 부분 일치 검색
+          schema:
+            type: string
+        - name: moveType
+          in: query
+          required: false
+          description: 이사 유형 필터 (다중 선택 가능, 콤마 구분 또는 반복 파라미터)
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [SMALL, HOME, OFFICE]
+        - name: designated
+          in: query
+          required: false
+          description: true 인 경우 기사님에게 직접 지정된 견적 요청만 조회
+          schema:
+            type: boolean
+        - name: serviceArea
+          in: query
+          required: false
+          description: true 인 경우 기사님의 서비스 가능 지역과 매칭되는 요청만 조회
+          schema:
+            type: boolean
+        - name: sort
+          in: query
+          required: false
+          description: 정렬 조건 (기본값 MOVE_DATE_ASC)
+          schema:
+            type: string
+            enum: [MOVE_DATE_ASC, CREATED_AT_ASC]
+            default: MOVE_DATE_ASC
+        - name: cursor
+          in: query
+          required: false
+          description: 이전 응답의 meta.nextCursor 값 (무한 스크롤 다음 페이지 조회 시 사용)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: 페이지당 조회 개수 (기본값 10, 최대 20)
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 20
+      responses:
+        '200':
+          description: 견적 요청 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimateRequestListResponse'
+        '400':
+          description: 유효하지 않은 정렬/필터 값
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_QUERY_PARAM
+                  message: 유효하지 않은 정렬 또는 필터 값입니다.
+        '401':
+          description: 기사 식별 실패 (x-mover-id 헤더 누락/형식 오류)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요합니다.
+        '404':
+          description: 등록된 기사님 프로필이 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: PROFILE_NOT_REGISTERED
+                  message: 등록된 기사님 프로필이 없습니다. 프로필을 먼저 등록해 주세요.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
