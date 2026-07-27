@@ -6,11 +6,8 @@ import swaggerUi from 'swagger-ui-express';
 import { SWAGGER_BASE_URL, swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
 import adminAuthRouter from './routes/admin-auth.route';
-<<<<<<< HEAD
 import moverRouter from './routes/mover.route';
-=======
 import chatRouter from './routes/chat.route';
->>>>>>> 08c161f463373cb4e18648be89fe4b330c4c71c4
 import authRouter from './routes/auth.route';
 import testRouter from './routes/test.route';
 import './types/express';
@@ -62,11 +59,8 @@ if (process.env.NODE_ENV !== 'production') {
 app.use('/', testRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin/auth', adminAuthRouter);
-<<<<<<< HEAD
 app.use('/api/users/movers', moverRouter);
-=======
 app.use('/api/chat', chatRouter);
->>>>>>> 08c161f463373cb4e18648be89fe4b330c4c71c4
 
 app.use(errorHandler);
 
