@@ -7,7 +7,7 @@ export type RefreshTokenTyp = 'refresh';
 export interface AccessTokenPayload {
   sub: string;
   typ: AccessTokenTyp;
-  userType: 'CUSTOMER' | 'DRIVER';
+  userType: 'CUSTOMER' | 'MOVER';
 }
 
 export interface RefreshTokenPayload {
@@ -46,7 +46,7 @@ const getRefreshSignOptions = (): SignOptions => ({
 // 관리자 JWT secret과 분리
 export const createAccessToken = (
   userId: string,
-  userType: 'CUSTOMER' | 'DRIVER'
+  userType: 'CUSTOMER' | 'MOVER'
 ): string => {
   const payload: AccessTokenPayload = {
     sub: userId,
@@ -109,7 +109,7 @@ const isVerifiedAccessTokenPayload = (
   return (
     typeof candidate.sub === 'string' &&
     candidate.typ === 'access' &&
-    (candidate.userType === 'CUSTOMER' || candidate.userType === 'DRIVER') &&
+    (candidate.userType === 'CUSTOMER' || candidate.userType === 'MOVER') &&
     typeof candidate.iat === 'number' &&
     typeof candidate.exp === 'number'
   );

@@ -58,11 +58,11 @@ export interface LoginServiceResult {
 }
 
 const toPrismaUserType = (userType: ApiUserType): UserType => {
-  return userType === 'DRIVER' ? UserType.MOVER : UserType.CUSTOMER;
+  return userType === 'MOVER' ? UserType.MOVER : UserType.CUSTOMER;
 };
 
 const toApiUserType = (userType: UserType): ApiUserType => {
-  return userType === UserType.MOVER ? 'DRIVER' : 'CUSTOMER';
+  return userType === UserType.MOVER ? 'MOVER' : 'CUSTOMER';
 };
 
 export const login = async (

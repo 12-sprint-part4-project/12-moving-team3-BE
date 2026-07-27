@@ -70,7 +70,7 @@ const options: swaggerJSDoc.Options = {
           properties: {
             userType: {
               type: 'string',
-              enum: ['CUSTOMER', 'DRIVER'],
+              enum: ['CUSTOMER', 'MOVER'],
               example: 'CUSTOMER',
             },
             name: { type: 'string', example: '박소정' },
@@ -126,7 +126,7 @@ const options: swaggerJSDoc.Options = {
                     },
                     userType: {
                       type: 'string',
-                      enum: ['CUSTOMER', 'DRIVER'],
+                      enum: ['CUSTOMER', 'MOVER'],
                       example: 'CUSTOMER',
                     },
                     name: { type: 'string', example: '박소정' },
@@ -167,7 +167,7 @@ const options: swaggerJSDoc.Options = {
           properties: {
             userType: {
               type: 'string',
-              enum: ['CUSTOMER', 'DRIVER'],
+              enum: ['CUSTOMER', 'MOVER'],
               example: 'CUSTOMER',
             },
             email: {
@@ -207,7 +207,7 @@ const options: swaggerJSDoc.Options = {
                     },
                     userType: {
                       type: 'string',
-                      enum: ['CUSTOMER', 'DRIVER'],
+                      enum: ['CUSTOMER', 'MOVER'],
                       example: 'CUSTOMER',
                     },
                     email: {
@@ -324,8 +324,8 @@ const options: swaggerJSDoc.Options = {
       },
     },
   },
-  // JSDoc(@swagger 주석)을 읽어올 경로. 현재 routes 구조에 맞춤.
-  apis: ['./src/routes/**/*.ts'],
+  // JSDoc(@swagger 주석)을 읽어올 경로 + 라우터 주석이 길어지는 것을 막기 위해 분리한 yaml 문서
+  apis: ['./src/routes/**/*.ts', './src/docs/**/*.yaml'],
 };
 
 export const swaggerSpec = swaggerJSDoc(options);
