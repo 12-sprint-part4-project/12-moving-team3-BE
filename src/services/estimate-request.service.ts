@@ -64,7 +64,7 @@ const isEstimateRequestCursor = (
   }
 
   return (
-    typeof value.id === 'number' &&
+    Number.isSafeInteger(value.id) &&
     typeof value.value === 'string' &&
     !Number.isNaN(Date.parse(value.value))
   );
