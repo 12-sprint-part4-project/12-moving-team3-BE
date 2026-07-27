@@ -160,7 +160,7 @@ CREATE TABLE "estimate_designated_movers" (
     "id" SERIAL NOT NULL,
     "estimate_id" INTEGER NOT NULL,
     "mover_id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "estimate_designated_movers_pkey" PRIMARY KEY ("id")
 );

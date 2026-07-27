@@ -150,7 +150,7 @@ model EstimateDesignatedMover {
   id              Int             @id @default(autoincrement())
   estimateId      Int             @map("estimate_id")
   moverId         String          @map("mover_id") @db.Uuid
-  createdAt       DateTime        @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
   chatRooms       ChatRoom[]
   estimateRequest EstimateRequest @relation(fields: [estimateId], references: [id])
   mover           User            @relation(fields: [moverId], references: [id])
