@@ -23,9 +23,8 @@ router.get(
 // 견적 보내기 / 반려하기 (Swagger 문서: src/docs/mover.swagger.yaml)
 router.post(
   '/estimate-requests/:estimateRequestId/quotes',
-  // 인증 미들웨어 구현 후 주석 해제.
-  // authenticate,
-  // authorizeMover,
+  requireAuth,
+  allowUserTypes('MOVER'),
   validateRequest({
     params: quoteParamsSchema,
     body: quoteBodySchema,

@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import {
   quoteBodySchema,
   quoteParamsSchema,
@@ -43,13 +44,7 @@ export const submitQuote = async (
   next: NextFunction
 ) => {
   try {
-    // 인증 미들웨어 연결 전까지 임시 무버 ID 사용.
-    // const moverId = req.user?.id;
-    // if (!moverId) {
-    //   throw new AppError('UNAUTHORIZED');
-    // }
-    const moverId = '3c3c6c63-9ea4-491c-8183-1bf3693e290a';
-
+    const { userId: moverId } = getAuthenticatedUser(res);
     const { estimateRequestId } = getValidatedParams(res);
     const body = getValidatedBody(req);
 
