@@ -16,6 +16,11 @@ export interface RefreshTokenPayload {
   jti: string;
 }
 
+export interface VerifiedAccessTokenPayload extends AccessTokenPayload {
+  iat: number;
+  exp: number;
+}
+
 const getRequiredEnv = (key: string): string => {
   const value = process.env[key];
 
@@ -89,4 +94,34 @@ export const getAuthRefreshTokenExpiry = (
     expiresAt,
     maxAgeMs: Math.max(expiresAt.getTime() - Date.now(), 0),
   };
+};
+
+const isVerifiedAccessTokenPayload = (
+  payload: unknown
+): payload is VerifiedAccessTokenPayload => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+
+  return (
+    typeof candidate.sub === 'string' &&
+    candidate.typ === 'access' &&
+    (candidate.userType === 'CUSTOMER' || candidate.userType === 'DRIVER') &&
+    typeof candidate.iat === 'number' &&
+    typeof candidate.exp === 'number'
+  );
+};
+
+export const verifyAccessToken = (
+  accessToken: string
+): VerifiedAccessTokenPayload => {
+  const decoded = jwt.verify(accessToken, getRequiredEnv('JWT_ACCESS_SECRET'));
+
+  if (!isVerifiedAccessTokenPayload(decoded)) {
+    throw new Error('Invalid access token payload');
+  }
+
+  return decoded;
 };
