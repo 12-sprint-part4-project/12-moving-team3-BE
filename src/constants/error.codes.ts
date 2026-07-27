@@ -112,6 +112,10 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 기사님입니다.',
   },
+  PROFILE_NOT_REGISTERED: {
+    status: 404,
+    message: '등록된 기사님 프로필이 없습니다. 프로필을 먼저 등록해 주세요.',
+  },
   ALREADY_FAVORITED: {
     status: 409,
     message: '이미 찜한 기사님입니다.',
