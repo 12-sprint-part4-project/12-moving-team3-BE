@@ -68,6 +68,14 @@ export const ERROR_CODES = {
     status: 400,
     message: '이름은 2자 이상 20자 이하로 입력해 주세요.',
   },
+  REQUIRED_FIELD_MISSING: {
+    status: 400,
+    message: '필수 입력값을 모두 입력해 주세요.',
+  },
+  INVALID_USER_TYPE: {
+    status: 400,
+    message: '지원하지 않는 사용자 유형입니다.',
+  },
   INVALID_EMAIL_FORMAT: {
     status: 400,
     message: '올바른 이메일 형식으로 입력해 주세요.',
@@ -83,6 +91,18 @@ export const ERROR_CODES = {
   PHONE_NUMBER_ALREADY_EXISTS: {
     status: 409,
     message: '이미 사용 중인 전화번호입니다.',
+  },
+  NICKNAME_ALREADY_EXISTS: {
+    status: 409,
+    message: '이미 사용 중인 닉네임입니다.',
+  },
+  INVALID_PASSWORD_FORMAT: {
+    status: 400,
+    message: '비밀번호 형식을 확인해 주세요.',
+  },
+  PASSWORD_CONFIRMATION_MISMATCH: {
+    status: 400,
+    message: '비밀번호가 일치하지 않습니다.',
   },
   CURRENT_PASSWORD_REQUIRED: {
     status: 400,
