@@ -18,7 +18,7 @@ WITH ranked AS (
   SELECT id,
          ROW_NUMBER() OVER (
            PARTITION BY room_id, participant_id
-           ORDER BY joined_at DESC
+           ORDER BY joined_at DESC, id DESC
          ) AS rn
   FROM chat_room_participants
   WHERE left_at IS NULL
