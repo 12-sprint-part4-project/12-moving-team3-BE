@@ -10,13 +10,18 @@ interface ValidateRequestOptions {
   errorCode: ErrorCode;
 }
 
+interface ValidatedLocals {
+  query?: unknown;
+  params?: unknown;
+}
+
 export const validateRequest = ({
   body,
   query,
   params,
   errorCode,
 }: ValidateRequestOptions): RequestHandler => {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     try {
       if (body) {
         const parsedBody = body.safeParse(req.body);
@@ -28,6 +33,8 @@ export const validateRequest = ({
         req.body = parsedBody.data;
       }
 
+      const validated: ValidatedLocals = {};
+
       if (query) {
         const parsedQuery = query.safeParse(req.query);
 
@@ -35,7 +42,7 @@ export const validateRequest = ({
           throw new AppError(errorCode);
         }
 
-        req.query = parsedQuery.data as Request['query'];
+        validated.query = parsedQuery.data;
       }
 
       if (params) {
@@ -45,7 +52,11 @@ export const validateRequest = ({
           throw new AppError(errorCode);
         }
 
-        req.params = parsedParams.data as Request['params'];
+        validated.params = parsedParams.data;
+      }
+
+      if (query || params) {
+        res.locals.validated = validated;
       }
 
       next();
