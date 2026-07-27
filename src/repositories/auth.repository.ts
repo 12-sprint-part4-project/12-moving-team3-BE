@@ -22,6 +22,31 @@ export const findUserByPhoneNumber = async (phoneNumber: string) => {
   });
 };
 
+export const findUserWithLocalAuthByEmail = async (email: string) => {
+  return prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      userType: true,
+      email: true,
+      phoneNumber: true,
+      customerProfile: { select: { id: true } },
+      moverProfile: { select: { id: true } },
+      authAccounts: {
+        where: { provider: 'LOCAL' },
+        select: { passwordHash: true },
+        take: 1,
+      },
+    },
+  });
+};
+
+export const deleteRefreshTokensByUserId = async (userId: string) => {
+  return prisma.refreshToken.deleteMany({
+    where: { userId },
+  });
+};
+
 export interface CreateUserWithLocalAuthInput {
   name: string;
   nickname: string;

@@ -3,6 +3,12 @@ import { AppError } from '../utils/app.error';
 
 export type ApiUserType = 'CUSTOMER' | 'DRIVER';
 
+export interface LoginBody {
+  userType: ApiUserType;
+  email: string;
+  password: string;
+}
+
 export interface SignupBody {
   userType: ApiUserType;
   name: string;
@@ -44,6 +50,45 @@ const isBlank = (value: unknown): boolean => {
 
 const isApiUserType = (value: string): value is ApiUserType => {
   return (API_USER_TYPES as readonly string[]).includes(value);
+};
+
+const LOGIN_REQUIRED_FIELDS = ['userType', 'email', 'password'] as const;
+
+/**
+ * 로그인 요청 body를 명세의 검증 순서에 맞춰 파싱한다.
+ */
+export const parseLoginBody = (body: unknown): LoginBody => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new AppError('LOGIN_REQUIRED_FIELD_MISSING');
+  }
+
+  const data = body as Record<string, unknown>;
+
+  for (const field of LOGIN_REQUIRED_FIELDS) {
+    if (isBlank(data[field])) {
+      throw new AppError('LOGIN_REQUIRED_FIELD_MISSING');
+    }
+  }
+
+  if (typeof data.userType !== 'string' || !isApiUserType(data.userType)) {
+    throw new AppError('INVALID_USER_TYPE');
+  }
+
+  const emailResult = z.email().safeParse(data.email);
+
+  if (!emailResult.success) {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  if (typeof data.password !== 'string') {
+    throw new AppError('LOGIN_REQUIRED_FIELD_MISSING');
+  }
+
+  return {
+    userType: data.userType,
+    email: emailResult.data,
+    password: data.password,
+  };
 };
 
 /**

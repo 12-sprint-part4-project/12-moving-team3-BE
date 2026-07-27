@@ -7,6 +7,7 @@ export type RefreshTokenTyp = 'refresh';
 export interface AccessTokenPayload {
   sub: string;
   typ: AccessTokenTyp;
+  userType: 'CUSTOMER' | 'DRIVER';
 }
 
 export interface RefreshTokenPayload {
@@ -36,10 +37,14 @@ const getRefreshSignOptions = (): SignOptions => ({
 });
 
 // 관리자 JWT secret과 분리
-export const createAccessToken = (userId: string): string => {
+export const createAccessToken = (
+  userId: string,
+  userType: 'CUSTOMER' | 'DRIVER'
+): string => {
   const payload: AccessTokenPayload = {
     sub: userId,
     typ: 'access',
+    userType,
   };
 
   return jwt.sign(

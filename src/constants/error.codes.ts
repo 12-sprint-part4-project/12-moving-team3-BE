@@ -104,6 +104,18 @@ export const ERROR_CODES = {
     status: 400,
     message: '비밀번호가 일치하지 않습니다.',
   },
+  LOGIN_REQUIRED_FIELD_MISSING: {
+    status: 400,
+    message: '이메일과 비밀번호를 모두 입력해 주세요.',
+  },
+  INVALID_CREDENTIALS: {
+    status: 401,
+    message: '이메일 또는 비밀번호가 일치하지 않습니다.',
+  },
+  USER_TYPE_MISMATCH: {
+    status: 403,
+    message: '해당 사용자 유형으로 가입된 계정이 아닙니다.',
+  },
   CURRENT_PASSWORD_REQUIRED: {
     status: 400,
     message: '현재 비밀번호를 입력해 주세요.',

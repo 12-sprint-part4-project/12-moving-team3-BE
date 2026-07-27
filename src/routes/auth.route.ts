@@ -76,4 +76,81 @@ const router = Router();
  */
 router.post('/signup', authController.signup);
 
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: 로그인
+ *     description: |
+ *       일반 유저(CUSTOMER) 또는 기사님(DRIVER) 계정으로 로그인합니다.
+ *       요청 userType과 가입된 계정 유형이 일치해야 합니다.
+ *       Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
+ *       로그인 시 기존 Refresh Token은 새 토큰으로 교체됩니다.
+ *       device는 Body로 받지 않고 User-Agent를 서버에서 판별합니다.
+ *     parameters:
+ *       - name: User-Agent
+ *         in: header
+ *         required: false
+ *         description: 기기 유형(DESKTOP/MOBILE/TABLET) 판별에 사용. 없거나 판별 불가 시 DESKTOP.
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *           examples:
+ *             customer:
+ *               summary: 일반 유저 로그인
+ *               value:
+ *                 userType: CUSTOMER
+ *                 email: customer@example.com
+ *                 password: Password123!
+ *             driver:
+ *               summary: 기사님 로그인
+ *               value:
+ *                 userType: DRIVER
+ *                 email: mover@example.com
+ *                 password: Password123!
+ *     responses:
+ *       200:
+ *         description: 로그인 성공
+ *         headers:
+ *           Set-Cookie:
+ *             description: Refresh Token (httpOnly, path=/api/auth)
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         description: 요청 유효성 검사 실패
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: 이메일 또는 비밀번호 불일치
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: 사용자 유형 불일치
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: 서버 내부 오류
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/login', authController.login);
+
 export default router;

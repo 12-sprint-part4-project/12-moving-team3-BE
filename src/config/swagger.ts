@@ -165,6 +165,78 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        LoginRequest: {
+          type: 'object',
+          required: ['userType', 'email', 'password'],
+          properties: {
+            userType: {
+              type: 'string',
+              enum: ['CUSTOMER', 'DRIVER'],
+              example: 'CUSTOMER',
+            },
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'customer@example.com',
+            },
+            password: {
+              type: 'string',
+              format: 'password',
+              example: 'Password123!',
+            },
+          },
+        },
+        LoginResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['user', 'accessToken'],
+              properties: {
+                user: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'userType',
+                    'email',
+                    'phoneNumber',
+                    'isProfileCompleted',
+                  ],
+                  properties: {
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    userType: {
+                      type: 'string',
+                      enum: ['CUSTOMER', 'DRIVER'],
+                      example: 'CUSTOMER',
+                    },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'customer@example.com',
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '01012345678',
+                    },
+                    isProfileCompleted: {
+                      type: 'boolean',
+                      example: true,
+                    },
+                  },
+                },
+                accessToken: {
+                  type: 'string',
+                  description: 'Access Token (JWT)',
+                },
+              },
+            },
+          },
+        },
         AdminLoginRequest: {
           type: 'object',
           required: ['email', 'password'],
