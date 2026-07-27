@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import { SWAGGER_BASE_URL, swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
+import favoritesRouter from './routes/favorites.route';
 import adminAuthRouter from './routes/admin-auth.route';
 import moversRouter from './routes/movers.route';
 import testRouter from './routes/test.route';
@@ -56,6 +57,7 @@ if (process.env.NODE_ENV !== 'production') {
 app.use('/', testRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/movers', moversRouter);
+app.use('/api/favorites', favoritesRouter);
 
 app.use(errorHandler);
 

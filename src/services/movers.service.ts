@@ -88,10 +88,7 @@ const parseSort = (
   return `${sortField}_${sortOrder}` as MoverListSort;
 };
 
-const parsePositiveInt = (
-  value: unknown,
-  fallback: number
-): number => {
+const parsePositiveInt = (value: unknown, fallback: number): number => {
   if (value === undefined || value === null || value === '') {
     return fallback;
   }
@@ -112,8 +109,7 @@ const buildMoverListFilters = (
   const filters: FindMoversFilters = {
     sort: parseSort(sort, order),
     regions: parseEnumArray(region, REGION_VALUES, 'INVALID_REGION') as
-      | FindMoversFilters['regions']
-      | undefined,
+      FindMoversFilters['regions'] | undefined,
     moveTypes: parseEnumArray(
       moveType,
       MOVE_TYPE_VALUES,

@@ -25,7 +25,7 @@ export const ERROR_CODES = {
   },
   UNAUTHORIZED: {
     status: 401,
-    message: '로그인이 필요합니다.',
+    message: '로그인이 필요한 기능입니다.',
   },
   USER_TYPE_FORBIDDEN: {
     status: 403,
@@ -33,7 +33,7 @@ export const ERROR_CODES = {
   },
   FORBIDDEN: {
     status: 403,
-    message: '해당 기능에 접근할 수 없습니다.',
+    message: '기사님은 찜 기능을 사용할 수 없습니다.',
   },
   PROFILE_ALREADY_EXISTS: {
     status: 409,
