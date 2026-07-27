@@ -36,3 +36,28 @@ export const addFavorite = async (
     next(error);
   }
 };
+
+export const removeFavorite = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      throw new AppError('UNAUTHORIZED');
+    }
+
+    const { moverId } = res.locals.validated?.params as FavoriteMoverIdParam;
+    await favoritesService.removeFavorite({
+      userId: req.user.id,
+      moverId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: '찜이 취소되었습니다.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};

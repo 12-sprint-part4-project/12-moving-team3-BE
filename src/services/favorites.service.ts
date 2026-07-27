@@ -56,3 +56,24 @@ export const addFavorite = async ({
     throw error;
   }
 };
+
+interface RemoveFavoriteInput {
+  userId: string;
+  moverId: string;
+}
+
+export const removeFavorite = async ({
+  userId,
+  moverId,
+}: RemoveFavoriteInput) => {
+  const existingFavorite = await favoriteRepository.findFavoriteByUserAndMover(
+    userId,
+    moverId
+  );
+
+  if (!existingFavorite) {
+    throw new AppError('FAVORITE_NOT_FOUND');
+  }
+
+  await favoriteRepository.deleteFavoriteByUserAndMover(userId, moverId);
+};

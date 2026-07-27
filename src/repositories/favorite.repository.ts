@@ -33,3 +33,18 @@ export const createFavorite = async (userId: string, moverId: string) => {
     select: favoriteSelect,
   });
 };
+
+export const deleteFavoriteByUserAndMover = async (
+  userId: string,
+  moverId: string
+) => {
+  return prisma.favorite.delete({
+    where: {
+      userId_moverId: {
+        userId,
+        moverId,
+      },
+    },
+    select: favoriteSelect,
+  });
+};
