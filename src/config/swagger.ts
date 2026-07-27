@@ -70,7 +70,7 @@ const options: swaggerJSDoc.Options = {
           properties: {
             userType: {
               type: 'string',
-              enum: ['CUSTOMER', 'DRIVER'],
+              enum: ['CUSTOMER', 'MOVER'],
               example: 'CUSTOMER',
             },
             name: { type: 'string', example: '박소정' },
@@ -126,7 +126,7 @@ const options: swaggerJSDoc.Options = {
                     },
                     userType: {
                       type: 'string',
-                      enum: ['CUSTOMER', 'DRIVER'],
+                      enum: ['CUSTOMER', 'MOVER'],
                       example: 'CUSTOMER',
                     },
                     name: { type: 'string', example: '박소정' },
@@ -167,7 +167,7 @@ const options: swaggerJSDoc.Options = {
           properties: {
             userType: {
               type: 'string',
-              enum: ['CUSTOMER', 'DRIVER'],
+              enum: ['CUSTOMER', 'MOVER'],
               example: 'CUSTOMER',
             },
             email: {
@@ -207,7 +207,7 @@ const options: swaggerJSDoc.Options = {
                     },
                     userType: {
                       type: 'string',
-                      enum: ['CUSTOMER', 'DRIVER'],
+                      enum: ['CUSTOMER', 'MOVER'],
                       example: 'CUSTOMER',
                     },
                     email: {

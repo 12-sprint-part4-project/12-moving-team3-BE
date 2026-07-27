@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AppError } from '../utils/app.error';
 
-export type ApiUserType = 'CUSTOMER' | 'DRIVER';
+export type ApiUserType = 'CUSTOMER' | 'MOVER';
 
 export interface LoginBody {
   userType: ApiUserType;
@@ -29,7 +29,7 @@ const SIGNUP_REQUIRED_FIELDS = [
   'passwordConfirmation',
 ] as const;
 
-const API_USER_TYPES: readonly ApiUserType[] = ['CUSTOMER', 'DRIVER'];
+const API_USER_TYPES: readonly ApiUserType[] = ['CUSTOMER', 'MOVER'];
 
 // INVALID_NEW_PASSWORD와 동일한 정책(8~20자, 영문·숫자·특수문자)을 재사용
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
