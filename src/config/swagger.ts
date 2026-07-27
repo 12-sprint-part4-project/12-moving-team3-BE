@@ -147,8 +147,8 @@ const options: swaggerJSDoc.Options = {
       },
     },
   },
-  // JSDoc(@swagger 주석)을 읽어올 경로. 현재 routes 구조에 맞춤.
-  apis: ['./src/routes/**/*.ts'],
+  // JSDoc(@swagger 주석)을 읽어올 경로 + 라우터 주석이 길어지는 것을 막기 위해 분리한 yaml 문서
+  apis: ['./src/routes/**/*.ts', './src/docs/**/*.yaml'],
 };
 
 export const swaggerSpec = swaggerJSDoc(options);
