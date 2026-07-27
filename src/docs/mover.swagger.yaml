@@ -98,19 +98,10 @@ paths:
       description: |
         기사(Mover)에게 들어온 견적 요청 목록을 커서 기반으로 조회합니다.
         이미 견적을 제출/반려했거나 이사일이 지난 요청은 기본적으로 제외됩니다.
-        인증/인가 미들웨어 연결 전이라 `x-mover-id` 헤더로 기사를 임시 식별합니다.
-      # TODO: 인증/인가 미들웨어 구현 후 주석 해제하고, 아래 x-mover-id 파라미터는 제거
-      # security:
-      #   - bearerAuth: []
+        Access Token이 필요하며, userType이 MOVER인 계정만 접근할 수 있습니다.
+      security:
+        - bearerAuth: []
       parameters:
-        # TODO: 인증/인가 미들웨어 구현 후 이 파라미터 제거
-        - name: x-mover-id
-          in: header
-          required: true
-          description: 기사(User) UUID. 인증 미들웨어 적용 전 임시 식별자.
-          schema:
-            type: string
-            format: uuid
         - name: keyword
           in: query
           required: false
@@ -181,7 +172,7 @@ paths:
                   code: INVALID_QUERY_PARAM
                   message: 유효하지 않은 정렬 또는 필터 값입니다.
         '401':
-          description: 기사 식별 실패 (x-mover-id 헤더 누락/형식 오류)
+          description: Access Token 누락 또는 유효하지 않음
           content:
             application/json:
               schema:
@@ -190,6 +181,16 @@ paths:
                 error:
                   code: UNAUTHORIZED
                   message: 로그인이 필요합니다.
+        '403':
+          description: MOVER가 아닌 계정으로 접근
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
         '404':
           description: 등록된 기사님 프로필이 없음
           content:
