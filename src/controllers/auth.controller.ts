@@ -34,11 +34,16 @@ export const signup = async (req: Request, res: Response) => {
     device: resolveAuthDeviceType(req.get('user-agent')),
   });
 
+  setAuthRefreshTokenCookie(
+    res,
+    result.refreshToken,
+    result.refreshTokenMaxAgeMs
+  );
+
   res.status(201).json({
     data: {
       user: result.user,
       accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
     },
   });
 };

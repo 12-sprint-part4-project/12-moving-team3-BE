@@ -1,5 +1,7 @@
-import type { DeviceType, UserType } from '@prisma/client';
+import type { DeviceType, UserType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export const findUserByEmail = async (email: string) => {
   return prisma.user.findUnique({
@@ -41,8 +43,11 @@ export const findUserWithLocalAuthByEmail = async (email: string) => {
   });
 };
 
-export const deleteRefreshTokensByUserId = async (userId: string) => {
-  return prisma.refreshToken.deleteMany({
+export const deleteRefreshTokensByUserId = async (
+  userId: string,
+  db: DbClient = prisma
+) => {
+  return db.refreshToken.deleteMany({
     where: { userId },
   });
 };
@@ -57,9 +62,10 @@ export interface CreateUserWithLocalAuthInput {
 }
 
 export const createUserWithLocalAuth = async (
-  input: CreateUserWithLocalAuthInput
+  input: CreateUserWithLocalAuthInput,
+  db: DbClient = prisma
 ) => {
-  return prisma.user.create({
+  return db.user.create({
     data: {
       name: input.name,
       nickname: input.nickname,
@@ -95,9 +101,10 @@ export interface CreateRefreshTokenRecordInput {
 }
 
 export const createRefreshTokenRecord = async (
-  data: CreateRefreshTokenRecordInput
+  data: CreateRefreshTokenRecordInput,
+  db: DbClient = prisma
 ) => {
-  return prisma.refreshToken.create({
+  return db.refreshToken.create({
     data,
   });
 };

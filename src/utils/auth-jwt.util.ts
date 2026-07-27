@@ -32,7 +32,9 @@ const getRequiredEnv = (key: string): string => {
 };
 
 const getAccessSignOptions = (): SignOptions => ({
-  expiresIn: getRequiredEnv('JWT_ACCESS_EXPIRES_IN') as SignOptions['expiresIn'],
+  expiresIn: getRequiredEnv(
+    'JWT_ACCESS_EXPIRES_IN'
+  ) as SignOptions['expiresIn'],
 });
 
 const getRefreshSignOptions = (): SignOptions => ({
@@ -87,7 +89,6 @@ export const getAuthRefreshTokenExpiry = (
   ) {
     throw new Error('Invalid refresh token expiry');
   }
-
   const expiresAt = new Date(decoded.exp * 1000);
 
   return {
@@ -117,7 +118,9 @@ const isVerifiedAccessTokenPayload = (
 export const verifyAccessToken = (
   accessToken: string
 ): VerifiedAccessTokenPayload => {
-  const decoded = jwt.verify(accessToken, getRequiredEnv('JWT_ACCESS_SECRET'));
+  const decoded = jwt.verify(accessToken, getRequiredEnv('JWT_ACCESS_SECRET'), {
+    algorithms: ['HS256'],
+  });
 
   if (!isVerifiedAccessTokenPayload(decoded)) {
     throw new Error('Invalid access token payload');

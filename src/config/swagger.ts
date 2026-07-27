@@ -104,7 +104,7 @@ const options: swaggerJSDoc.Options = {
           properties: {
             data: {
               type: 'object',
-              required: ['user', 'accessToken', 'refreshToken'],
+              required: ['user', 'accessToken'],
               properties: {
                 user: {
                   type: 'object',
@@ -156,10 +156,6 @@ const options: swaggerJSDoc.Options = {
                 accessToken: {
                   type: 'string',
                   description: 'Access Token (JWT)',
-                },
-                refreshToken: {
-                  type: 'string',
-                  description: 'Refresh Token (JWT)',
                 },
               },
             },

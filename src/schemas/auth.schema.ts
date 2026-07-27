@@ -80,13 +80,15 @@ export const parseLoginBody = (body: unknown): LoginBody => {
     throw new AppError('INVALID_EMAIL_FORMAT');
   }
 
+  const normalizedEmail = emailResult.data.trim().toLowerCase();
+
   if (typeof data.password !== 'string') {
     throw new AppError('LOGIN_REQUIRED_FIELD_MISSING');
   }
 
   return {
     userType: data.userType,
-    email: emailResult.data,
+    email: normalizedEmail,
     password: data.password,
   };
 };
@@ -127,6 +129,8 @@ export const parseSignupBody = (body: unknown): SignupBody => {
     throw new AppError('INVALID_EMAIL_FORMAT');
   }
 
+  const normalizedEmail = emailResult.data.trim().toLowerCase();
+
   if (
     typeof data.phoneNumber !== 'string' ||
     !PHONE_NUMBER_REGEX.test(data.phoneNumber)
@@ -134,7 +138,10 @@ export const parseSignupBody = (body: unknown): SignupBody => {
     throw new AppError('INVALID_PHONE_NUMBER_FORMAT');
   }
 
-  if (typeof data.password !== 'string' || !PASSWORD_REGEX.test(data.password)) {
+  if (
+    typeof data.password !== 'string' ||
+    !PASSWORD_REGEX.test(data.password)
+  ) {
     throw new AppError('INVALID_PASSWORD_FORMAT');
   }
 
@@ -146,7 +153,7 @@ export const parseSignupBody = (body: unknown): SignupBody => {
     userType: data.userType,
     name: data.name,
     nickname: data.nickname,
-    email: emailResult.data,
+    email: normalizedEmail,
     phoneNumber: data.phoneNumber,
     password: data.password,
     passwordConfirmation: String(data.passwordConfirmation),

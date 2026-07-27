@@ -12,7 +12,9 @@ const router = Router();
  *     description: |
  *       일반 유저(CUSTOMER) 또는 기사님(DRIVER) 계정을 생성합니다.
  *       DB UserType은 DRIVER를 MOVER로 저장합니다.
- *       Access Token과 Refresh Token을 응답 body로 반환합니다.
+ *       Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
+ *       Swagger UI 응답 패널에는 Set-Cookie가 잘 안 보일 수 있으므로,
+ *       브라우저 Network 탭 Response Headers와 Application > Cookies(path=/api/auth)에서 확인하세요.
  *       device는 Body로 받지 않고 User-Agent를 서버에서 판별합니다.
  *     parameters:
  *       - name: User-Agent
@@ -51,6 +53,11 @@ const router = Router();
  *     responses:
  *       201:
  *         description: 회원가입 성공
+ *         headers:
+ *           Set-Cookie:
+ *             description: Refresh Token (httpOnly, path=/api/auth)
+ *             schema:
+ *               type: string
  *         content:
  *           application/json:
  *             schema:

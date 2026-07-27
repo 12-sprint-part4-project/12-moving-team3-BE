@@ -1,6 +1,11 @@
 import { UserType, type DeviceType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import * as authRepository from '../repositories/auth.repository';
-import type { ApiUserType, LoginBody, SignupBody } from '../schemas/auth.schema';
+import type {
+  ApiUserType,
+  LoginBody,
+  SignupBody,
+} from '../schemas/auth.schema';
 import { AppError } from '../utils/app.error';
 import {
   createAccessToken,
@@ -36,6 +41,7 @@ export interface SignupServiceResult {
   };
   accessToken: string;
   refreshToken: string;
+  refreshTokenMaxAgeMs: number;
 }
 
 export interface LoginServiceResult {
@@ -75,29 +81,34 @@ export const login = async (
     throw new AppError('INVALID_CREDENTIALS');
   }
 
+  if (!localAuth?.passwordHash || !isPasswordMatched) {
+    throw new AppError('INVALID_CREDENTIALS');
+  }
+
   const apiUserType = toApiUserType(user.userType);
 
   if (apiUserType !== input.userType) {
     throw new AppError('USER_TYPE_MISMATCH');
   }
 
-  if (!localAuth?.passwordHash || !isPasswordMatched) {
-    throw new AppError('INVALID_CREDENTIALS');
-  }
-
   const accessToken = createAccessToken(user.id, apiUserType);
   const refreshToken = createRefreshToken(user.id);
   const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
-  // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
-  await authRepository.deleteRefreshTokensByUserId(user.id);
+  await prisma.$transaction(async (tx) => {
+    // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
+    await authRepository.deleteRefreshTokensByUserId(user.id, tx);
 
-  // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
-  await authRepository.createRefreshTokenRecord({
-    userId: user.id,
-    tokenHash: hashAuthRefreshToken(refreshToken),
-    device: input.device,
-    expiresAt,
+    // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: user.id,
+        tokenHash: hashAuthRefreshToken(refreshToken),
+        device: input.device,
+        expiresAt,
+      },
+      tx
+    );
   });
 
   return {
@@ -142,40 +153,58 @@ export const signup = async (
   const passwordHash = await hashAuthPassword(input.password);
 
   try {
-    const user = await authRepository.createUserWithLocalAuth({
-      name: input.name,
-      nickname: input.nickname,
-      email: input.email,
-      phoneNumber: input.phoneNumber,
-      userType: toPrismaUserType(input.userType),
-      passwordHash,
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await authRepository.createUserWithLocalAuth(
+        {
+          name: input.name,
+          nickname: input.nickname,
+          email: input.email,
+          phoneNumber: input.phoneNumber,
+          userType: toPrismaUserType(input.userType),
+          passwordHash,
+        },
+        tx
+      );
 
-    const accessToken = createAccessToken(user.id, toApiUserType(user.userType));
-    const refreshToken = createRefreshToken(user.id);
-    const { expiresAt } = getAuthRefreshTokenExpiry(refreshToken);
+      const apiUserType = toApiUserType(user.userType);
+      const accessToken = createAccessToken(user.id, apiUserType);
+      const refreshToken = createRefreshToken(user.id);
+      const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
-    // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
-    await authRepository.createRefreshTokenRecord({
-      userId: user.id,
-      tokenHash: hashAuthRefreshToken(refreshToken),
-      device: input.device,
-      expiresAt,
+      await authRepository.createRefreshTokenRecord(
+        {
+          userId: user.id,
+          tokenHash: hashAuthRefreshToken(refreshToken),
+          device: input.device,
+          expiresAt,
+        },
+        tx
+      );
+
+      return {
+        user,
+        accessToken,
+        refreshToken,
+        refreshTokenMaxAgeMs: maxAgeMs,
+      };
     });
 
     return {
       user: {
-        id: user.id,
-        userType: toApiUserType(user.userType),
-        name: user.name,
-        nickname: user.nickname,
-        email: user.email,
-        phoneNumber: user.phoneNumber ?? input.phoneNumber,
-        isProfileCompleted: Boolean(user.customerProfile || user.moverProfile),
-        createdAt: user.createdAt,
+        id: result.user.id,
+        userType: toApiUserType(result.user.userType),
+        name: result.user.name,
+        nickname: result.user.nickname,
+        email: result.user.email,
+        phoneNumber: result.user.phoneNumber ?? input.phoneNumber,
+        isProfileCompleted: Boolean(
+          result.user.customerProfile || result.user.moverProfile
+        ),
+        createdAt: result.user.createdAt,
       },
-      accessToken,
-      refreshToken,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      refreshTokenMaxAgeMs: result.refreshTokenMaxAgeMs,
     };
   } catch (error) {
     const appError = toAppErrorFromPrisma(error);
