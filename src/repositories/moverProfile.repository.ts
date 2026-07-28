@@ -175,6 +175,16 @@ const moverProfileRepository = {
       take: limit,
     });
   },
+
+  countFavoriteMoversById: async (
+    userId: string,
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+    return dbClient.favorite.count({
+      where: { userId },
+    });
+  },
 };
 
 export default moverProfileRepository;

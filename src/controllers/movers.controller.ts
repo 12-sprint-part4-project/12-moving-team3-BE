@@ -87,13 +87,14 @@ export const getFavoriteMovers = async (
     const { userId } = getAuthenticatedUser(res); //애초에 customer만 접근 가능한 곳으로, usertype은 꺼낼 필요x
     const query = getValidatedFavoriteMoversQuery(res);
 
-    const favoriteMovers = await moversService.getFavoriteMovers({
+    const response = await moversService.getFavoriteMovers({
       userId,
       query,
     });
 
     res.status(200).json({
-      data: favoriteMovers,
+      data: response.data,
+      meta: response.meta,
     });
   } catch (error) {
     next(error);

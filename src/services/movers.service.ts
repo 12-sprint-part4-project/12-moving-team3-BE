@@ -60,7 +60,30 @@ const moversService = {
     userId: string;
     query: FavoriteMoversQuery;
   }) => {
-    return await moverProfileRepository.findFavoriteMoversById(userId, query);
+    const favoriteMovers = await moverProfileRepository.findFavoriteMoversById(
+      userId,
+      query
+    );
+    //pagination 정보
+    const totalCount =
+      await moverProfileRepository.countFavoriteMoversById(userId);
+    const totalPages = Math.ceil(totalCount / query.limit);
+    const hasNextPage = query.page < totalPages;
+    const hasPrevPage = query.page > 1;
+    const pagination = {
+      currentPage: query.page,
+      pageSize: query.limit,
+      totalItems: totalCount,
+      totalPages: totalPages,
+      hasNextPage: hasNextPage,
+      hasPrevPage: hasPrevPage,
+    };
+    return {
+      data: favoriteMovers,
+      meta: {
+        pagination: pagination,
+      },
+    };
   },
 };
 
