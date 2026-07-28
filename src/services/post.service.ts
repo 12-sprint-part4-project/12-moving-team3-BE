@@ -30,6 +30,22 @@ const isPostCursor = (value: unknown): value is PostCursor => {
 const encodeCursor = (cursor: PostCursor): string =>
   Buffer.from(JSON.stringify(cursor), 'utf-8').toString('base64url');
 
+const NON_NEGATIVE_INT_PATTERN = /^\d+$/;
+
+const assertNonNegativeIntCursorValue = (value: string): void => {
+  if (!NON_NEGATIVE_INT_PATTERN.test(value)) {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+};
+
+const assertIsoDateCursorValue = (value: string): void => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== value) {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+};
+
 /** base64url 커서를 디코딩한다. sort 불일치·형식 오류 시 INVALID_QUERY_PARAM. */
 const decodeCursor = (cursor: string, sort: PostSort): PostCursor => {
   let decoded: unknown;
@@ -45,13 +61,9 @@ const decodeCursor = (cursor: string, sort: PostSort): PostCursor => {
   }
 
   if (sort === 'POPULAR' || sort === 'MOST_COMMENTED') {
-    const count = parseInt(decoded.value, 10);
-
-    if (!Number.isInteger(count) || count < 0) {
-      throw new AppError('INVALID_QUERY_PARAM');
-    }
-  } else if (Number.isNaN(new Date(decoded.value).getTime())) {
-    throw new AppError('INVALID_QUERY_PARAM');
+    assertNonNegativeIntCursorValue(decoded.value);
+  } else {
+    assertIsoDateCursorValue(decoded.value);
   }
 
   return decoded;
@@ -105,8 +117,13 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
   const { category, region, sort, limit } = query;
   const cursor = query.cursor ? decodeCursor(query.cursor, sort) : undefined;
 
+  // 카테고리 미지정 시 가구 나눔 제외 (조회 정책은 service에서 결정)
+  const excludeCategories =
+    category === undefined ? [PostsCategory.FURNITURE_SHARE] : undefined;
+
   const rows = await postRepository.findPosts({
     category,
+    excludeCategories,
     region,
     sort,
     cursor,

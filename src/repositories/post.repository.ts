@@ -10,6 +10,7 @@ export interface PostCursor {
 
 export interface FindPostsParams {
   category?: PostsCategory;
+  excludeCategories?: PostsCategory[];
   region?: Region;
   sort: PostSort;
   cursor?: PostCursor;
@@ -55,9 +56,9 @@ const buildCursorCondition = (
 };
 
 // 게시글 목록 조회
-// 카테고리 미지정 시 가구 나눔 제외
 export const findPosts = async ({
   category,
+  excludeCategories,
   region,
   sort,
   cursor,
@@ -66,9 +67,10 @@ export const findPosts = async ({
 }: FindPostsParams) => {
   const baseWhere: Prisma.PostWhereInput = {
     deletedAt: null,
-    ...(category
-      ? { category }
-      : { category: { not: PostsCategory.FURNITURE_SHARE } }),
+    ...(category && { category }),
+    ...(excludeCategories?.length && {
+      category: { notIn: excludeCategories },
+    }),
     ...(region && { region }),
   };
 
