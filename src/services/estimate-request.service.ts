@@ -8,11 +8,12 @@ import type {
   EstimateRequestFilterParams,
   EstimateRequestListRow,
 } from '../repositories/estimate-request.repository';
-import type {
-  EstimateRequestRevisableField,
-  EstimateRequestSort,
-  ReviseEstimateRequestFieldBody,
-  SaveEstimateRequestStepBody,
+import {
+  TOTAL_INPUT_STEPS,
+  type EstimateRequestRevisableField,
+  type EstimateRequestSort,
+  type ReviseEstimateRequestFieldBody,
+  type SaveEstimateRequestStepBody,
 } from '../schemas/estimate-request.schema';
 import { AppError } from '../utils/app.error';
 import { inferRegionLabelFromAddress } from '../utils/region.util';
@@ -423,8 +424,8 @@ export const saveEstimateRequestStep = async (
     };
   }
 
-  // 입력 스텝은 최대 3 — 저장 후 다음 입력 단계로 전진 (완료 UI step 4는 submit 후)
-  const nextStep = Math.min(body.step + 1, 3);
+  // 입력 스텝은 TOTAL_INPUT_STEPS(3)까지 — 저장 후 다음 입력 단계로 전진 (완료 UI는 submit 후)
+  const nextStep = Math.min(body.step + 1, TOTAL_INPUT_STEPS);
   const currentStep = Math.max(existing.currentStep, nextStep);
 
   // DRAFT 조건부 원자 갱신 — 선검사와 갱신 사이 경합 시 null

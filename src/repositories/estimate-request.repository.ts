@@ -5,7 +5,10 @@ import {
   type Region,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import type { EstimateRequestSort } from '../schemas/estimate-request.schema';
+import {
+  TOTAL_PROGRESS_STEPS,
+  type EstimateRequestSort,
+} from '../schemas/estimate-request.schema';
 import { startOfDay } from '../utils/date.util';
 import { getRegionAddressKeywords } from '../utils/region.util';
 
@@ -356,7 +359,8 @@ export const createDraftEstimateRequest = async (
       userId,
       status: EstimateRequestStatus.DRAFT,
       currentStep: 1,
-      totalSteps: 4,
+      // FE 진행바 기준 전체 스텝(입력 3 + 제출 완료 1)
+      totalSteps: TOTAL_PROGRESS_STEPS,
     },
     select: customerDetailSelect,
   });
@@ -417,7 +421,8 @@ export const submitEstimateRequest = async (
     data: {
       status: EstimateRequestStatus.SUBMITTED,
       submittedAt,
-      currentStep: 4,
+      // 제출 성공 시 FE 완료 화면(step 4)에 맞춤
+      currentStep: TOTAL_PROGRESS_STEPS,
     },
   });
 
