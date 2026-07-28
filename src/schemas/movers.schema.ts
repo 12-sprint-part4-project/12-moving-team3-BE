@@ -36,12 +36,12 @@ export const moversListQuerySchema = z.object({
   sort: z.enum(MOVER_SORT_FIELDS).optional(),
   order: z.enum(MOVER_SORT_ORDERS).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  limit: z.coerce.number().int().min(1).max(10).optional().default(10),
 });
 
 /** GET /api/movers/:id path param */
 export const moverDetailParamsSchema = z.object({
-  id: z.coerce.number().int().positive(),
+  id: z.string().uuid(),
 });
 
 /** GET /api/movers/favorites query */
