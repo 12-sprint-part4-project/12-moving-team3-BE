@@ -22,7 +22,7 @@ router.get(
 );
 //리뷰 작성 가능한 견적 조회
 router.get(
-  '/customer/writeable',
+  '/customer/writable',
   requireAuth,
   allowUserTypes('CUSTOMER'),
   validateRequest({
