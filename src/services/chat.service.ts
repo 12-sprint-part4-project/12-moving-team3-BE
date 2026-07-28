@@ -10,8 +10,10 @@ import * as chatRepository from '../repositories/chat.repository';
 import type {
   CreateChatRoomBody,
   GetChatMessagesQuery,
+  SendChatMessageBody,
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
+import { filterChatContent } from '../utils/chat-content-filter.util';
 import { toProfileImageUrl } from '../utils/profile-image.util';
 
 interface CreateChatRoomResult {
@@ -515,3 +517,59 @@ export const getChatMessages = async (
     },
   };
 };
+
+/**
+ * TEXT 메시지를 전송한다.
+ * - 활성 참여자만 발송 가능
+ * - isMessagingAllowed가 false이면 거부
+ * - 클린봇 마스킹 후 저장, 필터 시 rawLog 보관
+ * - 나간 상대는 재참여시켜 목록에 재노출
+ */
+export const sendChatMessage = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  body: SendChatMessageBody
+): Promise<ChatMessageItem> => {
+  const room = await chatRepository.findRoomForMessaging(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const participation = await chatRepository.findActiveParticipation(
+    roomId,
+    authUser.userId
+  );
+
+  if (!participation) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  if (!isMessagingAllowedByEstimateStatus(room.estimateRequest?.status)) {
+    throw new AppError('MESSAGING_NOT_ALLOWED');
+  }
+
+  const { maskedContent, isFiltered, rawContent } = filterChatContent(
+    body.content
+  );
+
+  const message = await chatRepository.createTextMessage({
+    roomId,
+    senderId: authUser.userId,
+    content: maskedContent,
+    isFiltered,
+    ...(isFiltered && { rawContent }),
+  });
+
+  return {
+    messageId: message.id,
+    senderId: message.senderId,
+    senderUserType: message.sender.userType,
+    messageType: message.messageType,
+    content: message.content,
+    isFiltered: message.isFiltered,
+    attachments: message.attachments.map((attachment) => attachment.fileKey),
+    createdAt: toIsoString(message.createdAt),
+  };
+};
+

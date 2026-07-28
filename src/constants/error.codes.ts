@@ -31,10 +31,6 @@ export const ERROR_CODES = {
     status: 401,
     message: '로그인이 필요합니다.',
   },
-  ROOM_NOT_FOUND: {
-    status: 404,
-    message: '존재하지 않는 채팅방입니다.',
-  },
   ESTIMATE_REQUEST_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 견적 요청입니다.',
@@ -215,6 +211,16 @@ export const ERROR_CODES = {
   INTERNAL_SERVER_ERROR: {
     status: 500,
     message: '서버 내부 오류가 발생했습니다.',
+  },
+
+  // 채팅
+  ROOM_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 채팅방입니다.',
+  },
+  MESSAGING_NOT_ALLOWED: {
+    status: 403,
+    message: '이 채팅방에서는 메시지를 보낼 수 없습니다.',
   },
 
   // 커뮤니티
