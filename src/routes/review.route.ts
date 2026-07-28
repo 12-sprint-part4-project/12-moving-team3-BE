@@ -8,6 +8,7 @@ import {
   reviewListQuerySchema,
   reviewWritableQuerySchema,
 } from '../schemas/review.schema';
+import * as reviewController from '../controllers/review.controller';
 
 const router = Router();
 
@@ -19,7 +20,8 @@ router.get(
   validateRequest({
     query: reviewListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
-  })
+  }),
+  reviewController.getMoverReviews
 );
 //리뷰 작성 가능한 견적 조회
 router.get(
@@ -29,7 +31,8 @@ router.get(
   validateRequest({
     query: reviewWritableQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
-  })
+  }),
+  reviewController.getCustomerWritableReviews
 );
 router.get(
   '/customer',
@@ -38,7 +41,8 @@ router.get(
   validateRequest({
     query: reviewListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
-  })
+  }),
+  reviewController.getCustomerReviews
 );
 
 //리뷰 등록
@@ -50,7 +54,8 @@ router.post(
     params: quoteIdParamsSchema,
     body: reviewBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',
-  })
+  }),
+  reviewController.createReview
 );
 //리뷰 수정
 router.patch(
@@ -61,7 +66,8 @@ router.patch(
     params: reviewIdParamsSchema,
     body: reviewBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',
-  })
+  }),
+  reviewController.updateReview
 );
 //리뷰 삭제 (소프트 딜리트)
 router.delete(
@@ -71,7 +77,8 @@ router.delete(
   validateRequest({
     params: reviewIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
-  })
+  }),
+  reviewController.deleteReview
 );
 
 //리뷰 통계 정보 가져오기 (movers할 때 구현한..)
