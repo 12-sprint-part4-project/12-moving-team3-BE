@@ -24,9 +24,9 @@ const router = Router();
  *     summary: 기사님 프로필 등록/수정
  *     description: |
  *       기사님(MOVER)이 프로필 정보를 등록하거나 수정합니다.
- *       요청은 multipart/form-data 형식이며, profileImage 파일은 선택값입니다.
- *       profileImage를 보내지 않으면 기존 프로필 이미지를 유지합니다.
- *       참고 명세의 serviceIds/regionIds 대신 현재 스키마 기준 enum 배열(service, serviceRegions)을 사용합니다.
+ *       - Content-Type: `multipart/form-data`
+ *       - `profileImage`는 선택값입니다.
+ *       - `profileImage`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -45,25 +45,33 @@ const router = Router();
  *             properties:
  *               nickname:
  *                 type: string
+ *                 description: 사이트에 노출될 기사 별명 (2~20자)
  *                 example: 김코드
  *               career:
  *                 type: integer
+ *                 description: 경력(년)
  *                 minimum: 0
  *                 example: 8
  *               shortDescription:
  *                 type: string
+ *                 description: 한 줄 소개 (최대 10자)
  *                 example: 꼼꼼한이사
  *               description:
  *                 type: string
+ *                 description: 상세 소개 (최소 8자)
  *                 example: 포장부터 정리까지 책임지고 진행합니다.
  *               service:
  *                 type: array
+ *                 description: 제공 서비스 목록 (최소 1개)
+ *                 minItems: 1
  *                 items:
  *                   type: string
  *                   enum: [SMALL, HOME, OFFICE]
  *                 example: [HOME, SMALL]
  *               serviceRegions:
  *                 type: array
+ *                 description: 서비스 가능 지역 목록 (최소 1개)
+ *                 minItems: 1
  *                 items:
  *                   type: string
  *                   enum:
@@ -87,6 +95,17 @@ const router = Router();
  *               profileImage:
  *                 type: string
  *                 format: binary
+ *                 description: 프로필 이미지 파일 (jpeg/png/webp, 최대 5MB)
+ *           examples:
+ *             default:
+ *               summary: 기사님 프로필 등록/수정 예시
+ *               value:
+ *                 nickname: 김코드
+ *                 career: 8
+ *                 shortDescription: 꼼꼼한이사
+ *                 description: 포장부터 정리까지 책임지고 진행합니다.
+ *                 service: [HOME, SMALL]
+ *                 serviceRegions: [SEOUL, GYEONGGI]
  *     responses:
  *       200:
  *         description: 프로필 등록/수정 성공
@@ -99,7 +118,14 @@ const router = Router();
  *                 data:
  *                   type: object
  *                   required:
- *                     [nickname, career, shortDescription, description, service, serviceRegions, profileImageUrl, updatedAt]
+ *                     - nickname
+ *                     - career
+ *                     - shortDescription
+ *                     - description
+ *                     - service
+ *                     - serviceRegions
+ *                     - profileImageUrl
+ *                     - updatedAt
  *                   properties:
  *                     nickname:
  *                       type: string
@@ -118,6 +144,7 @@ const router = Router();
  *                       items:
  *                         type: string
  *                         enum: [SMALL, HOME, OFFICE]
+ *                       example: [HOME, SMALL]
  *                     serviceRegions:
  *                       type: array
  *                       items:
@@ -139,12 +166,16 @@ const router = Router();
  *                           - GYEONGNAM
  *                           - BUSAN
  *                           - JEJU
+ *                       example: [SEOUL, GYEONGGI]
  *                     profileImageUrl:
  *                       type: string
  *                       nullable: true
+ *                       description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+ *                       example: null
  *                     updatedAt:
  *                       type: string
  *                       format: date-time
+ *                       example: '2026-07-28T08:20:00.000Z'
  *       400:
  *         description: 요청 본문 형식 오류
  *         content:
@@ -158,7 +189,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: 기사님만 접근 가능
+ *         description: 기사님(MOVER)만 접근 가능
  *         content:
  *           application/json:
  *             schema:

@@ -12,11 +12,12 @@ const router = Router();
  * /api/users/customers/profile:
  *   patch:
  *     tags: [Customers]
- *     summary: 일반 유저 프로필 등록
+ *     summary: 일반 유저 프로필 등록/수정
  *     description: |
  *       일반 유저(CUSTOMER)가 최초 프로필 정보를 등록합니다.
- *       요청은 multipart/form-data 형식이며, profileImage 파일은 선택값입니다.
- *       이미 프로필 등록을 완료한 경우 409 에러를 반환합니다.
+ *       - Content-Type: `multipart/form-data`
+ *       - `profileImage`는 선택값입니다.
+ *       - `profileImage`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -31,6 +32,7 @@ const router = Router();
  *             properties:
  *               region:
  *                 type: string
+ *                 description: 거주 지역
  *                 enum:
  *                   - SEOUL
  *                   - GYEONGGI
@@ -51,6 +53,7 @@ const router = Router();
  *                 example: SEOUL
  *               service:
  *                 type: array
+ *                 description: 이용 서비스 목록 (최소 1개)
  *                 minItems: 1
  *                 items:
  *                   type: string
@@ -59,6 +62,7 @@ const router = Router();
  *               profileImage:
  *                 type: string
  *                 format: binary
+ *                 description: 프로필 이미지 파일 (jpeg/png/webp, 최대 5MB)
  *           examples:
  *             default:
  *               summary: 일반 유저 프로필 등록 예시
@@ -107,6 +111,7 @@ const router = Router();
  *                     profileImageUrl:
  *                       type: string
  *                       nullable: true
+ *                       description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
  *                       example: null
  *                     updatedAt:
  *                       type: string
@@ -125,7 +130,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *       403:
- *         description: 일반 유저만 접근 가능
+ *         description: 일반 유저(CUSTOMER)만 접근 가능
  *         content:
  *           application/json:
  *             schema:
