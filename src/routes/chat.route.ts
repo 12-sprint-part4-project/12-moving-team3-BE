@@ -1,10 +1,106 @@
 import { Router } from 'express';
 import * as chatController from '../controllers/chat.controller';
-import { requireAuth } from '../middlewares/require-auth.middleware';
+import { requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
-import { createChatRoomBodySchema } from '../schemas/chat.schema';
+import {
+  chatRoomIdParamsSchema,
+  createChatRoomBodySchema,
+} from '../schemas/chat.schema';
 
 const router = Router();
+
+/**
+ * @swagger
+ * /api/chat/rooms/{roomId}:
+ *   get:
+ *     tags: [Chat]
+ *     summary: 채팅방 상세 조회
+ *     description: |
+ *       채팅방의 상대방 정보, 견적 요청 요약, 메시지 발송 가능 여부를 반환합니다.
+ *       활성 참여자(leftAt IS NULL)만 조회할 수 있습니다.
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: 채팅방 ID
+ *     responses:
+ *       200:
+ *         description: 채팅방 상세 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     partner:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         userType:
+ *                           type: string
+ *                           enum: [CUSTOMER, MOVER]
+ *                         nickname:
+ *                           type: string
+ *                         profileImageUrl:
+ *                           type: string
+ *                           nullable: true
+ *                     requestSummary:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         estimateRequestId:
+ *                           type: integer
+ *                         moveType:
+ *                           type: string
+ *                           enum: [SMALL, HOME, OFFICE]
+ *                           nullable: true
+ *                         moveDate:
+ *                           type: string
+ *                           format: date
+ *                           nullable: true
+ *                         originAddress:
+ *                           type: string
+ *                           nullable: true
+ *                         destinationAddress:
+ *                           type: string
+ *                           nullable: true
+ *                     quoteId:
+ *                       type: integer
+ *                       nullable: true
+ *                     isMessagingAllowed:
+ *                       type: boolean
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get(
+  '/rooms/:roomId',
+  requireAuth,
+  validateRequest({
+    params: chatRoomIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  chatController.getChatRoomDetail
+);
 
 /**
  * @swagger
@@ -15,24 +111,9 @@ const router = Router();
  *     description: |
  *       지정 요청 시점(`quoteId` 없음)과 견적 발송 시점(`quoteId` 있음) 모두에서 호출 가능합니다.
  *       이미 `designatedMoverId`로 방이 있으면 새 방을 만들지 않고 기존 방에 `quoteId`만 업데이트합니다.
- *       인증 담당 연동 전 개발용으로 `x-user-id`, `x-user-type` 헤더를 사용할 수 있습니다.
+ *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: header
- *         name: x-user-id
- *         required: false
- *         schema:
- *           type: string
- *           format: uuid
- *         description: 개발용 mock 인증 (users.id)
- *       - in: header
- *         name: x-user-type
- *         required: false
- *         schema:
- *           type: string
- *           enum: [CUSTOMER, MOVER]
- *         description: 개발용 mock 인증
  *     requestBody:
  *       required: true
  *       content:

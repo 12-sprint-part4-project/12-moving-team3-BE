@@ -136,6 +136,42 @@ export const updateRoomQuoteId = async (
   });
 };
 
+/** 채팅방 상세 조회에 필요한 방·참여자·견적 요청 정보를 조회한다. */
+export const findRoomDetailById = async (roomId: number) => {
+  return prisma.chatRoom.findUnique({
+    where: { id: roomId },
+    select: {
+      id: true,
+      quoteId: true,
+      updatedAt: true,
+      estimateRequest: {
+        select: {
+          id: true,
+          moveType: true,
+          moveDate: true,
+          departureAddress: true,
+          arrivalAddress: true,
+          status: true,
+        },
+      },
+      participants: {
+        where: { leftAt: null },
+        select: {
+          participantId: true,
+          user: {
+            select: {
+              id: true,
+              userType: true,
+              nickname: true,
+              profileImageKey: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
 /** 채팅방과 참여자(고객·기사)를 함께 생성한다. */
 export const createChatRoom = async (
   data: CreateChatRoomData
