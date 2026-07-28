@@ -312,7 +312,7 @@ const getOwnedDraftOrThrow = async (
     await estimateRequestRepository.findEstimateRequestById(estimateRequestId);
 
   if (!row) {
-    throw new AppError('REQUEST_NOT_FOUND');
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
   }
 
   if (row.userId !== userId) {
@@ -382,7 +382,7 @@ export const getEstimateRequestDetail = async (
     await estimateRequestRepository.findEstimateRequestById(estimateRequestId);
 
   if (!row) {
-    throw new AppError('REQUEST_NOT_FOUND');
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
   }
 
   if (row.userId !== userId) {

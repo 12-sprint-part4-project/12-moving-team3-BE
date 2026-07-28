@@ -35,12 +35,8 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 채팅방입니다.',
   },
+  // 견적 요청 미존재 — chat/quote/estimate-request 공통
   ESTIMATE_REQUEST_NOT_FOUND: {
-    status: 404,
-    message: '존재하지 않는 견적 요청입니다.',
-  },
-  // 고객 견적요청 API 명세 코드명 (ESTIMATE_REQUEST_NOT_FOUND 와 동일 의미)
-  REQUEST_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 견적 요청입니다.',
   },
