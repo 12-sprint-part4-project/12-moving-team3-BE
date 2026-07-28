@@ -39,7 +39,26 @@ const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
 const moversService = {
   getMovers: async (query: MoversListQuery) => {
     const filters = toFindMoversFilters(query);
-    return moverProfileRepository.findMovers(filters);
+    const movers = await moverProfileRepository.findMovers(filters);
+    //pagination 정보
+    const totalCount = await moverProfileRepository.countMovers(filters);
+    const totalPages = Math.ceil(totalCount / query.limit);
+    const hasNextPage = query.page < totalPages;
+    const hasPrevPage = query.page > 1;
+    const pagination = {
+      currentPage: query.page,
+      pageSize: query.limit,
+      totalItems: totalCount,
+      totalPages: totalPages,
+      hasNextPage: hasNextPage,
+      hasPrevPage: hasPrevPage,
+    };
+    return {
+      data: movers,
+      meta: {
+        pagination: pagination,
+      },
+    };
   },
 
   getMoverDetail: async (id: number) => {

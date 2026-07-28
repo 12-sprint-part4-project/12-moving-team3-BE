@@ -49,12 +49,12 @@ export const getMovers = async (
 ) => {
   try {
     const query = getValidatedListQuery(res);
-    const movers = await moversService.getMovers(query);
+    const response = await moversService.getMovers(query);
 
     // TODO: API 명세에 pagination meta(total, page, limit 등)가 있으면 응답 형식 맞추기
     res.status(200).json({
-      data: movers,
-      meta: {},
+      data: response.data,
+      meta: response.meta,
     });
   } catch (error) {
     next(error);
@@ -85,7 +85,7 @@ export const getFavoriteMovers = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res); //애초에 customer만 접근 가능한 곳으로, usertype은 꺼낼 필요x
-    const query = getValidatedFavoriteMoversQuery(res);
+    const query = getValidatedFavoriteMoversQuery(res); //pagination 정보만 들어있음.
 
     const response = await moversService.getFavoriteMovers({
       userId,
