@@ -6,6 +6,7 @@ import {
   reviewBodySchema,
   reviewIdParamsSchema,
   reviewListQuerySchema,
+  reviewWritableQuerySchema,
 } from '../schemas/review.schema';
 
 const router = Router();
@@ -26,11 +27,10 @@ router.get(
   requireAuth,
   allowUserTypes('CUSTOMER'),
   validateRequest({
-    query: reviewListQuerySchema,
+    query: reviewWritableQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
   })
 );
-//고객의 리뷰 목록 조회
 router.get(
   '/customer',
   requireAuth,
