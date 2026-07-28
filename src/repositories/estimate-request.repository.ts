@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { EstimateRequestSort } from '../schemas/estimate-request.schema';
+import { startOfDay } from '../utils/date.util';
 import { getRegionAddressKeywords } from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient;
@@ -33,6 +34,18 @@ export const findMoverProfileWithRegions = async (
       (serviceRegion) => serviceRegion.region
     ),
   };
+};
+
+/**
+ * 기사님 프로필 존재 여부 확인
+ */
+export const existsMoverProfile = async (userId: string): Promise<boolean> => {
+  const profile = await prisma.moverProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+
+  return profile !== null;
 };
 
 export interface EstimateRequestFilterParams {
@@ -67,14 +80,6 @@ export interface EstimateRequestListRow {
 }
 
 /**
- * moveDate(@db.Date) 비교를 위해 주어진 날짜를 UTC 자정으로 내림
- */
-const startOfDay = (date: Date): Date =>
-  new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  );
-
-/**
  * 기사님의 서비스 가능 지역(Region) 목록을 주소 매칭 키워드로 변환
  * 출발지 또는 도착지 주소가 해당 키워드로 시작하면 매칭되도록 하는 조건 생성
  * 등록된 지역이 없으면 결과가 없도록 빈 id 집합 조건 반환
@@ -104,7 +109,7 @@ const buildServiceAreaCondition = (
 
 /**
  * 목록/카운트 조회에 공통으로 쓰이는 where 조건 생성
- * - 기본 제외 조건: SUBMITTED 상태가 아니거나, 이사일이 지났거나,
+ * - 기본 제외 조건: SUBMITTED 상태가 아니거나, 견적이 확정되었거나, 이사일이 지났거나,
  *   이 기사님이 이미 견적을 제출/반려(Quote 존재)한 요청은 항상 제외
  * - keyword/moveType/designated/serviceArea 는 값이 주어졌을 때만 조건에 추가되는 동적 필터
  */
@@ -115,6 +120,7 @@ const buildWhere = (
   const conditions: Prisma.EstimateRequestWhereInput[] = [
     {
       status: EstimateRequestStatus.SUBMITTED,
+      confirmedQuoteId: null,
       moveDate: { gte: startOfDay(now) },
       quotes: { none: { moverId: params.moverId, deletedAt: null } },
     },

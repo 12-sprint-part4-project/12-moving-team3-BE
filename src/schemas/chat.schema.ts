@@ -10,3 +10,18 @@ export const createChatRoomBodySchema = z.object({
 });
 
 export type CreateChatRoomBody = z.infer<typeof createChatRoomBodySchema>;
+
+/** GET /api/chat/rooms/:roomId 경로 파라미터 스키마 */
+export const chatRoomIdParamsSchema = z.object({
+  roomId: z.coerce.number().int().positive(),
+});
+
+export type ChatRoomIdParams = z.infer<typeof chatRoomIdParamsSchema>;
+
+/** GET /api/chat/rooms/:roomId/messages 쿼리 스키마 */
+export const getChatMessagesQuerySchema = z.object({
+  before: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(30),
+});
+
+export type GetChatMessagesQuery = z.infer<typeof getChatMessagesQuerySchema>;
