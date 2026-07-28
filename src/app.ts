@@ -11,6 +11,7 @@ import chatRouter from './routes/chat.route';
 import authRouter from './routes/auth.route';
 import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
+import reviewRouter from './routes/review.route';
 
 const app = express();
 
@@ -62,6 +63,7 @@ app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/review', reviewRouter);
 
 app.use(errorHandler);
 
