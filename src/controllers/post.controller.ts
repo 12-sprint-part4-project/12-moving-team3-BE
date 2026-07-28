@@ -32,6 +32,26 @@ const getValidatedParams = (res: Response): PostIdParams => {
   return params as PostIdParams;
 };
 
+const getValidatedCreateBody = (res: Response): CreatePostBody => {
+  const body = res.locals.validated?.body;
+
+  if (body == null || typeof body !== 'object') {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  return body as CreatePostBody;
+};
+
+const getValidatedUpdateBody = (res: Response): UpdatePostBody => {
+  const body = res.locals.validated?.body;
+
+  if (body == null || typeof body !== 'object') {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  return body as UpdatePostBody;
+};
+
 /** GET /api/posts — 게시글 목록 조회 */
 export const getPosts = async (
   _req: Request,
@@ -71,13 +91,13 @@ export const getPostById = async (
 
 /** POST /api/posts — 게시글 생성 */
 export const createPost = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const body = req.body as CreatePostBody;
+    const body = getValidatedCreateBody(res);
     const result = await postService.createPost(userId, body);
 
     res.status(201).json({ data: result });
@@ -88,14 +108,14 @@ export const createPost = async (
 
 /** PATCH /api/posts/:postId — 게시글 수정 */
 export const updatePost = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
     const { postId } = getValidatedParams(res);
-    const body = req.body as UpdatePostBody;
+    const body = getValidatedUpdateBody(res);
     const result = await postService.updatePost(postId, userId, body);
 
     res.status(200).json({ data: result });

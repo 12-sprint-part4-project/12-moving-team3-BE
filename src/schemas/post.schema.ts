@@ -36,9 +36,13 @@ export const createPostBodySchema = z.object({
   region: z.enum(Region).optional(),
   title: z.string().min(1).max(100),
   content: z.string().min(1),
-  imageKeys: z.array(z.string()).max(MAX_POST_IMAGES).optional().default([]),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  imageKeys: z
+    .array(z.string().min(1))
+    .max(MAX_POST_IMAGES)
+    .optional()
+    .default([]),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
 });
 
 export type CreatePostBody = z.infer<typeof createPostBodySchema>;
@@ -47,7 +51,7 @@ export type CreatePostBody = z.infer<typeof createPostBodySchema>;
 export const updatePostBodySchema = z
   .object({
     content: z.string().min(1).optional(),
-    imageKeys: z.array(z.string()).max(MAX_POST_IMAGES).optional(),
+    imageKeys: z.array(z.string().min(1)).max(MAX_POST_IMAGES).optional(),
   })
   .refine(
     (data) => data.content !== undefined || data.imageKeys !== undefined,

@@ -393,6 +393,8 @@ router.patch(
  *     responses:
  *       204:
  *         description: 게시글 삭제 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
  *       401:
  *         $ref: '#/components/responses/Unauthorized'
  *       403:

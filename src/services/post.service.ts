@@ -201,22 +201,25 @@ export const createPost = async (userId: string, body: CreatePostBody) => {
   return { id: post.id };
 };
 
+const assertPostOwner = async (postId: number, userId: string) => {
+  const post = await postRepository.findPostOwner(postId);
+
+  if (!post) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  if (post.userId !== userId) {
+    throw new AppError('POST_FORBIDDEN');
+  }
+};
+
 /** 게시글 수정 */
 export const updatePost = async (
   postId: number,
   userId: string,
   body: UpdatePostBody
 ) => {
-  const post = await postRepository.findPostById(postId);
-
-  if (!post) {
-    throw new AppError('POST_NOT_FOUND');
-  }
-
-  // 본인 게시글 여부 확인
-  if (post.user.id !== userId) {
-    throw new AppError('POST_FORBIDDEN');
-  }
+  await assertPostOwner(postId, userId);
 
   const updated = await postRepository.updatePost(postId, body);
 
@@ -225,16 +228,11 @@ export const updatePost = async (
 
 /** 게시글 삭제 (soft delete) */
 export const deletePost = async (postId: number, userId: string) => {
-  const post = await postRepository.findPostById(postId);
+  await assertPostOwner(postId, userId);
 
-  if (!post) {
+  const result = await postRepository.softDeletePost(postId);
+
+  if (result.count === 0) {
     throw new AppError('POST_NOT_FOUND');
   }
-
-  // 본인 게시글 여부 확인
-  if (post.user.id !== userId) {
-    throw new AppError('POST_FORBIDDEN');
-  }
-
-  await postRepository.softDeletePost(postId);
 };

@@ -6,6 +6,8 @@ import type {
   UpdatePostBody,
 } from '../schemas/post.schema';
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 export interface PostCursor {
   id: number;
   sort: PostSort;
@@ -163,7 +165,21 @@ export const findPostById = async (postId: number, userId?: string) => {
   });
 };
 
-/** 게시글 생성 (이미지 포함 트랜잭션) */
+/** 게시글 작성자 조회 (권한 검사용) */
+export const findPostOwner = async (postId: number) => {
+  return prisma.post.findFirst({
+    where: {
+      id: postId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+};
+
+/** 게시글 생성 */
 export const createPost = async (userId: string, body: CreatePostBody) => {
   return prisma.post.create({
     data: {
@@ -183,14 +199,17 @@ export const createPost = async (userId: string, body: CreatePostBody) => {
 };
 
 /** 게시글 수정 (기존 이미지 전체 교체) */
-export const updatePost = async (postId: number, body: UpdatePostBody) => {
-  return prisma.$transaction(async (tx) => {
-    // 이미지 교체 시 기존 이미지 삭제 후 재생성
+export const updatePost = async (
+  postId: number,
+  body: UpdatePostBody,
+  db?: DbClient
+) => {
+  const run = async (client: DbClient) => {
     if (body.imageKeys !== undefined) {
-      await tx.postImage.deleteMany({ where: { postId } });
+      await client.postImage.deleteMany({ where: { postId } });
     }
 
-    return tx.post.update({
+    return client.post.update({
       where: { id: postId },
       data: {
         ...(body.content !== undefined && { content: body.content }),
@@ -202,13 +221,19 @@ export const updatePost = async (postId: number, body: UpdatePostBody) => {
       },
       select: { id: true },
     });
-  });
+  };
+
+  if (db) {
+    return run(db);
+  }
+
+  return prisma.$transaction(async (tx) => run(tx));
 };
 
 /** 게시글 soft delete */
 export const softDeletePost = async (postId: number) => {
-  return prisma.post.update({
-    where: { id: postId },
+  return prisma.post.updateMany({
+    where: { id: postId, deletedAt: null },
     data: { deletedAt: new Date() },
   });
 };
