@@ -1,0 +1,417 @@
+paths:
+  /api/estimate-requests/active:
+    get:
+      tags: [EstimateRequest]
+      summary: 활성 견적요청 조회
+      description: |
+        일반 유저의 활성 견적요청을 조회합니다.
+        DRAFT/SUBMITTED 는 항상 활성, CONFIRMED 는 이사일(KST 오늘) 이전까지 활성입니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 활성 요청 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      hasActiveRequest:
+                        type: boolean
+                      request:
+                        nullable: true
+                        allOf:
+                          - $ref: '#/components/schemas/ActiveEstimateRequestSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/estimate-requests:
+    post:
+      tags: [EstimateRequest]
+      summary: 견적요청 DRAFT 생성
+      description: 활성 요청이 없을 때만 DRAFT 견적요청을 생성합니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: DRAFT 생성 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      status:
+                        type: string
+                        example: DRAFT
+                      currentStep:
+                        type: integer
+                        example: 1
+                      totalSteps:
+                        type: integer
+                        example: 4
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 이미 진행 중인 견적요청 존재
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/estimate-requests/{estimateRequestId}:
+    get:
+      tags: [EstimateRequest]
+      summary: 견적요청 상세 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EstimateRequestId'
+      responses:
+        '200':
+          description: 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EstimateRequestDetail'
+        '400':
+          description: 유효하지 않은 estimateRequestId (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/estimate-requests/{estimateRequestId}/step:
+    patch:
+      tags: [EstimateRequest]
+      summary: 단계별 입력 저장
+      description: |
+        FE 스텝 모델 기준 step 1~3 저장.
+        1=이사종류, 2=이사날짜, 3=출발지+도착지 일괄.
+        완료 화면(step 4)은 submit 성공 후 FE에서 전환합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EstimateRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [step, data]
+                  properties:
+                    step:
+                      type: integer
+                      enum: [1]
+                    data:
+                      type: object
+                      required: [moveType]
+                      properties:
+                        moveType:
+                          type: string
+                          enum: [SMALL, HOME, OFFICE]
+                - type: object
+                  required: [step, data]
+                  properties:
+                    step:
+                      type: integer
+                      enum: [2]
+                    data:
+                      type: object
+                      required: [moveDate]
+                      properties:
+                        moveDate:
+                          type: string
+                          format: date
+                          example: '2026-08-20'
+                - type: object
+                  required: [step, data]
+                  properties:
+                    step:
+                      type: integer
+                      enum: [3]
+                    data:
+                      type: object
+                      required:
+                        - departureZipCode
+                        - departureAddress
+                        - departureDetailAddress
+                        - arrivalZipCode
+                        - arrivalAddress
+                        - arrivalDetailAddress
+                      properties:
+                        departureZipCode:
+                          type: string
+                        departureAddress:
+                          type: string
+                        departureDetailAddress:
+                          type: string
+                        arrivalZipCode:
+                          type: string
+                        arrivalAddress:
+                          type: string
+                        arrivalDetailAddress:
+                          type: string
+            examples:
+              step1:
+                value:
+                  step: 1
+                  data:
+                    moveType: HOME
+              step2:
+                value:
+                  step: 2
+                  data:
+                    moveDate: '2026-08-20'
+              step3:
+                value:
+                  step: 3
+                  data:
+                    departureZipCode: '06134'
+                    departureAddress: 서울 강남구 테헤란로 123
+                    departureDetailAddress: 5층 501호
+                    arrivalZipCode: '13529'
+                    arrivalAddress: 경기 성남시 분당구 판교역로 235
+                    arrivalDetailAddress: 101동 1001호
+      responses:
+        '200':
+          description: 단계 저장 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      currentStep:
+                        type: integer
+                      totalSteps:
+                        type: integer
+                      isReadyToSubmit:
+                        type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 이미 제출된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/estimate-requests/{estimateRequestId}/field:
+    patch:
+      tags: [EstimateRequest]
+      summary: 완료 항목 재수정
+      description: DRAFT 상태에서 이미 입력한 필드를 단건으로 수정합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EstimateRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [field, value]
+              properties:
+                field:
+                  type: string
+                  enum:
+                    - moveType
+                    - moveDate
+                    - departureZipCode
+                    - departureAddress
+                    - departureDetailAddress
+                    - arrivalZipCode
+                    - arrivalAddress
+                    - arrivalDetailAddress
+                value:
+                  type: string
+            example:
+              field: moveDate
+              value: '2026-08-25'
+      responses:
+        '200':
+          description: 재수정 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: true
+                    properties:
+                      id:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 이미 제출된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/estimate-requests/{estimateRequestId}/submit:
+    post:
+      tags: [EstimateRequest]
+      summary: 견적요청 제출
+      description: 필수 입력이 모두 채워진 DRAFT를 SUBMITTED로 전환하고 currentStep을 4로 설정합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EstimateRequestId'
+      responses:
+        '200':
+          description: 제출 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      status:
+                        type: string
+                        example: SUBMITTED
+                      submittedAt:
+                        type: string
+                        format: date-time
+        '400':
+          description: |
+            유효하지 않은 estimateRequestId(VALIDATION_ERROR) 또는
+            제출에 필요한 필수 입력 누락(REQUIRED_FIELD_MISSING)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 이미 제출된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  parameters:
+    EstimateRequestId:
+      name: estimateRequestId
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: 견적요청 ID (Int PK)
+  schemas:
+    ActiveEstimateRequestSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED]
+        currentStep:
+          type: integer
+        totalSteps:
+          type: integer
+        moveType:
+          type: string
+          enum: [SMALL, HOME, OFFICE]
+          nullable: true
+        moveDate:
+          type: string
+          format: date
+          nullable: true
+        departureAddress:
+          type: string
+          nullable: true
+        arrivalAddress:
+          type: string
+          nullable: true
+    EstimateRequestDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED]
+        currentStep:
+          type: integer
+        totalSteps:
+          type: integer
+        moveType:
+          type: string
+          enum: [SMALL, HOME, OFFICE]
+          nullable: true
+        moveDate:
+          type: string
+          format: date
+          nullable: true
+        departureZipCode:
+          type: string
+          nullable: true
+        departureAddress:
+          type: string
+          nullable: true
+        departureDetailAddress:
+          type: string
+          nullable: true
+        arrivalZipCode:
+          type: string
+          nullable: true
+        arrivalAddress:
+          type: string
+          nullable: true
+        arrivalDetailAddress:
+          type: string
+          nullable: true
