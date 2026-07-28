@@ -36,6 +36,18 @@ export const findMoverProfileWithRegions = async (
   };
 };
 
+/**
+ * 기사님 프로필 존재 여부 확인
+ */
+export const existsMoverProfile = async (userId: string): Promise<boolean> => {
+  const profile = await prisma.moverProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+
+  return profile !== null;
+};
+
 export interface EstimateRequestFilterParams {
   moverId: string;
   keyword?: string;
