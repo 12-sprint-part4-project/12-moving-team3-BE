@@ -47,6 +47,18 @@ export const ERROR_CODES = {
     status: 403,
     message: '해당 기능에 접근할 수 없습니다.',
   },
+  VALIDATION_ERROR: {
+    status: 400,
+    message: '입력값이 올바르지 않습니다.',
+  },
+  ACTIVE_REQUEST_EXISTS: {
+    status: 409,
+    message: '이미 진행 중인 견적 요청이 있습니다.',
+  },
+  REQUEST_ALREADY_SUBMITTED: {
+    status: 409,
+    message: '이미 제출된 견적 요청은 수정할 수 없습니다.',
+  },
   PROFILE_ALREADY_EXISTS: {
     status: 409,
     message: '이미 등록된 프로필이 존재합니다.',
