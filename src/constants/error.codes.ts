@@ -216,6 +216,52 @@ export const ERROR_CODES = {
     status: 500,
     message: '서버 내부 오류가 발생했습니다.',
   },
+
+  // 커뮤니티
+  POST_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않거나 삭제된 게시글입니다.',
+  },
+  POST_FORBIDDEN: {
+    status: 403,
+    message: '본인 게시글만 수정/삭제할 수 있습니다.',
+  },
+  POST_CATEGORY_NOT_MODIFIABLE: {
+    status: 400,
+    message: '카테고리는 수정할 수 없습니다.',
+  },
+  POST_TITLE_NOT_MODIFIABLE: {
+    status: 400,
+    message: '제목은 수정할 수 없습니다.',
+  },
+  POST_LOCATION_REQUIRED: {
+    status: 400,
+    message: '가구 나눔 게시글은 위치 정보가 필요합니다.',
+  },
+  POST_IMAGE_LIMIT_EXCEEDED: {
+    status: 400,
+    message: '이미지는 최대 5장까지 업로드할 수 있습니다.',
+  },
+  LIKE_ALREADY_EXISTS: {
+    status: 409,
+    message: '이미 좋아요한 게시글입니다.',
+  },
+  LIKE_NOT_FOUND: {
+    status: 404,
+    message: '좋아요 기록이 없습니다.',
+  },
+  COMMENT_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 댓글입니다.',
+  },
+  COMMENT_FORBIDDEN: {
+    status: 403,
+    message: '본인 댓글만 삭제할 수 있습니다.',
+  },
+  REPLY_DEPTH_EXCEEDED: {
+    status: 400,
+    message: '대댓글에는 답글을 달 수 없습니다.',
+  },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;
