@@ -7,7 +7,10 @@ import type {
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
-import type { CreateChatRoomBody } from '../schemas/chat.schema';
+import type {
+  CreateChatRoomBody,
+  GetChatMessagesQuery,
+} from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
 import { toProfileImageUrl } from '../utils/profile-image.util';
 
@@ -57,6 +60,27 @@ interface ChatRoomDetailResult {
   quoteId: number | null;
   isMessagingAllowed: boolean;
   updatedAt: string;
+}
+
+interface ChatMessageItem {
+  messageId: number;
+  senderId: string;
+  senderUserType: UserType;
+  messageType: MessageType;
+  content: string;
+  isFiltered: boolean;
+  attachments: string[];
+  createdAt: string;
+}
+
+interface ChatMessagesResult {
+  data: {
+    messages: ChatMessageItem[];
+  };
+  meta: {
+    hasNext: boolean;
+    nextCursor: number | null;
+  };
 }
 
 /** Date를 ISO 8601 문자열로 변환한다. */
@@ -428,5 +452,62 @@ export const getChatRoomDetail = async (
       room.estimateRequest?.status
     ),
     updatedAt: toIsoString(room.updatedAt),
+  };
+};
+
+/**
+ * 채팅방 메시지 이력을 커서 기반으로 조회한다.
+ * - 활성 참여자만 접근 가능
+ * - 가장 최근 joinedAt 이후 메시지만 반환
+ * - before(messageId) 이전 메시지를 id 내림차순으로 조회
+ */
+export const getChatMessages = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  query: GetChatMessagesQuery
+): Promise<ChatMessagesResult> => {
+  const room = await chatRepository.findRoomById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const participation = await chatRepository.findActiveParticipation(
+    roomId,
+    authUser.userId
+  );
+
+  if (!participation) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  const { messages, hasNext } = await chatRepository.findMessagesByRoomCursor({
+    roomId,
+    joinedAt: participation.joinedAt,
+    before: query.before,
+    limit: query.limit,
+  });
+
+  const messageItems: ChatMessageItem[] = messages.map((message) => ({
+    messageId: message.id,
+    senderId: message.senderId,
+    senderUserType: message.sender.userType,
+    messageType: message.messageType,
+    content: message.content,
+    isFiltered: message.isFiltered,
+    attachments: message.attachments.map((attachment) => attachment.fileKey),
+    createdAt: toIsoString(message.createdAt),
+  }));
+
+  const oldestMessage = messageItems[messageItems.length - 1];
+
+  return {
+    data: {
+      messages: messageItems,
+    },
+    meta: {
+      hasNext,
+      nextCursor: hasNext && oldestMessage ? oldestMessage.messageId : null,
+    },
   };
 };

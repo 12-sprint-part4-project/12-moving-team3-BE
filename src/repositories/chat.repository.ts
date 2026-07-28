@@ -339,6 +339,79 @@ export const findUnreadCountsByRooms = async (
   return new Map(unreadCounts.map(({ roomId, count }) => [roomId, count]));
 };
 
+/** 채팅방 존재 여부를 ID로 확인한다. */
+export const findRoomById = async (roomId: number) => {
+  return prisma.chatRoom.findUnique({
+    where: { id: roomId },
+    select: { id: true },
+  });
+};
+
+/** 유저의 활성 참여(leftAt IS NULL) 정보를 조회한다. */
+export const findActiveParticipation = async (
+  roomId: number,
+  userId: string
+) => {
+  return prisma.chatRoomParticipant.findFirst({
+    where: {
+      roomId,
+      participantId: userId,
+      leftAt: null,
+    },
+    select: {
+      joinedAt: true,
+    },
+  });
+};
+
+/**
+ * 채팅방 메시지를 roomId+id 커서로 조회한다.
+ * - joinedAt 이후 메시지만 포함
+ * - id 내림차순, limit+1건 조회로 hasNext 판단
+ */
+export const findMessagesByRoomCursor = async (params: {
+  roomId: number;
+  joinedAt: Date;
+  before?: number;
+  limit: number;
+}) => {
+  const rows = await prisma.chatMessage.findMany({
+    where: {
+      roomId: params.roomId,
+      createdAt: { gte: params.joinedAt },
+      ...(params.before !== undefined && {
+        id: { lt: params.before },
+      }),
+    },
+    orderBy: { id: 'desc' },
+    take: params.limit + 1,
+    select: {
+      id: true,
+      senderId: true,
+      content: true,
+      messageType: true,
+      isFiltered: true,
+      createdAt: true,
+      sender: {
+        select: {
+          userType: true,
+        },
+      },
+      attachments: {
+        orderBy: { id: 'asc' },
+        select: {
+          fileKey: true,
+        },
+      },
+    },
+  });
+
+  const hasNext = rows.length > params.limit;
+  const messages = hasNext ? rows.slice(0, params.limit) : rows;
+
+  return { messages, hasNext };
+};
+
 /** 채팅방과 참여자(고객·기사)를 함께 생성한다. */
 export const createChatRoom = async (
   data: CreateChatRoomData
