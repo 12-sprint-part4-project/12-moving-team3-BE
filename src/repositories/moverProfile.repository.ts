@@ -1,10 +1,18 @@
 import type { MoveType, Prisma, Region } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
-import { FavoriteMoversQuery } from '../schemas/movers.schema';
+import type {
+  FavoriteListCursor,
+  MoverListCursor,
+} from '../utils/movers-cursor.util';
 
 export type MoverListSort =
-  'career_asc' | 'career_desc' | 'createdAt_asc' | 'createdAt_desc';
+  | 'career_asc'
+  | 'career_desc'
+  | 'createdAt_asc'
+  | 'createdAt_desc';
+
+const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'createdAt_desc';
 
 /** service → repository로 넘기는 목록 조회 조건 (Prisma 문법 없음) */
 export interface FindMoversFilters {
@@ -12,7 +20,13 @@ export interface FindMoversFilters {
   regions?: Region[];
   moveTypes?: MoveType[];
   sort?: MoverListSort;
-  page?: number;
+  cursor?: MoverListCursor;
+  limit?: number;
+}
+
+export interface FindFavoriteMoversParams {
+  userId: string;
+  cursor?: FavoriteListCursor;
   limit?: number;
 }
 
@@ -108,47 +122,105 @@ const buildMoverListWhere = (
 };
 
 const buildMoverListOrderBy = (
-  sort: MoverListSort = 'createdAt_desc'
-): Prisma.MoverProfileOrderByWithRelationInput => {
+  sort: MoverListSort
+): Prisma.MoverProfileOrderByWithRelationInput[] => {
   switch (sort) {
     case 'career_asc':
-      return { career: 'asc' };
+      return [{ career: 'asc' }, { id: 'asc' }];
     case 'career_desc':
-      return { career: 'desc' };
+      return [{ career: 'desc' }, { id: 'desc' }];
     case 'createdAt_asc':
-      return { createdAt: 'asc' };
+      return [{ createdAt: 'asc' }, { id: 'asc' }];
     case 'createdAt_desc':
     default:
-      return { createdAt: 'desc' };
+      return [{ createdAt: 'desc' }, { id: 'desc' }];
   }
 };
 
+/** 정렬 방향에 맞는 키셋 커서 조건 */
+const buildMoverListCursorCondition = (
+  sort: MoverListSort,
+  cursor: MoverListCursor
+): Prisma.MoverProfileWhereInput => {
+  const isDescending = sort.endsWith('_desc');
+
+  if (sort.startsWith('career')) {
+    const career = Number(cursor.value);
+
+    return isDescending
+      ? {
+          OR: [
+            { career: { lt: career } },
+            { AND: [{ career }, { id: { lt: cursor.id } }] },
+          ],
+        }
+      : {
+          OR: [
+            { career: { gt: career } },
+            { AND: [{ career }, { id: { gt: cursor.id } }] },
+          ],
+        };
+  }
+
+  const createdAt = new Date(cursor.value);
+
+  return isDescending
+    ? {
+        OR: [
+          { createdAt: { lt: createdAt } },
+          { AND: [{ createdAt }, { id: { lt: cursor.id } }] },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { gt: createdAt } },
+          { AND: [{ createdAt }, { id: { gt: cursor.id } }] },
+        ],
+      };
+};
+
+const buildFavoriteListCursorCondition = (
+  cursor: FavoriteListCursor
+): Prisma.FavoriteWhereInput => {
+  const createdAt = new Date(cursor.value);
+
+  return {
+    OR: [
+      { createdAt: { lt: createdAt } },
+      { AND: [{ createdAt }, { id: { lt: cursor.id } }] },
+    ],
+  };
+};
+
 const moverProfileRepository = {
-  /**
-   * Read: 목록 조회 (where / orderBy / include / pagination은 repository에서 조합)
-   * TODO: 페이지네이션 meta가 필요하면 count 쿼리(또는 findMany+count 트랜잭션) 추가 후 { items, total } 반환
-   */
   findMovers: async (
     filters: FindMoversFilters,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
-    const page = filters.page ?? 1;
+    const sort = filters.sort ?? DEFAULT_MOVER_LIST_SORT;
     const limit = filters.limit ?? 10;
+    const baseWhere = buildMoverListWhere(filters);
+    const where: Prisma.MoverProfileWhereInput = filters.cursor
+      ? { AND: [baseWhere, buildMoverListCursorCondition(sort, filters.cursor)] }
+      : baseWhere;
 
-    return dbClient.moverProfile.findMany({
-      where: buildMoverListWhere(filters),
-      orderBy: buildMoverListOrderBy(filters.sort),
+    const rows = await dbClient.moverProfile.findMany({
+      where,
+      orderBy: buildMoverListOrderBy(sort),
       include: moverListInclude,
-      skip: (page - 1) * limit,
-      take: limit,
+      take: limit + 1,
     });
+
+    const hasNextPage = rows.length > limit;
+
+    return {
+      items: hasNextPage ? rows.slice(0, limit) : rows,
+      hasNextPage,
+      sort,
+    };
   },
 
-  /**
-   * Read: id로 상세 조회
-   * TODO: 상세 화면에 필요한 relation(리뷰, 찜 수 등)이 있으면 moverDetailInclude 확장
-   */
   findMoverProfileById: async (
     moverId: string,
     tx?: Prisma.TransactionClient
@@ -162,17 +234,18 @@ const moverProfileRepository = {
   },
 
   findFavoriteMoversById: async (
-    userId: string,
-    query: FavoriteMoversQuery,
+    params: FindFavoriteMoversParams,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
+    const limit = params.limit ?? 10;
+    const baseWhere: Prisma.FavoriteWhereInput = { userId: params.userId };
+    const where: Prisma.FavoriteWhereInput = params.cursor
+      ? { AND: [baseWhere, buildFavoriteListCursorCondition(params.cursor)] }
+      : baseWhere;
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
-
-    return dbClient.favorite.findMany({
-      where: { userId },
+    const rows = await dbClient.favorite.findMany({
+      where,
       include: {
         mover: {
           select: {
@@ -190,30 +263,16 @@ const moverProfileRepository = {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
     });
-  },
 
-  countMovers: async (
-    filters: FindMoversFilters,
-    tx?: Prisma.TransactionClient
-  ) => {
-    const dbClient = tx ?? prisma;
-    return dbClient.moverProfile.count({
-      where: buildMoverListWhere(filters),
-    });
-  },
+    const hasNextPage = rows.length > limit;
 
-  countFavoriteMoversById: async (
-    userId: string,
-    tx?: Prisma.TransactionClient
-  ) => {
-    const dbClient = tx ?? prisma;
-    return dbClient.favorite.count({
-      where: { userId },
-    });
+    return {
+      items: hasNextPage ? rows.slice(0, limit) : rows,
+      hasNextPage,
+    };
   },
 };
 

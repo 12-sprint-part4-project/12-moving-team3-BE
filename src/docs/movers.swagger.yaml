@@ -5,7 +5,7 @@ paths:
       summary: 기사님 목록 조회
       description: |
         기사 프로필 목록을 조회합니다.
-        keyword, region, moveType, sort, order, page, limit 쿼리로 필터·정렬·페이지네이션할 수 있습니다.
+        keyword, region, moveType, sort, order, cursor, limit 쿼리로 필터·정렬·무한 스크롤 조회할 수 있습니다.
         회원/비회원 모두 접근 가능합니다.
       parameters:
         - name: keyword
@@ -54,14 +54,12 @@ paths:
           schema:
             type: string
             enum: [asc, desc]
-        - name: page
+        - name: cursor
           in: query
           required: false
-          description: 페이지 번호 (1부터)
+          description: 이전 응답의 meta.nextCursor 값 (다음 페이지 조회 시 사용)
           schema:
-            type: integer
-            minimum: 1
-            default: 1
+            type: string
         - name: limit
           in: query
           required: false
@@ -87,27 +85,12 @@ paths:
                   meta:
                     type: object
                     properties:
-                      pagination:
-                        type: object
-                        properties:
-                          currentPage:
-                            type: integer
-                            example: 1
-                          pageSize:
-                            type: integer
-                            example: 10
-                          totalItems:
-                            type: integer
-                            example: 42
-                          totalPages:
-                            type: integer
-                            example: 5
-                          hasNextPage:
-                            type: boolean
-                            example: true
-                          hasPrevPage:
-                            type: boolean
-                            example: false
+                      nextCursor:
+                        type: string
+                        nullable: true
+                        description: 다음 페이지 조회 시 cursor 파라미터로 전달
+                      hasNextPage:
+                        type: boolean
               example:
                 data:
                   - id: 12
@@ -137,13 +120,8 @@ paths:
                       totalCount: 20
                       averageRating: 4.4
                 meta:
-                  pagination:
-                    currentPage: 1
-                    pageSize: 10
-                    totalItems: 42
-                    totalPages: 5
-                    hasNextPage: true
-                    hasPrevPage: false
+                  nextCursor: eyJzb3J0IjoiY3JlYXRlZEF0X2Rlc2MiLCJ2YWx1ZSI6IjIwMjYtMDEtMTBUMDg6MDA6MDAuMDAwWiIsImlkIjoxMn0
+                  hasNextPage: true
         '400':
           description: 잘못된 쿼리 파라미터
           content:
@@ -176,14 +154,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: page
+        - name: cursor
           in: query
           required: false
-          description: 페이지 번호 (1부터)
+          description: 이전 응답의 meta.nextCursor 값 (다음 페이지 조회 시 사용)
           schema:
-            type: integer
-            minimum: 1
-            default: 1
+            type: string
         - name: limit
           in: query
           required: false
@@ -209,21 +185,12 @@ paths:
                   meta:
                     type: object
                     properties:
-                      pagination:
-                        type: object
-                        properties:
-                          currentPage:
-                            type: integer
-                          pageSize:
-                            type: integer
-                          totalItems:
-                            type: integer
-                          totalPages:
-                            type: integer
-                          hasNextPage:
-                            type: boolean
-                          hasPrevPage:
-                            type: boolean
+                      nextCursor:
+                        type: string
+                        nullable: true
+                        description: 다음 페이지 조회 시 cursor 파라미터로 전달
+                      hasNextPage:
+                        type: boolean
               example:
                 data:
                   - id: 3
@@ -250,13 +217,8 @@ paths:
                       averageRating: 4.4
                     favoritedCount: 128
                 meta:
-                  pagination:
-                    currentPage: 1
-                    pageSize: 10
-                    totalItems: 3
-                    totalPages: 1
-                    hasNextPage: false
-                    hasPrevPage: false
+                  nextCursor: null
+                  hasNextPage: false
         '400':
           description: 잘못된 쿼리 파라미터
           content:

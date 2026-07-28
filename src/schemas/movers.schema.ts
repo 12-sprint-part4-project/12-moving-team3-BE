@@ -35,7 +35,7 @@ export const moversListQuerySchema = z.object({
   moveType: moveTypeArraySchema.optional(),
   sort: z.enum(MOVER_SORT_FIELDS).optional(),
   order: z.enum(MOVER_SORT_ORDERS).optional(),
-  page: z.coerce.number().int().min(1).optional().default(1),
+  cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(10).optional().default(10),
 });
 
@@ -46,7 +46,7 @@ export const moverDetailParamsSchema = z.object({
 
 /** GET /api/movers/favorites query */
 export const favoriteMoversQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional().default(1),
+  cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(10).optional().default(10),
 });
 

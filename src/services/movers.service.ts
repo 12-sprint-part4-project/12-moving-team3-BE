@@ -10,13 +10,23 @@ import type {
   MoversListQuery,
 } from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
+import {
+  decodeFavoriteListCursor,
+  decodeMoverListCursor,
+  encodeFavoriteListCursor,
+  encodeMoverListCursor,
+  getFavoriteListCursorValue,
+  getMoverListCursorValue,
+} from '../utils/movers-cursor.util';
+
+const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'createdAt_desc';
 
 const toMoverListSort = (
   sort?: MoversListQuery['sort'],
   order?: MoversListQuery['order']
-): MoverListSort | undefined => {
+): MoverListSort => {
   if (!sort) {
-    return undefined;
+    return DEFAULT_MOVER_LIST_SORT;
   }
 
   const resolvedOrder = order ?? (sort === 'career' ? 'asc' : 'desc');
@@ -24,33 +34,40 @@ const toMoverListSort = (
   return `${sort}_${resolvedOrder}` as MoverListSort;
 };
 
-/**
- * 검증된 MoversListQuery → repository FindMoversFilters
- */
 const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
+  const sort = toMoverListSort(query.sort, query.order);
+
   return {
     keyword: query.keyword,
     regions: query.region,
     moveTypes: query.moveType,
-    sort: toMoverListSort(query.sort, query.order),
-    page: query.page,
+    sort,
+    cursor: query.cursor
+      ? decodeMoverListCursor(query.cursor, sort)
+      : undefined,
     limit: query.limit,
   };
+};
+
+const EMPTY_REVIEW_STATS = {
+  ratingCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+  totalCount: 0,
+  averageRating: null,
 };
 
 const moversService = {
   //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMovers: async (query: MoversListQuery) => {
     const filters = toFindMoversFilters(query);
-    //기사님 정보
-    const movers = await moverProfileRepository.findMovers(filters);
+    const { items: movers, hasNextPage, sort } =
+      await moverProfileRepository.findMovers(filters);
 
-    //리뷰 정보를 합한 객체로 변환
     const moversWithReviews = await Promise.all(
       movers.map(async (mover) => {
         const reviewStats = await reviewRepository.getReviewStatsByMoverId(
           mover.user.id
         );
+
         return {
           ...mover,
           review: reviewStats,
@@ -58,41 +75,33 @@ const moversService = {
       })
     );
 
-    //pagination 정보
-    const totalCount = await moverProfileRepository.countMovers(filters);
-    const totalPages = Math.ceil(totalCount / query.limit);
-    const hasNextPage = query.page < totalPages;
-    const hasPrevPage = query.page > 1;
-    const pagination = {
-      currentPage: query.page,
-      pageSize: query.limit,
-      totalItems: totalCount,
-      totalPages: totalPages,
-      hasNextPage: hasNextPage,
-      hasPrevPage: hasPrevPage,
-    };
+    const lastMover = movers.length > 0 ? movers[movers.length - 1] : undefined;
+
     return {
       data: moversWithReviews,
       meta: {
-        pagination: pagination,
+        nextCursor:
+          hasNextPage && lastMover
+            ? encodeMoverListCursor(getMoverListCursorValue(sort, lastMover))
+            : null,
+        hasNextPage,
       },
     };
   },
 
   //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMoverDetail: async (moverId: string) => {
-    //기사님 상세 정보
     const moverDetail =
       await moverProfileRepository.findMoverProfileById(moverId);
-    //TODO: moverDetail이 존재하지 않는다면 에러반환
-    //리뷰 통계
-    const reviewStats = await reviewRepository.getReviewStatsByMoverId(moverId);
-    //리뷰 전체
-    const reviews = await reviewRepository.getReviewsByMoverId(moverId);
 
     if (!moverDetail) {
       throw new AppError('MOVER_NOT_FOUND');
     }
+
+    const [reviewStats, reviews] = await Promise.all([
+      reviewRepository.getReviewStatsByMoverId(moverId),
+      reviewRepository.getReviewsByMoverId(moverId),
+    ]);
 
     return {
       data: {
@@ -110,60 +119,51 @@ const moversService = {
     userId: string;
     query: FavoriteMoversQuery;
   }) => {
-    //찜한 기사님 목록
-    const movers = await moverProfileRepository.findFavoriteMoversById(
-      userId,
-      query
-    );
+    const { items: favorites, hasNextPage } =
+      await moverProfileRepository.findFavoriteMoversById({
+        userId,
+        cursor: query.cursor
+          ? decodeFavoriteListCursor(query.cursor)
+          : undefined,
+        limit: query.limit,
+      });
 
-    //리뷰 통계 + 찜 수
-    const emptyReviewStats = {
-      ratingCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-      totalCount: 0,
-      averageRating: null,
-    };
-
-    const moversWithReviewAndCount = await Promise.all(
-      movers.map(async (mover) => {
-        if (!mover.moverId) {
+    const favoritesWithDetails = await Promise.all(
+      favorites.map(async (favorite) => {
+        if (!favorite.moverId) {
           return {
-            ...mover,
-            reviewStats: emptyReviewStats,
+            ...favorite,
+            reviewStats: EMPTY_REVIEW_STATS,
             favoritedCount: 0,
           };
         }
 
         const [reviewStats, favoritedCount] = await Promise.all([
-          reviewRepository.getReviewStatsByMoverId(mover.moverId),
-          countMoverFavorited(mover.moverId),
+          reviewRepository.getReviewStatsByMoverId(favorite.moverId),
+          countMoverFavorited(favorite.moverId),
         ]);
 
         return {
-          ...mover,
+          ...favorite,
           reviewStats,
           favoritedCount,
         };
       })
     );
 
-    //pagination 정보
-    const totalCount =
-      await moverProfileRepository.countFavoriteMoversById(userId);
-    const totalPages = Math.ceil(totalCount / query.limit);
-    const hasNextPage = query.page < totalPages;
-    const hasPrevPage = query.page > 1;
-    const pagination = {
-      currentPage: query.page,
-      pageSize: query.limit,
-      totalItems: totalCount,
-      totalPages: totalPages,
-      hasNextPage: hasNextPage,
-      hasPrevPage: hasPrevPage,
-    };
+    const lastFavorite =
+      favorites.length > 0 ? favorites[favorites.length - 1] : undefined;
+
     return {
-      data: moversWithReviewAndCount,
+      data: favoritesWithDetails,
       meta: {
-        pagination: pagination,
+        nextCursor:
+          hasNextPage && lastFavorite
+            ? encodeFavoriteListCursor(
+                getFavoriteListCursorValue(lastFavorite)
+              )
+            : null,
+        hasNextPage,
       },
     };
   },
