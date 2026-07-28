@@ -1,38 +1,20 @@
 import type { NextFunction, Request, Response } from 'express';
 import { getAuthenticatedUser } from '../middlewares/auth.middleware';
-import {
-  quoteBodySchema,
-  quoteParamsSchema,
-  type QuoteBody,
-  type QuoteParams,
-} from '../schemas/quote.schema';
+import type { QuoteBody, QuoteParams } from '../schemas/quote.schema';
 import * as quoteService from '../services/quote.service';
 import { AppError } from '../utils/app.error';
 
 /**
- * validateRequest 미들웨어가 남긴 params 재검증 후 타입 반환
+ * validateRequest 미들웨어가 남긴 params 반환
  */
 const getValidatedParams = (res: Response): QuoteParams => {
-  const parsed = quoteParamsSchema.safeParse(res.locals.validated?.params);
+  const params = res.locals.validated?.params;
 
-  if (!parsed.success) {
+  if (params == null || typeof params !== 'object') {
     throw new AppError('INVALID_REQUEST_BODY');
   }
 
-  return parsed.data;
-};
-
-/**
- * validateRequest 미들웨어가 남긴 body 재검증 후 타입 반환
- */
-const getValidatedBody = (req: Request): QuoteBody => {
-  const parsed = quoteBodySchema.safeParse(req.body);
-
-  if (!parsed.success) {
-    throw new AppError('INVALID_REQUEST_BODY');
-  }
-
-  return parsed.data;
+  return params as QuoteParams;
 };
 
 /**
@@ -46,7 +28,7 @@ export const submitQuote = async (
   try {
     const { userId: moverId } = getAuthenticatedUser(res);
     const { estimateRequestId } = getValidatedParams(res);
-    const body = getValidatedBody(req);
+    const body = req.body as QuoteBody;
 
     const quote = await quoteService.submitQuote({
       moverId,
