@@ -1,5 +1,5 @@
-import type { EstimateRequestStatus, MoveType } from '@prisma/client';
-import { MoveType as MoveTypeEnum } from '@prisma/client';
+import type { MoveType } from '@prisma/client';
+import { EstimateRequestStatus, MoveType as MoveTypeEnum } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import type {
@@ -321,8 +321,16 @@ const getOwnedDraftOrThrow = async (
     throw new AppError('FORBIDDEN', '본인의 견적 요청만 수정할 수 있습니다.');
   }
 
-  if (row.status !== ('DRAFT' satisfies EstimateRequestStatus)) {
-    throw new AppError('REQUEST_ALREADY_SUBMITTED');
+  // DRAFT만 수정·제출 가능 — SUBMITTED는 기본 문구, 확정·완료는 통합 문구
+  if (row.status !== EstimateRequestStatus.DRAFT) {
+    if (row.status === EstimateRequestStatus.SUBMITTED) {
+      throw new AppError('REQUEST_ALREADY_SUBMITTED');
+    }
+
+    throw new AppError(
+      'REQUEST_ALREADY_SUBMITTED',
+      '확정되었거나 완료된 견적 요청은 수정할 수 없습니다.'
+    );
   }
 
   return row;
