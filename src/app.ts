@@ -63,12 +63,9 @@ app.use('/', testRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
-<<<<<<< HEAD
 app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
-=======
 app.use('/api/estimate-requests', estimateRequestRouter);
->>>>>>> bcae7b36edd0cad32a570a4e6fa946625f703ba1
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 
