@@ -294,6 +294,7 @@ export const createChatRoom = async (
 /**
  * 채팅방 목록을 조회한다.
  * - 활성 참여(leftAt IS NULL) 방만 포함
+ * - 상대가 나간 방도 목록에 유지(partner는 최신 참여 이력 기준)
  * - lastMessage / unreadCount는 최근 joinedAt 이후 메시지만 반영
  */
 export const getChatRoomList = async (
@@ -304,7 +305,9 @@ export const getChatRoomList = async (
   const roomVisibility = rooms
     .map((room) => {
       const myParticipation = room.participants.find(
-        (participant) => participant.participantId === authUser.userId
+        (participant) =>
+          participant.participantId === authUser.userId &&
+          participant.leftAt === null
       );
 
       if (!myParticipation) {
@@ -330,9 +333,13 @@ export const getChatRoomList = async (
 
   const roomListItems = roomVisibility
     .map(({ room }): ChatRoomListItem | null => {
-      const partnerParticipant = room.participants.find(
+      const partnerCandidates = room.participants.filter(
         (participant) => participant.participantId !== authUser.userId
       );
+
+      const partnerParticipant =
+        partnerCandidates.find((participant) => participant.leftAt === null) ??
+        partnerCandidates[0];
 
       if (!partnerParticipant) {
         return null;

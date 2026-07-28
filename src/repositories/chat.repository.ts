@@ -180,7 +180,9 @@ export const findRoomDetailById = async (roomId: number) => {
 
 /**
  * 유저가 활성 참여 중인 채팅방 목록을 조회한다.
- * lastMessageAt → updatedAt 최신순으로 정렬한다.
+ * - 방 노출: 요청자 leftAt IS NULL
+ * - participants는 leftAt 무관하게 조회(상대가 나간 방도 partner 표시)
+ * - lastMessageAt → updatedAt 최신순
  */
 export const findActiveRoomsByUserId = async (userId: string) => {
   return prisma.chatRoom.findMany({
@@ -197,10 +199,11 @@ export const findActiveRoomsByUserId = async (userId: string) => {
       id: true,
       roomType: true,
       participants: {
-        where: { leftAt: null },
+        orderBy: { joinedAt: 'desc' },
         select: {
           participantId: true,
           joinedAt: true,
+          leftAt: true,
           user: {
             select: {
               id: true,
@@ -216,8 +219,8 @@ export const findActiveRoomsByUserId = async (userId: string) => {
 };
 
 /**
- * 방별 최근 메시지(가입 시각 이후)를 조회한다.
- * 재참여(joinedAt) 이전 메시지는 제외한다.
+ * 방별 최근 메시지를 조회한다.
+ * 방마다 전체 최신 메시지 1건을 가져온 뒤, joinedAt 이전 메시지는 제외한다.
  */
 export const findLastMessagesByRooms = async (
   rooms: Array<{ roomId: number; joinedAt: Date }>
@@ -226,30 +229,41 @@ export const findLastMessagesByRooms = async (
     return new Map<number, RoomLastMessage>();
   }
 
-  const results = await Promise.all(
-    rooms.map(async ({ roomId, joinedAt }) => {
-      const message = await prisma.chatMessage.findFirst({
-        where: {
-          roomId,
-          createdAt: { gte: joinedAt },
-        },
-        orderBy: { id: 'desc' },
-        select: {
-          roomId: true,
-          content: true,
-          messageType: true,
-          createdAt: true,
-        },
-      });
-
-      return message;
-    })
+  const roomIds = rooms.map((room) => room.roomId);
+  const joinedAtByRoomId = new Map(
+    rooms.map((room) => [room.roomId, room.joinedAt])
   );
+
+  const latestByRoom = await prisma.chatMessage.groupBy({
+    by: ['roomId'],
+    where: { roomId: { in: roomIds } },
+    _max: { id: true },
+  });
+
+  const latestMessageIds = latestByRoom
+    .map((row) => row._max.id)
+    .filter((id): id is number => id !== null);
+
+  if (latestMessageIds.length === 0) {
+    return new Map<number, RoomLastMessage>();
+  }
+
+  const messages = await prisma.chatMessage.findMany({
+    where: { id: { in: latestMessageIds } },
+    select: {
+      roomId: true,
+      content: true,
+      messageType: true,
+      createdAt: true,
+    },
+  });
 
   const lastMessageByRoomId = new Map<number, RoomLastMessage>();
 
-  for (const message of results) {
-    if (!message) {
+  for (const message of messages) {
+    const joinedAt = joinedAtByRoomId.get(message.roomId);
+
+    if (!joinedAt || message.createdAt < joinedAt) {
       continue;
     }
 
