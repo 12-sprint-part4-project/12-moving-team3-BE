@@ -37,7 +37,7 @@ router.get(
   allowUserTypes('CUSTOMER'),
   validateRequest({
     params: estimateRequestIdParamsSchema,
-    errorCode: 'INVALID_REQUEST',
+    errorCode: 'VALIDATION_ERROR',
   }),
   estimateRequestController.getEstimateRequestDetail
 );
@@ -72,7 +72,7 @@ router.post(
   allowUserTypes('CUSTOMER'),
   validateRequest({
     params: estimateRequestIdParamsSchema,
-    errorCode: 'INVALID_REQUEST',
+    errorCode: 'VALIDATION_ERROR',
   }),
   estimateRequestController.submitEstimateRequest
 );
