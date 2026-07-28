@@ -65,7 +65,7 @@ export const ERROR_CODES = {
   },
   INVALID_QUERY_PARAM: {
     status: 400,
-    message: '유효하지 않은 정렬 또는 필터 값입니다.',
+    message: '유효하지 않은 요청 파라미터입니다.',
   },
   ALREADY_CONFIRMED_REQUEST: {
     status: 409,

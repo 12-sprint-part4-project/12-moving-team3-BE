@@ -5,6 +5,12 @@ import {
   type Quote,
 } from '@prisma/client';
 import type {
+  CustomerPastQuoteGroupDto,
+  CustomerPastQuotesResultDto,
+  CustomerPendingQuotesDto,
+  CustomerQuoteDetailDto,
+  CustomerQuoteItemDto,
+  CustomerQuoteMoverDto,
   QuoteDetailDto,
   QuoteListResultDto,
   RejectedQuoteListItemDto,
@@ -14,19 +20,28 @@ import { existsMoverProfile } from '../repositories/estimate-request.repository'
 import * as quoteRepository from '../repositories/quote.repository';
 import type {
   CreateQuoteData,
+  CustomerPastEstimateRequestRow,
+  CustomerQuoteMoverRow,
+  CustomerQuoteRow,
+  FindCustomerPastEstimateRequestsParams,
   QuoteDetailRow,
   QuoteTransactionClient,
   RejectedQuoteListRow,
   SentQuoteListRow,
 } from '../repositories/quote.repository';
 import {
+  PAST_QUOTE_FILTER_VALUES,
   SENT_QUOTE_STATUSES,
+  type PastQuoteFilter,
   type QuoteBody,
   type QuoteListStatus,
 } from '../schemas/quote.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
+import { toProfileImageUrl } from '../utils/profile-image.util';
 import { inferDistrictLabelFromAddress } from '../utils/region.util';
+
+// --- [기사님(MOVER)용 API] ---
 
 /** 지정 견적 요청 최대 PROPOSAL 수 */
 const DESIGNATED_MAX_PROPOSALS = 3;
@@ -64,6 +79,13 @@ const getMaxProposalCount = (isDesignated: boolean): number =>
 const isUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === 'P2002';
+
+/**
+ * Prisma P2025(Record not found) 여부 판별 — 잘못된 커서 등
+ */
+const isRecordNotFoundError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === 'P2025';
 
 /**
  * 동일 무버의 기존 견적/반려 여부 검증
@@ -417,5 +439,295 @@ const buildPaginationMeta = (
     limit,
     hasNextPage: currentPage < totalPages,
     hasPrevPage: currentPage > 1 && totalCount > 0,
+  };
+};
+
+// --- [일반 유저(CUSTOMER)용 API] ---
+
+export interface GetCustomerPastQuotesInput {
+  customerId: string;
+  cursor?: number;
+  limit: number;
+  estimateRequestId?: number;
+  filter: string;
+}
+
+export interface GetCustomerQuoteDetailInput {
+  customerId: string;
+  quoteId: number;
+}
+
+/**
+ * 과거 견적 filter 값 타입 가드
+ */
+const isPastQuoteFilter = (value: string): value is PastQuoteFilter =>
+  (PAST_QUOTE_FILTER_VALUES as readonly string[]).includes(value);
+
+/**
+ * filter 기준 고객 견적 상태 배열 반환
+ */
+const resolveCustomerQuoteStatuses = (
+  filter: PastQuoteFilter
+): QuoteStatus[] => {
+  if (filter === 'CONFIRMED') {
+    return [QuoteStatus.CONFIRMED];
+  }
+
+  return SENT_QUOTE_STATUSES;
+};
+
+/**
+ * 과거 견적 요청 목록 조회
+ * 잘못된 커서는 Prisma P2025 → INVALID_QUERY_PARAM 으로 변환
+ */
+const findPastEstimateRequestsOrThrow = async (
+  params: FindCustomerPastEstimateRequestsParams
+) => {
+  try {
+    return await quoteRepository.findCustomerPastEstimateRequests(params);
+  } catch (error) {
+    if (isRecordNotFoundError(error)) {
+      throw new AppError('INVALID_QUERY_PARAM');
+    }
+    throw error;
+  }
+};
+
+/**
+ * 리뷰 합계로 평균 평점 산출 (소수 1자리)
+ */
+const toAverageRating = (ratingSum: number, reviewCount: number): number => {
+  if (reviewCount === 0) return 0;
+  return Math.round((ratingSum / reviewCount) * 10) / 10;
+};
+
+/**
+ * 기사님 카드 DTO 변환
+ */
+const toCustomerQuoteMoverDto = (
+  mover: CustomerQuoteMoverRow
+): CustomerQuoteMoverDto => ({
+  moverId: mover.id,
+  nickname: mover.nickname,
+  profileImage: toProfileImageUrl(mover.profileImageKey),
+  rating: toAverageRating(mover.ratingSum, mover.reviewCount),
+  reviewCount: mover.reviewCount,
+  career: mover.career,
+  confirmedQuoteCount: mover.confirmedQuoteCount,
+  favoriteCount: mover.favoriteCount,
+  isFavorited: mover.isFavorited,
+});
+
+/**
+ * 고객 견적 아이템 DTO 변환
+ */
+const toCustomerQuoteItemDto = (
+  quote: CustomerQuoteRow,
+  moverMap: Map<string, CustomerQuoteMoverRow>
+): CustomerQuoteItemDto | null => {
+  if (!quote.moverId) return null;
+
+  const mover = moverMap.get(quote.moverId);
+  if (!mover) return null;
+
+  return {
+    quoteId: quote.id,
+    price: quote.price,
+    status: quote.status,
+    isDesignated: quote.isDesignated,
+    mover: toCustomerQuoteMoverDto(mover),
+  };
+};
+
+/**
+ * 견적 목록을 기사님 카드와 함께 DTO로 변환
+ */
+const mapCustomerQuoteItems = (
+  quotes: CustomerQuoteRow[],
+  moverMap: Map<string, CustomerQuoteMoverRow>
+): CustomerQuoteItemDto[] =>
+  quotes
+    .map((quote) => toCustomerQuoteItemDto(quote, moverMap))
+    .filter((item): item is CustomerQuoteItemDto => item != null);
+
+/**
+ * 견적 목록에 필요한 기사님 카드 일괄 조회·매핑
+ */
+const buildCustomerQuoteItems = async (
+  quotes: CustomerQuoteRow[],
+  customerId: string
+): Promise<CustomerQuoteItemDto[]> => {
+  const moverIds = quotes
+    .map((quote) => quote.moverId)
+    .filter((moverId): moverId is string => moverId != null);
+
+  const moverMap = await quoteRepository.findMoverCardsByIds(
+    moverIds,
+    customerId
+  );
+
+  return mapCustomerQuoteItems(quotes, moverMap);
+};
+
+/**
+ * 과거 견적 요청 그룹 DTO 변환
+ */
+const toPastQuoteGroupDto = (
+  row: CustomerPastEstimateRequestRow,
+  moverMap: Map<string, CustomerQuoteMoverRow>
+): CustomerPastQuoteGroupDto => ({
+  estimateRequestId: row.id,
+  submittedAt: row.submittedAt,
+  serviceType: row.moveType,
+  moveDate: row.moveDate,
+  fromAddress: inferDistrictLabelFromAddress(row.departureAddress),
+  toAddress: inferDistrictLabelFromAddress(row.arrivalAddress),
+  quotes: mapCustomerQuoteItems(row.quotes, moverMap),
+});
+
+/**
+ * 과거 견적 요청 그룹 목록을 기사님 카드와 함께 매핑
+ */
+const buildPastQuoteGroups = async (
+  rows: CustomerPastEstimateRequestRow[],
+  customerId: string
+): Promise<CustomerPastQuoteGroupDto[]> => {
+  const moverIds = rows
+    .flatMap((row) => row.quotes)
+    .map((quote) => quote.moverId)
+    .filter((moverId): moverId is string => moverId != null);
+
+  const moverMap = await quoteRepository.findMoverCardsByIds(
+    moverIds,
+    customerId
+  );
+
+  return rows.map((row) => toPastQuoteGroupDto(row, moverMap));
+};
+
+/**
+ * 일반/지정 견적 건수 집계
+ */
+const countQuotesByDesignation = (
+  quotes: CustomerQuoteRow[]
+): { general: number; designated: number } =>
+  quotes.reduce(
+    (acc, quote) => {
+      if (quote.isDesignated) {
+        acc.designated += 1;
+      } else {
+        acc.general += 1;
+      }
+      return acc;
+    },
+    { general: 0, designated: 0 }
+  );
+
+/**
+ * 대기 중인 견적 리스트 조회
+ * SUBMITTED 요청이 없으면 null 반환
+ */
+export const getCustomerPendingQuotes = async (
+  customerId: string
+): Promise<CustomerPendingQuotesDto | null> => {
+  const estimateRequest =
+    await quoteRepository.findPendingEstimateRequestWithQuotes(customerId);
+
+  if (!estimateRequest) {
+    return null;
+  }
+
+  const quotes = await buildCustomerQuoteItems(
+    estimateRequest.quotes,
+    customerId
+  );
+
+  return {
+    estimateRequestId: estimateRequest.id,
+    status: estimateRequest.status,
+    serviceType: estimateRequest.moveType,
+    moveDate: estimateRequest.moveDate,
+    fromAddress: inferDistrictLabelFromAddress(
+      estimateRequest.departureAddress
+    ),
+    toAddress: inferDistrictLabelFromAddress(estimateRequest.arrivalAddress),
+    quoteCount: countQuotesByDesignation(estimateRequest.quotes),
+    quotes,
+  };
+};
+
+/**
+ * 받았던 견적(과거) 리스트 조회
+ * estimateRequestId 존재 시 해당 요청 블록만 필터링
+ */
+export const getCustomerPastQuotes = async (
+  input: GetCustomerPastQuotesInput
+): Promise<CustomerPastQuotesResultDto> => {
+  if (!isPastQuoteFilter(input.filter)) {
+    throw new AppError('INVALID_FILTER_TYPE');
+  }
+
+  const { items: rows, hasNextPage } = await findPastEstimateRequestsOrThrow({
+    customerId: input.customerId,
+    cursor: input.cursor,
+    limit: input.limit,
+    estimateRequestId: input.estimateRequestId,
+    quoteStatuses: resolveCustomerQuoteStatuses(input.filter),
+  });
+
+  // 단건 필터인데 소유 요청이 없으면 ESTIMATE_REQUEST_NOT_FOUND 처리
+  if (input.estimateRequestId != null && rows.length === 0) {
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+  }
+
+  const items = await buildPastQuoteGroups(rows, input.customerId);
+  const lastItem = items[items.length - 1];
+
+  return {
+    items,
+    meta: {
+      nextCursor: hasNextPage && lastItem ? lastItem.estimateRequestId : null,
+      hasNextPage,
+    },
+  };
+};
+
+/**
+ * 고객 견적 상세 조회
+ */
+export const getCustomerQuoteDetail = async (
+  input: GetCustomerQuoteDetailInput
+): Promise<CustomerQuoteDetailDto> => {
+  const quote = await quoteRepository.findCustomerQuoteById(
+    input.quoteId,
+    input.customerId
+  );
+
+  if (!quote?.moverId) {
+    throw new AppError('QUOTE_NOT_FOUND');
+  }
+
+  const moverMap = await quoteRepository.findMoverCardsByIds(
+    [quote.moverId],
+    input.customerId
+  );
+  const mover = moverMap.get(quote.moverId);
+
+  if (!mover) {
+    throw new AppError('MOVER_NOT_FOUND');
+  }
+
+  return {
+    quoteId: quote.id,
+    estimateRequestId: quote.estimateRequestId,
+    price: quote.price,
+    comment: quote.comment,
+    status: quote.status,
+    isDesignated: quote.isDesignated,
+    serviceType: quote.estimateRequest.moveType,
+    moveDate: quote.estimateRequest.moveDate,
+    fromAddress: quote.estimateRequest.departureAddress,
+    toAddress: quote.estimateRequest.arrivalAddress,
+    mover: toCustomerQuoteMoverDto(mover),
   };
 };
