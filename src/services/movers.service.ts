@@ -72,8 +72,11 @@ const moversService = {
   //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMovers: async (query: MoversListQuery) => {
     const filters = toFindMoversFilters(query);
-    const { items: movers, hasNextPage, sort } =
-      await moverProfileRepository.findMovers(filters);
+    const {
+      items: movers,
+      hasNextPage,
+      sort,
+    } = await moverProfileRepository.findMovers(filters);
 
     const moversWithReviews = await Promise.all(
       movers.map(async (mover) => {
@@ -92,7 +95,7 @@ const moversService = {
     const lastMover = movers.length > 0 ? movers[movers.length - 1] : undefined;
 
     return {
-      data: moversWithReviews,
+      data: { items: moversWithReviews },
       meta: {
         nextCursor:
           hasNextPage && lastMover
@@ -178,13 +181,11 @@ const moversService = {
       favorites.length > 0 ? favorites[favorites.length - 1] : undefined;
 
     return {
-      data: favoritesWithDetails,
+      data: { items: favoritesWithDetails },
       meta: {
         nextCursor:
           hasNextPage && lastFavorite
-            ? encodeFavoriteListCursor(
-                getFavoriteListCursorValue(lastFavorite)
-              )
+            ? encodeFavoriteListCursor(getFavoriteListCursorValue(lastFavorite))
             : null,
         hasNextPage,
       },
