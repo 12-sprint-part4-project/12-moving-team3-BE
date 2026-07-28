@@ -4,6 +4,7 @@ import type {
   ChatRoomIdParams,
   CreateChatRoomBody,
   GetChatMessagesQuery,
+  SendChatMessageBody,
 } from '../schemas/chat.schema';
 import * as chatService from '../services/chat.service';
 import { AppError } from '../utils/app.error';
@@ -55,6 +56,25 @@ export const getChatMessages = async (_req: Request, res: Response) => {
     data: result.data,
     meta: result.meta,
   });
+};
+
+/**
+ * POST /api/chat/rooms/:roomId/messages — TEXT 메시지 전송 요청을 처리한다.
+ */
+export const sendChatMessage = async (req: Request, res: Response) => {
+  const authUser = getAuthenticatedUser(res);
+
+  const validated = res.locals.validated as ValidatedLocals | undefined;
+  const roomId = validated?.params?.roomId;
+
+  if (roomId === undefined) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const body = req.body as SendChatMessageBody;
+  const data = await chatService.sendChatMessage(authUser, roomId, body);
+
+  res.status(201).json({ data });
 };
 
 /** POST /api/chat/rooms — 채팅방 생성 요청을 처리한다. */

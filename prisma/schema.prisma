@@ -141,6 +141,8 @@ model EstimateRequest {
   notifications          Notification[]
   quotes                 Quote[]                   @relation("EstimateRequestQuotes")
 
+  // 유저당 DRAFT 1건 — 활성 조회 후 생성 race condition 시 DB에서 중복 DRAFT 차단
+  @@unique([userId], map: "estimate_requests_one_draft_per_user", where: raw("(status = 'DRAFT')"))
   @@index([userId, status])
   @@index([status, moveDate])
   @@map("estimate_requests")
@@ -401,6 +403,7 @@ model Post {
   likes        PostLike[]
   user         User          @relation(fields: [userId], references: [id])
 
+  @@index([deletedAt, category, createdAt, id])
   @@map("posts")
 }
 

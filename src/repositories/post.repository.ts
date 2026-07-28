@@ -1,6 +1,12 @@
 import { PostsCategory, Region, type Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import type { PostSort } from '../schemas/post.schema';
+import type {
+  CreatePostBody,
+  PostSort,
+  UpdatePostBody,
+} from '../schemas/post.schema';
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export interface PostCursor {
   id: number;
@@ -156,5 +162,89 @@ export const findPostById = async (postId: number, userId?: string) => {
           }
         : {}),
     },
+  });
+};
+
+/** 게시글 작성자 조회 (권한 검사용) */
+export const findPostOwner = async (postId: number) => {
+  return prisma.post.findFirst({
+    where: {
+      id: postId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+};
+
+/** 게시글 생성 */
+export const createPost = async (userId: string, body: CreatePostBody) => {
+  return prisma.post.create({
+    data: {
+      userId,
+      category: body.category,
+      region: body.region,
+      title: body.title,
+      content: body.content,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      images: {
+        create: body.imageKeys.map((imageKey) => ({ imageKey })),
+      },
+    },
+    select: { id: true },
+  });
+};
+
+/** 게시글 수정 (기존 이미지 전체 교체) */
+export const updatePost = async (
+  postId: number,
+  body: UpdatePostBody,
+  db?: DbClient
+): Promise<{ id: number } | null> => {
+  const run = async (client: DbClient): Promise<{ id: number } | null> => {
+    const updateData: Prisma.PostUpdateManyMutationInput = {};
+
+    if (body.content !== undefined) {
+      updateData.content = body.content;
+    } else if (body.imageKeys !== undefined) {
+      updateData.updatedAt = new Date();
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      const result = await client.post.updateMany({
+        where: { id: postId, deletedAt: null },
+        data: updateData,
+      });
+
+      if (result.count === 0) {
+        return null;
+      }
+    }
+
+    if (body.imageKeys !== undefined) {
+      await client.postImage.deleteMany({ where: { postId } });
+      await client.postImage.createMany({
+        data: body.imageKeys.map((imageKey) => ({ postId, imageKey })),
+      });
+    }
+
+    return { id: postId };
+  };
+
+  if (db) {
+    return run(db);
+  }
+
+  return prisma.$transaction(async (tx) => run(tx));
+};
+
+/** 게시글 soft delete */
+export const softDeletePost = async (postId: number) => {
+  return prisma.post.updateMany({
+    where: { id: postId, deletedAt: null },
+    data: { deletedAt: new Date() },
   });
 };

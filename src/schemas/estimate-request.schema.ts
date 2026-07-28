@@ -48,3 +48,87 @@ export const estimateRequestListQuerySchema = z.object({
 export type EstimateRequestListQuery = z.infer<
   typeof estimateRequestListQuerySchema
 >;
+
+// --- 일반 유저 견적요청 (DRAFT → SUBMITTED) ---
+
+export const TOTAL_INPUT_STEPS = 3;
+export const TOTAL_PROGRESS_STEPS = 4;
+
+/** path :estimateRequestId — 스키마 PK 가 Int */
+export const estimateRequestIdParamsSchema = z.object({
+  estimateRequestId: z.coerce.number().int().positive(),
+});
+
+export type EstimateRequestIdParams = z.infer<
+  typeof estimateRequestIdParamsSchema
+>;
+
+const moveTypeSchema = z.enum(MoveType);
+
+/** YYYY-MM-DD + 달력상 실존 날짜 (2026-02-31 등 거부). step 저장·필드 재수정 공용 */
+export const moveDateSchema = z.iso.date({
+  error: '날짜 형식이 올바르지 않습니다.',
+});
+
+const addressFieldSchema = z.string().trim().min(1);
+
+const step1DataSchema = z.object({
+  moveType: moveTypeSchema,
+});
+
+const step2DataSchema = z.object({
+  moveDate: moveDateSchema,
+});
+
+const step3DataSchema = z.object({
+  departureZipCode: addressFieldSchema,
+  departureAddress: addressFieldSchema,
+  departureDetailAddress: addressFieldSchema,
+  arrivalZipCode: addressFieldSchema,
+  arrivalAddress: addressFieldSchema,
+  arrivalDetailAddress: addressFieldSchema,
+});
+
+/** 단계별 입력 저장 — FE 스텝 1~3 (출발지+도착지는 step 3 일괄) */
+export const saveEstimateRequestStepBodySchema = z.discriminatedUnion('step', [
+  z.object({
+    step: z.literal(1),
+    data: step1DataSchema,
+  }),
+  z.object({
+    step: z.literal(2),
+    data: step2DataSchema,
+  }),
+  z.object({
+    step: z.literal(3),
+    data: step3DataSchema,
+  }),
+]);
+
+export type SaveEstimateRequestStepBody = z.infer<
+  typeof saveEstimateRequestStepBodySchema
+>;
+
+export const ESTIMATE_REQUEST_REVISABLE_FIELDS = [
+  'moveType',
+  'moveDate',
+  'departureZipCode',
+  'departureAddress',
+  'departureDetailAddress',
+  'arrivalZipCode',
+  'arrivalAddress',
+  'arrivalDetailAddress',
+] as const;
+
+export type EstimateRequestRevisableField =
+  (typeof ESTIMATE_REQUEST_REVISABLE_FIELDS)[number];
+
+/** 완료 항목 재수정 — field + value 단건 수정 */
+export const reviseEstimateRequestFieldBodySchema = z.object({
+  field: z.enum(ESTIMATE_REQUEST_REVISABLE_FIELDS),
+  value: z.string().trim().min(1),
+});
+
+export type ReviseEstimateRequestFieldBody = z.infer<
+  typeof reviseEstimateRequestFieldBodySchema
+>;

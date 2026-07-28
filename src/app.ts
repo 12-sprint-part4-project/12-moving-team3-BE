@@ -7,9 +7,10 @@ import { SWAGGER_BASE_URL, swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
 import adminAuthRouter from './routes/admin-auth.route';
 import moverRouter from './routes/mover.route';
+import customerRouter from './routes/customer.route';
 import chatRouter from './routes/chat.route';
 import authRouter from './routes/auth.route';
-import customerRouter from './routes/customer.route';
+import estimateRequestRouter from './routes/estimate-request.route';
 import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
 
@@ -62,7 +63,9 @@ app.use('/api/auth', authRouter);
 app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/users/customers', customerRouter);
+app.use('/api/estimate-requests', estimateRequestRouter);
 app.use('/api/users/movers', moverRouter);
+app.use('/api/users/customers', customerRouter);
 app.use('/api/chat', chatRouter);
 
 app.use(errorHandler);
