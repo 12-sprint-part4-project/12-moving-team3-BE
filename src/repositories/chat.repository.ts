@@ -2,6 +2,7 @@ import type { ChatRoom, ChatRoomType, MessageType, Prisma } from '@prisma/client
 import { prisma } from '../lib/prisma';
 
 export type ChatRoomRecord = ChatRoom;
+export type ChatDbClient = typeof prisma | Prisma.TransactionClient;
 export type ChatTransactionClient = Prisma.TransactionClient;
 
 interface CreateChatRoomData {
@@ -364,8 +365,11 @@ export const findRoomById = async (roomId: number) => {
 };
 
 /** 메시지 발송 가능 여부 판단에 필요한 방·견적 요청 상태를 조회한다. */
-export const findRoomForMessaging = async (roomId: number) => {
-  return prisma.chatRoom.findUnique({
+export const findRoomForMessaging = async (
+  roomId: number,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.chatRoom.findUnique({
     where: { id: roomId },
     select: {
       id: true,
@@ -381,9 +385,10 @@ export const findRoomForMessaging = async (roomId: number) => {
 /** 유저의 활성 참여(leftAt IS NULL) 정보를 조회한다. */
 export const findActiveParticipation = async (
   roomId: number,
-  userId: string
+  userId: string,
+  dbClient: ChatDbClient = prisma
 ) => {
-  return prisma.chatRoomParticipant.findFirst({
+  return dbClient.chatRoomParticipant.findFirst({
     where: {
       roomId,
       participantId: userId,
@@ -514,52 +519,56 @@ const rejoinLeftParticipants = async (
  * TEXT 메시지를 저장하고 lastMessageAt을 갱신한다.
  * 필터된 경우 rawLog를 함께 저장하며, 나간 상대는 재참여시킨다.
  */
-export const createTextMessage = async (data: CreateTextMessageData) => {
-  return prisma.$transaction(async (tx) => {
-    const message = await tx.chatMessage.create({
-      data: {
-        roomId: data.roomId,
-        senderId: data.senderId,
-        content: data.content,
-        messageType: 'TEXT',
-        isFiltered: data.isFiltered,
-        ...(data.isFiltered &&
-          data.rawContent !== undefined && {
-            rawLog: {
-              create: {
-                rawContent: data.rawContent,
-              },
+export const createTextMessage = async (
+  tx: ChatTransactionClient,
+  data: CreateTextMessageData
+) => {
+  const message = await tx.chatMessage.create({
+    data: {
+      roomId: data.roomId,
+      senderId: data.senderId,
+      content: data.content,
+      messageType: 'TEXT',
+      isFiltered: data.isFiltered,
+      ...(data.isFiltered &&
+        data.rawContent !== undefined && {
+          rawLog: {
+            create: {
+              rawContent: data.rawContent,
             },
-          }),
-      },
-      select: {
-        id: true,
-        senderId: true,
-        content: true,
-        messageType: true,
-        isFiltered: true,
-        createdAt: true,
-        sender: {
-          select: {
-            userType: true,
           },
-        },
-        attachments: {
-          orderBy: { id: 'asc' },
-          select: {
-            fileKey: true,
-          },
+        }),
+    },
+    select: {
+      id: true,
+      senderId: true,
+      content: true,
+      messageType: true,
+      isFiltered: true,
+      createdAt: true,
+      sender: {
+        select: {
+          userType: true,
         },
       },
-    });
-
-    await tx.chatRoom.update({
-      where: { id: data.roomId },
-      data: { lastMessageAt: message.createdAt },
-    });
-
-    await rejoinLeftParticipants(tx, data.roomId, data.senderId);
-
-    return message;
+      attachments: {
+        orderBy: { id: 'asc' },
+        select: {
+          fileKey: true,
+        },
+      },
+    },
   });
+
+  await tx.chatRoom.updateMany({
+    where: {
+      id: data.roomId,
+      OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: message.createdAt } }],
+    },
+    data: { lastMessageAt: message.createdAt },
+  });
+
+  await rejoinLeftParticipants(tx, data.roomId, data.senderId);
+
+  return message;
 };

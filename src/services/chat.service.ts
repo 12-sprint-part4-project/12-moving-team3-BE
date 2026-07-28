@@ -5,6 +5,7 @@ import type {
   UserType,
 } from '@prisma/client';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
+import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
 import type {
@@ -530,35 +531,38 @@ export const sendChatMessage = async (
   roomId: number,
   body: SendChatMessageBody
 ): Promise<ChatMessageItem> => {
-  const room = await chatRepository.findRoomForMessaging(roomId);
-
-  if (!room) {
-    throw new AppError('ROOM_NOT_FOUND');
-  }
-
-  const participation = await chatRepository.findActiveParticipation(
-    roomId,
-    authUser.userId
-  );
-
-  if (!participation) {
-    throw new AppError('FORBIDDEN');
-  }
-
-  if (!isMessagingAllowedByEstimateStatus(room.estimateRequest?.status)) {
-    throw new AppError('MESSAGING_NOT_ALLOWED');
-  }
-
   const { maskedContent, isFiltered, rawContent } = filterChatContent(
     body.content
   );
 
-  const message = await chatRepository.createTextMessage({
-    roomId,
-    senderId: authUser.userId,
-    content: maskedContent,
-    isFiltered,
-    ...(isFiltered && { rawContent }),
+  const message = await prisma.$transaction(async (tx) => {
+    const room = await chatRepository.findRoomForMessaging(roomId, tx);
+
+    if (!room) {
+      throw new AppError('ROOM_NOT_FOUND');
+    }
+
+    const participation = await chatRepository.findActiveParticipation(
+      roomId,
+      authUser.userId,
+      tx
+    );
+
+    if (!participation) {
+      throw new AppError('FORBIDDEN');
+    }
+
+    if (!isMessagingAllowedByEstimateStatus(room.estimateRequest?.status)) {
+      throw new AppError('MESSAGING_NOT_ALLOWED');
+    }
+
+    return chatRepository.createTextMessage(tx, {
+      roomId,
+      senderId: authUser.userId,
+      content: maskedContent,
+      isFiltered,
+      ...(isFiltered && { rawContent }),
+    });
   });
 
   return {
