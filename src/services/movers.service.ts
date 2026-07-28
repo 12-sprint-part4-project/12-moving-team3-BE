@@ -1,3 +1,4 @@
+import { countMoverFavorited } from '../repositories/favorite.repository';
 import type {
   FindMoversFilters,
   MoverListSort,
@@ -83,6 +84,7 @@ const moversService = {
     //기사님 상세 정보
     const moverDetail =
       await moverProfileRepository.findMoverProfileById(moverId);
+    //TODO: moverDetail이 존재하지 않는다면 에러반환
     //리뷰 통계
     const reviewStats = await reviewRepository.getReviewStatsByMoverId(moverId);
     //리뷰 전체
@@ -108,10 +110,42 @@ const moversService = {
     userId: string;
     query: FavoriteMoversQuery;
   }) => {
-    const favoriteMovers = await moverProfileRepository.findFavoriteMoversById(
+    //찜한 기사님 목록
+    const movers = await moverProfileRepository.findFavoriteMoversById(
       userId,
       query
     );
+
+    //리뷰 통계 + 찜 수
+    const emptyReviewStats = {
+      ratingCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      totalCount: 0,
+      averageRating: null,
+    };
+
+    const moversWithReviewAndCount = await Promise.all(
+      movers.map(async (mover) => {
+        if (!mover.moverId) {
+          return {
+            ...mover,
+            reviewStats: emptyReviewStats,
+            favoritedCount: 0,
+          };
+        }
+
+        const [reviewStats, favoritedCount] = await Promise.all([
+          reviewRepository.getReviewStatsByMoverId(mover.moverId),
+          countMoverFavorited(mover.moverId),
+        ]);
+
+        return {
+          ...mover,
+          reviewStats,
+          favoritedCount,
+        };
+      })
+    );
+
     //pagination 정보
     const totalCount =
       await moverProfileRepository.countFavoriteMoversById(userId);
@@ -127,7 +161,7 @@ const moversService = {
       hasPrevPage: hasPrevPage,
     };
     return {
-      data: favoriteMovers,
+      data: moversWithReviewAndCount,
       meta: {
         pagination: pagination,
       },

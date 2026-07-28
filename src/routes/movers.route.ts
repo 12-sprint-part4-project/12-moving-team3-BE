@@ -23,7 +23,7 @@ router.get(
 );
 
 // 찜한 기사님 목록 조회 (로그인한 customer만 접근 가능)
-//TODO: Swagger 문서 추가
+// (Swagger 문서: src/docs/movers.swagger.yaml)
 router.get(
   '/favorites',
   requireAuth,

@@ -2,34 +2,19 @@ import type { NextFunction, Request, Response } from 'express';
 
 import type { FavoriteMoverIdParam } from '../schemas/favorites.schema';
 import * as favoritesService from '../services/favorites.service';
-import { AppError } from '../utils/app.error';
-
-/**
- * TODO: auth.middleware의 getAuthenticatedUser(res)로 교체하고
- * 아래 AuthenticatedRequest / req.user 사용 제거
- */
-type AuthenticatedRequest = Request & {
-  user?: {
-    id: string;
-    userType: 'CUSTOMER' | 'MOVER';
-  };
-};
+import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 
 export const addFavorite = async (
-  req: AuthenticatedRequest,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    // TODO: getAuthenticatedUser(res) → { userId, userType } 사용
-    if (!req.user) {
-      throw new AppError('UNAUTHORIZED');
-    }
-
+    const { userId, userType } = getAuthenticatedUser(res);
     const { moverId } = res.locals.validated?.params as FavoriteMoverIdParam;
     const favorite = await favoritesService.addFavorite({
-      userId: req.user.id,
-      userType: req.user.userType,
+      userId,
+      userType,
       moverId,
     });
 
@@ -42,19 +27,15 @@ export const addFavorite = async (
 };
 
 export const removeFavorite = async (
-  req: AuthenticatedRequest,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    // TODO: getAuthenticatedUser(res) → { userId } 사용
-    if (!req.user) {
-      throw new AppError('UNAUTHORIZED');
-    }
-
+    const { userId } = getAuthenticatedUser(res);
     const { moverId } = res.locals.validated?.params as FavoriteMoverIdParam;
     await favoritesService.removeFavorite({
-      userId: req.user.id,
+      userId: userId,
       moverId,
     });
 

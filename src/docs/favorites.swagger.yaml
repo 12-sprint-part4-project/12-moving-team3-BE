@@ -31,15 +31,15 @@ paths:
                   code: UNAUTHORIZED
                   message: 로그인이 필요한 기능입니다.
         '403':
-          description: 기사님 타입 유저
+          description: CUSTOMER가 아닌 사용자
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
-                  code: FORBIDDEN
-                  message: 기사님은 찜 기능을 사용할 수 없습니다.
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
         '404':
           description: 기사님 없음
           content:

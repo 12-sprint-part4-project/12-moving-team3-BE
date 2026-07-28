@@ -173,7 +173,24 @@ const moverProfileRepository = {
 
     return dbClient.favorite.findMany({
       where: { userId },
-      include: moverListInclude,
+      include: {
+        mover: {
+          select: {
+            id: true,
+            name: true,
+            profileImageKey: true,
+            moverProfile: {
+              select: {
+                career: true,
+                serviceRegions: {
+                  select: { id: true, region: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     });

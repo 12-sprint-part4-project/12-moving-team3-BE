@@ -49,3 +49,9 @@ export const deleteFavoriteByUserAndMover = async (
     select: favoriteSelect,
   });
 };
+
+export const countMoverFavorited = async (moverId: string) => {
+  return prisma.favorite.count({
+    where: { moverId },
+  });
+};
