@@ -1,12 +1,10 @@
 import * as customerProfileRepository from '../repositories/customer-profile.repository';
 import type { CustomerProfileBody } from '../schemas/customer-profile.schema';
 import { AppError } from '../utils/app.error';
-import { uploadImage } from './s3.service.js';
 
 export interface RegisterCustomerProfileInput {
   userId: string;
   body: CustomerProfileBody;
-  file?: Express.Multer.File;
 }
 
 export const registerCustomerProfile = async (
@@ -23,23 +21,17 @@ export const registerCustomerProfile = async (
     throw new AppError('PROFILE_ALREADY_COMPLETED');
   }
 
-  let profileImageKey: string | null = null;
-
-  if (input.file) {
-    profileImageKey = await uploadImage(input.file, 'profile-images');
-  }
-
   const profile = await customerProfileRepository.updateCustomerProfile({
     userId: input.userId,
     region: input.body.region,
     service: input.body.service,
-    profileImageKey,
   });
 
   return {
     region: profile.region,
     service: profile.service,
-    profileImageKey,
+    // TODO: 이미지 업로드 미들웨어 연결 후 User.profileImageKey 저장 및 URL 응답 추가
+    profileImageUrl: null,
     updatedAt: profile.updatedAt,
   };
 };

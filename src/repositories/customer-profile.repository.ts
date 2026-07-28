@@ -1,3 +1,4 @@
+import { MoveType, Region } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export const findCustomerProfileByUserId = async (userId: string) => {
@@ -13,25 +14,8 @@ export const findCustomerProfileByUserId = async (userId: string) => {
 
 export interface UpdateCustomerProfileInput {
   userId: string;
-  region:
-    | 'SEOUL'
-    | 'GYEONGGI'
-    | 'INCHEON'
-    | 'GANGWON'
-    | 'CHUNGBUK'
-    | 'CHUNGNAM'
-    | 'SEJONG'
-    | 'DAEJEON'
-    | 'JEONBUK'
-    | 'GWANGJU_JEONNAM'
-    | 'GYEONGBUK'
-    | 'DAEGU'
-    | 'ULSAN'
-    | 'GYEONGNAM'
-    | 'BUSAN'
-    | 'JEJU';
-  service: ('SMALL' | 'HOME' | 'OFFICE')[];
-  profileImageKey: string | null;
+  region: Region;
+  service: MoveType[];
 }
 
 export const updateCustomerProfile = async (
@@ -42,7 +26,6 @@ export const updateCustomerProfile = async (
     data: {
       region: input.region,
       service: input.service,
-      profileImageKey: input.profileImageKey,
     },
     select: {
       region: true,

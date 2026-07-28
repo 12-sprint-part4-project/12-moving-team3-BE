@@ -3,7 +3,6 @@ import * as customerProfileController from '../controllers/customer-profile.cont
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
-import { upload } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -11,7 +10,6 @@ router.patch(
   '/profile',
   requireAuth,
   allowUserTypes('CUSTOMER'),
-  upload.single('profileImage'),
   validateRequest({
     body: customerProfileBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',

@@ -15,7 +15,6 @@ export const registerCustomerProfile = async (
     const profile = await customerProfileService.registerCustomerProfile({
       userId,
       body,
-      file: req.file,
     });
 
     res.status(200).json({
