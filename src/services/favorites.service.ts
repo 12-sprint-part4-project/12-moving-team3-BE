@@ -56,14 +56,12 @@ export const removeFavorite = async ({
   userId,
   moverId,
 }: RemoveFavoriteInput) => {
-  const existingFavorite = await favoriteRepository.findFavoriteByUserAndMover(
+  const deletedCount = await favoriteRepository.deleteFavoriteByUserAndMover(
     userId,
     moverId
   );
 
-  if (!existingFavorite) {
+  if (deletedCount === 0) {
     throw new AppError('FAVORITE_NOT_FOUND');
   }
-
-  await favoriteRepository.deleteFavoriteByUserAndMover(userId, moverId);
 };

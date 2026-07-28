@@ -39,15 +39,14 @@ export const deleteFavoriteByUserAndMover = async (
   userId: string,
   moverId: string
 ) => {
-  return prisma.favorite.delete({
+  const result = await prisma.favorite.deleteMany({
     where: {
-      userId_moverId: {
-        userId,
-        moverId,
-      },
+      userId,
+      moverId,
     },
-    select: favoriteSelect,
   });
+
+  return result.count;
 };
 
 export const countMoverFavorited = async (moverId: string) => {
