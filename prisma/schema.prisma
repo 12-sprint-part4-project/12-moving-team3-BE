@@ -401,6 +401,7 @@ model Post {
   likes        PostLike[]
   user         User          @relation(fields: [userId], references: [id])
 
+  @@index([deletedAt, category, createdAt, id])
   @@map("posts")
 }
 
