@@ -10,3 +10,10 @@ export const createChatRoomBodySchema = z.object({
 });
 
 export type CreateChatRoomBody = z.infer<typeof createChatRoomBodySchema>;
+
+/** GET /api/chat/rooms/:roomId 경로 파라미터 스키마 */
+export const chatRoomIdParamsSchema = z.object({
+  roomId: z.coerce.number().int().positive(),
+});
+
+export type ChatRoomIdParams = z.infer<typeof chatRoomIdParamsSchema>;

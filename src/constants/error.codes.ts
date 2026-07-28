@@ -75,6 +75,30 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않거나 삭제된 견적서입니다.',
   },
+  INVALID_REQUEST_BODY: {
+    status: 400,
+    message: '요청 본문 형식이 올바르지 않습니다.',
+  },
+  REQUEST_EXPIRED: {
+    status: 409,
+    message: '이사일이 지나 견적 요청이 만료되었습니다.',
+  },
+  REQUEST_CLOSED: {
+    status: 409,
+    message: '견적 제출 가능 인원이 마감되었습니다.',
+  },
+  NOT_DESIGNATED_TARGET: {
+    status: 403,
+    message: '지정 견적 대상 기사님이 아닙니다.',
+  },
+  QUOTE_ALREADY_SUBMITTED: {
+    status: 409,
+    message: '이미 견적을 제출한 요청입니다.',
+  },
+  ALREADY_REJECTED: {
+    status: 409,
+    message: '이미 반려한 견적 요청입니다.',
+  },
 
   NO_CHANGE: {
     status: 400,
