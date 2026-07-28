@@ -1,4 +1,4 @@
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import type {} from 'multer';
 import { s3Client } from '../config/s3';
@@ -19,4 +19,13 @@ export const uploadImage = async (
   await s3Client.send(command);
 
   return key;
+};
+
+export const deleteImage = async (key: string): Promise<void> => {
+  const command = new DeleteObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Key: key,
+  });
+
+  await s3Client.send(command);
 };
