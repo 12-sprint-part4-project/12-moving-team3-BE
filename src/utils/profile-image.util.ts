@@ -7,7 +7,9 @@ export const toProfileImageUrl = (
   }
 
   const baseUrl =
-    process.env.CDN_BASE_URL ?? process.env.S3_PUBLIC_BASE_URL ?? null;
+    process.env.CDN_BASE_URL?.trim() ||
+    process.env.S3_PUBLIC_BASE_URL?.trim() ||
+    null;
 
   if (!baseUrl) {
     return null;

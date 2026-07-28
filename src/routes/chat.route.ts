@@ -27,6 +27,7 @@ const router = Router();
  *         required: true
  *         schema:
  *           type: integer
+ *           minimum: 1
  *         description: 채팅방 ID
  *     responses:
  *       200:
