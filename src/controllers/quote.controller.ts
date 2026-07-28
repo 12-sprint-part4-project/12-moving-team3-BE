@@ -10,7 +10,7 @@ import * as quoteService from '../services/quote.service';
 import { AppError } from '../utils/app.error';
 
 /**
- * validateRequest 미들웨어가 남긴 params 재검증 후 타입 반환.
+ * validateRequest 미들웨어가 남긴 params 재검증 후 타입 반환
  */
 const getValidatedParams = (res: Response): QuoteParams => {
   const parsed = quoteParamsSchema.safeParse(res.locals.validated?.params);
@@ -23,7 +23,7 @@ const getValidatedParams = (res: Response): QuoteParams => {
 };
 
 /**
- * validateRequest 미들웨어가 남긴 body 재검증 후 타입 반환.
+ * validateRequest 미들웨어가 남긴 body 재검증 후 타입 반환
  */
 const getValidatedBody = (req: Request): QuoteBody => {
   const parsed = quoteBodySchema.safeParse(req.body);
@@ -36,7 +36,7 @@ const getValidatedBody = (req: Request): QuoteBody => {
 };
 
 /**
- * 견적 보내기 / 반려하기 요청 처리.
+ * 견적 보내기 / 반려하기 요청 처리
  */
 export const submitQuote = async (
   req: Request,
@@ -54,7 +54,6 @@ export const submitQuote = async (
       body,
     });
 
-    // 201 Created 응답.
     res.status(201).json({
       data: quote,
     });

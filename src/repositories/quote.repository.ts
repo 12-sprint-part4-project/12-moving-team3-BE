@@ -12,6 +12,7 @@ export interface LockedEstimateRequest {
   id: number;
   moveDate: Date | null;
   status: EstimateRequestStatus;
+  confirmedQuoteId: number | null;
   isDesignated: boolean;
 }
 
@@ -29,15 +30,15 @@ export interface CreateQuoteData {
 export type QuoteTransactionClient = Prisma.TransactionClient;
 
 /**
- * Prisma P2002(Unique Constraint) 여부 판별.
+ * Prisma P2002(Unique Constraint) 여부 판별
  */
 const isUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === 'P2002';
 
 /**
- * 견적 요청 행에 SELECT FOR UPDATE 비관적 락 적용 후 조회.
- * 지정견적 여부는 estimate_designated_movers 존재 여부로 판별.
+ * 견적 요청 행에 SELECT FOR UPDATE 비관적 락 적용 후 조회
+ * 지정견적 여부는 estimate_designated_movers 존재 여부로 판별
  */
 export const findEstimateRequestForUpdate = async (
   tx: QuoteTransactionClient,
@@ -48,6 +49,7 @@ export const findEstimateRequestForUpdate = async (
       er.id,
       er.move_date AS "moveDate",
       er.status,
+      er.confirmed_quote_id AS "confirmedQuoteId",
       EXISTS (
         SELECT 1
         FROM estimate_designated_movers edm
@@ -62,8 +64,8 @@ export const findEstimateRequestForUpdate = async (
 };
 
 /**
- * 마감 인원 카운트용 활성 견적(PENDING/CONFIRMED) 개수 조회.
- * 반려(REJECTED) 및 soft-delete 건은 제외.
+ * 마감 인원 카운트용 활성 견적(PENDING/CONFIRMED) 개수 조회
+ * 반려(REJECTED) 및 soft-delete 건은 제외
  */
 export const countActiveProposals = async (
   tx: QuoteTransactionClient,
@@ -79,7 +81,7 @@ export const countActiveProposals = async (
 };
 
 /**
- * 해당 무버의 기존 견적(미삭제) 조회.
+ * 해당 무버의 기존 견적(미삭제) 조회
  */
 export const findExistingQuote = async (
   tx: QuoteTransactionClient,
@@ -100,7 +102,7 @@ export const findExistingQuote = async (
 };
 
 /**
- * 지정 견적 대상 무버 여부 확인.
+ * 지정 견적 대상 무버 여부 확인
  */
 export const isDesignatedMover = async (
   tx: QuoteTransactionClient,
@@ -119,8 +121,8 @@ export const isDesignatedMover = async (
 };
 
 /**
- * 견적(PROPOSAL/REJECTION) 생성.
- * P2002 발생 시 QUOTE_ALREADY_SUBMITTED 로 변환.
+ * 견적(PROPOSAL/REJECTION) 생성
+ * P2002 발생 시 QUOTE_ALREADY_SUBMITTED 로 변환
  */
 export const createQuote = async (
   tx: QuoteTransactionClient,
@@ -139,7 +141,7 @@ export const createQuote = async (
       },
     });
   } catch (error) {
-    // 복합 유니크(estimateRequestId, moverId) 위반 → 중복 제출.
+    // 복합 유니크(estimateRequestId, moverId) 위반 → 중복 제출
     if (isUniqueConstraintError(error)) {
       throw new AppError('QUOTE_ALREADY_SUBMITTED');
     }
@@ -149,7 +151,7 @@ export const createQuote = async (
 };
 
 /**
- * 비관적 락 트랜잭션 실행 래퍼.
+ * 비관적 락 트랜잭션 실행 래퍼
  */
 export const runInTransaction = async <T>(
   handler: (tx: QuoteTransactionClient) => Promise<T>

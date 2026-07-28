@@ -304,6 +304,7 @@ paths:
         단일 엔드포인트에서 Request Body의 'type' 필드에 따라 기능을 분기합니다.
         - 'PROPOSAL': 견적 보내기 (price, comment 필수)
         - 'REJECTION': 반려하기 (rejectReason 필수)
+          - confirmedQuoteId가 설정된(견적 확정된) 요청은 반려 불가
 
         동시성 제어:
         - 지정견적 요청은 최대 3개, 일반 견적 요청은 최대 5개까지 PROPOSAL 접수
@@ -438,6 +439,7 @@ paths:
             - REQUEST_CLOSED: 견적 제출 인원 마감 (지정 3 / 일반 5)
             - QUOTE_ALREADY_SUBMITTED: 이미 견적 제출
             - ALREADY_REJECTED: 이미 반려
+            - ALREADY_CONFIRMED_REQUEST: 견적 확정된 요청에 대한 반려 시도
           content:
             application/json:
               schema:
@@ -467,6 +469,12 @@ paths:
                     error:
                       code: ALREADY_REJECTED
                       message: 이미 반려한 견적 요청입니다.
+                alreadyConfirmed:
+                  summary: 견적 확정됨
+                  value:
+                    error:
+                      code: ALREADY_CONFIRMED_REQUEST
+                      message: 이미 다른 견적으로 예약이 확정된 이사 요청입니다.
         '500':
           description: 서버 내부 오류
           content:
