@@ -51,7 +51,6 @@ export const getMovers = async (
     const query = getValidatedListQuery(res);
     const response = await moversService.getMovers(query);
 
-    // TODO: API 명세에 pagination meta(total, page, limit 등)가 있으면 응답 형식 맞추기
     res.status(200).json({
       data: response.data,
       meta: response.meta,

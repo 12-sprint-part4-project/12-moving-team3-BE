@@ -3,6 +3,7 @@ import type {
   MoverListSort,
 } from '../repositories/moverProfile.repository';
 import moverProfileRepository from '../repositories/moverProfile.repository';
+import reviewRepository from '../repositories/review.repository';
 import type {
   FavoriteMoversQuery,
   MoversListQuery,
@@ -39,7 +40,22 @@ const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
 const moversService = {
   getMovers: async (query: MoversListQuery) => {
     const filters = toFindMoversFilters(query);
+    //기사님 정보
     const movers = await moverProfileRepository.findMovers(filters);
+
+    //리뷰 정보
+    const reviews = await Promise.all(
+      movers.map(async (mover) => {
+        const reviewStats = await reviewRepository.getReviewStatsByMoverId(
+          mover.user.id
+        );
+        return {
+          ...mover,
+          review: reviewStats,
+        };
+      })
+    );
+
     //pagination 정보
     const totalCount = await moverProfileRepository.countMovers(filters);
     const totalPages = Math.ceil(totalCount / query.limit);
