@@ -23,9 +23,25 @@ export const ERROR_CODES = {
     status: 413,
     message: '이미지 용량은 5MB 이하만 업로드할 수 있습니다.',
   },
+  INVALID_REQUEST: {
+    status: 400,
+    message: '요청 형식이 올바르지 않습니다.',
+  },
   UNAUTHORIZED: {
     status: 401,
     message: '로그인이 필요한 기능입니다.',
+  },
+  ROOM_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 채팅방입니다.',
+  },
+  ESTIMATE_REQUEST_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 견적 요청입니다.',
+  },
+  DESIGNATED_MOVER_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 지정 요청입니다.',
   },
   USER_TYPE_FORBIDDEN: {
     status: 403,
@@ -68,6 +84,14 @@ export const ERROR_CODES = {
     status: 400,
     message: '이름은 2자 이상 20자 이하로 입력해 주세요.',
   },
+  REQUIRED_FIELD_MISSING: {
+    status: 400,
+    message: '필수 입력값을 모두 입력해 주세요.',
+  },
+  INVALID_USER_TYPE: {
+    status: 400,
+    message: '지원하지 않는 사용자 유형입니다.',
+  },
   INVALID_EMAIL_FORMAT: {
     status: 400,
     message: '올바른 이메일 형식으로 입력해 주세요.',
@@ -83,6 +107,30 @@ export const ERROR_CODES = {
   PHONE_NUMBER_ALREADY_EXISTS: {
     status: 409,
     message: '이미 사용 중인 전화번호입니다.',
+  },
+  NICKNAME_ALREADY_EXISTS: {
+    status: 409,
+    message: '이미 사용 중인 닉네임입니다.',
+  },
+  INVALID_PASSWORD_FORMAT: {
+    status: 400,
+    message: '비밀번호 형식을 확인해 주세요.',
+  },
+  PASSWORD_CONFIRMATION_MISMATCH: {
+    status: 400,
+    message: '비밀번호가 일치하지 않습니다.',
+  },
+  LOGIN_REQUIRED_FIELD_MISSING: {
+    status: 400,
+    message: '이메일과 비밀번호를 모두 입력해 주세요.',
+  },
+  INVALID_CREDENTIALS: {
+    status: 401,
+    message: '이메일 또는 비밀번호가 일치하지 않습니다.',
+  },
+  USER_TYPE_MISMATCH: {
+    status: 403,
+    message: '해당 사용자 유형으로 가입된 계정이 아닙니다.',
   },
   CURRENT_PASSWORD_REQUIRED: {
     status: 400,
@@ -111,6 +159,10 @@ export const ERROR_CODES = {
   MOVER_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 기사님입니다.',
+  },
+  PROFILE_NOT_REGISTERED: {
+    status: 404,
+    message: '등록된 기사님 프로필이 없습니다. 프로필을 먼저 등록해 주세요.',
   },
   ALREADY_FAVORITED: {
     status: 409,

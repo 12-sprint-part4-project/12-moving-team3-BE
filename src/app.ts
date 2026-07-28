@@ -8,7 +8,11 @@ import { errorHandler } from './middlewares/error.handler';
 import favoritesRouter from './routes/favorites.route';
 import adminAuthRouter from './routes/admin-auth.route';
 import moversRouter from './routes/movers.route';
+import moverRouter from './routes/mover.route';
+import chatRouter from './routes/chat.route';
+import authRouter from './routes/auth.route';
 import testRouter from './routes/test.route';
+import './types/express';
 
 const app = express();
 
@@ -55,9 +59,12 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use('/', testRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
+app.use('/api/users/movers', moverRouter);
+app.use('/api/chat', chatRouter);
 
 app.use(errorHandler);
 
