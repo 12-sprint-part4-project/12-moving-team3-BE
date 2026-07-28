@@ -10,11 +10,10 @@ export const addFavorite = async (
   next: NextFunction
 ) => {
   try {
-    const { userId, userType } = getAuthenticatedUser(res);
+    const { userId } = getAuthenticatedUser(res);
     const { moverId } = res.locals.validated?.params as FavoriteMoverIdParam;
     const favorite = await favoritesService.addFavorite({
       userId,
-      userType,
       moverId,
     });
 

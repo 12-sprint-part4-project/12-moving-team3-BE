@@ -13,22 +13,12 @@ const isUniqueConstraintError = (error: unknown): boolean => {
 
 interface AddFavoriteInput {
   userId: string;
-  userType: 'CUSTOMER' | 'MOVER';
   moverId: string;
 }
 
-export const addFavorite = async ({
-  userId,
-  userType,
-  moverId,
-}: AddFavoriteInput) => {
-  // TODO: route에서 allowUserTypes('CUSTOMER')를 쓰면 이 FORBIDDEN 체크는 제거/중복 여부 정리
-  if (userType === 'MOVER') {
-    throw new AppError('FORBIDDEN');
-  }
-
+export const addFavorite = async ({ userId, moverId }: AddFavoriteInput) => {
   if (userId === moverId) {
-    throw new AppError('MOVER_NOT_FOUND');
+    throw new AppError('FORBIDDEN'); //TODO: 더 세분화된 에러코드로 변경
   }
 
   const mover = await findUserById(moverId);
