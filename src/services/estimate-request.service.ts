@@ -514,7 +514,7 @@ export const submitEstimateRequest = async (
   const existing = await getOwnedDraftOrThrow(estimateRequestId, userId);
 
   if (!isReadyToSubmit(existing)) {
-    throw new AppError('MISSING_REQUIRED_FIELDS');
+    throw new AppError('REQUIRED_FIELD_MISSING');
   }
 
   const submittedAt = new Date();

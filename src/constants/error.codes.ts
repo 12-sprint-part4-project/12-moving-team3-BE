@@ -56,10 +56,6 @@ export const ERROR_CODES = {
     status: 400,
     message: '입력값이 올바르지 않습니다.',
   },
-  MISSING_REQUIRED_FIELDS: {
-    status: 400,
-    message: '필수 입력값이 누락되었습니다.',
-  },
   ACTIVE_REQUEST_EXISTS: {
     status: 409,
     message: '이미 진행 중인 견적 요청이 있습니다.',
