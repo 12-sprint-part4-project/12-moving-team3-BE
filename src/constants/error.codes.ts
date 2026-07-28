@@ -39,6 +39,11 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 견적 요청입니다.',
   },
+  // 고객 견적요청 API 명세 코드명 (ESTIMATE_REQUEST_NOT_FOUND 와 동일 의미)
+  REQUEST_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 견적 요청입니다.',
+  },
   DESIGNATED_MOVER_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 지정 요청입니다.',
@@ -50,6 +55,26 @@ export const ERROR_CODES = {
   FORBIDDEN: {
     status: 403,
     message: '해당 기능에 접근할 수 없습니다.',
+  },
+  VALIDATION_ERROR: {
+    status: 400,
+    message: '입력값이 올바르지 않습니다.',
+  },
+  MISSING_REQUIRED_FIELDS: {
+    status: 400,
+    message: '필수 입력값이 누락되었습니다.',
+  },
+  ACTIVE_REQUEST_EXISTS: {
+    status: 409,
+    message: '이미 진행 중인 견적 요청이 있습니다.',
+  },
+  REQUEST_ALREADY_SUBMITTED: {
+    status: 409,
+    message: '이미 제출된 견적 요청은 수정할 수 없습니다.',
+  },
+  CUSTOMER_ONLY: {
+    status: 403,
+    message: '일반 회원만 이용할 수 있습니다.',
   },
   PROFILE_ALREADY_EXISTS: {
     status: 409,

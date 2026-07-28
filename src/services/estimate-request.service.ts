@@ -1,12 +1,19 @@
-import type { MoveType } from '@prisma/client';
+import type { EstimateRequestStatus, MoveType } from '@prisma/client';
+import { MoveType as MoveTypeEnum } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import type {
+  CustomerEstimateRequestRow,
   EstimateRequestCursor,
   EstimateRequestFilterParams,
   EstimateRequestListRow,
 } from '../repositories/estimate-request.repository';
-import type { EstimateRequestSort } from '../schemas/estimate-request.schema';
+import type {
+  EstimateRequestRevisableField,
+  EstimateRequestSort,
+  ReviseEstimateRequestFieldBody,
+  SaveEstimateRequestStepBody,
+} from '../schemas/estimate-request.schema';
 import { AppError } from '../utils/app.error';
 import { inferRegionLabelFromAddress } from '../utils/region.util';
 
@@ -198,5 +205,328 @@ export const getReceivedEstimateRequests = async (
         designated: designatedCount,
       },
     },
+  };
+};
+
+// --- 일반 유저 견적요청 (DRAFT → SUBMITTED) ---
+
+/**
+ * Asia/Seoul 기준 오늘 날짜를 YYYY-MM-DD 로 반환
+ */
+const getTodayDateStringKst = (now = new Date()): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * YYYY-MM-DD 를 Prisma @db.Date 비교용 UTC 자정 Date 로 변환
+ */
+const toUtcDateOnly = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+/**
+ * 이사일이 오늘(KST) 이전인지 검증 — 과거면 VALIDATION_ERROR
+ */
+const assertMoveDateNotPast = (moveDate: string): void => {
+  const today = getTodayDateStringKst();
+
+  if (moveDate < today) {
+    throw new AppError('VALIDATION_ERROR', '과거 날짜는 선택할 수 없습니다.');
+  }
+};
+
+/**
+ * 제출에 필요한 필드가 모두 채워졌는지 확인
+ */
+const isReadyToSubmit = (row: CustomerEstimateRequestRow): boolean =>
+  row.moveType != null &&
+  row.moveDate != null &&
+  row.departureZipCode != null &&
+  row.departureAddress != null &&
+  row.departureDetailAddress != null &&
+  row.arrivalZipCode != null &&
+  row.arrivalAddress != null &&
+  row.arrivalDetailAddress != null;
+
+/**
+ * Date(@db.Date) → YYYY-MM-DD 문자열
+ */
+const formatDateOnly = (date: Date | null): string | null => {
+  if (!date) return null;
+
+  return date.toISOString().slice(0, 10);
+};
+
+/**
+ * 활성 요청 요약 응답 형태
+ */
+const toActiveRequestSummary = (row: CustomerEstimateRequestRow) => ({
+  id: row.id,
+  status: row.status,
+  currentStep: row.currentStep,
+  totalSteps: row.totalSteps,
+  moveType: row.moveType,
+  moveDate: formatDateOnly(row.moveDate),
+  departureAddress: row.departureAddress,
+  arrivalAddress: row.arrivalAddress,
+});
+
+/**
+ * 상세 조회 응답 형태
+ */
+const toEstimateRequestDetail = (row: CustomerEstimateRequestRow) => ({
+  id: row.id,
+  status: row.status,
+  currentStep: row.currentStep,
+  totalSteps: row.totalSteps,
+  moveType: row.moveType,
+  moveDate: formatDateOnly(row.moveDate),
+  departureZipCode: row.departureZipCode,
+  departureAddress: row.departureAddress,
+  departureDetailAddress: row.departureDetailAddress,
+  arrivalZipCode: row.arrivalZipCode,
+  arrivalAddress: row.arrivalAddress,
+  arrivalDetailAddress: row.arrivalDetailAddress,
+});
+
+/**
+ * 본인 소유 DRAFT 요청인지 검증 후 행 반환
+ */
+const getOwnedDraftOrThrow = async (
+  estimateRequestId: number,
+  userId: string
+): Promise<CustomerEstimateRequestRow> => {
+  const row =
+    await estimateRequestRepository.findEstimateRequestById(estimateRequestId);
+
+  if (!row) {
+    throw new AppError('REQUEST_NOT_FOUND');
+  }
+
+  if (row.userId !== userId) {
+    throw new AppError('FORBIDDEN', '본인의 견적 요청만 수정할 수 있습니다.');
+  }
+
+  if (row.status !== ('DRAFT' satisfies EstimateRequestStatus)) {
+    throw new AppError('REQUEST_ALREADY_SUBMITTED');
+  }
+
+  return row;
+};
+
+/**
+ * 활성 견적요청 조회 — 없으면 hasActiveRequest: false
+ */
+export const getActiveEstimateRequest = async (userId: string) => {
+  const todayStartUtc = toUtcDateOnly(getTodayDateStringKst());
+  const active = await estimateRequestRepository.findActiveEstimateRequest(
+    userId,
+    todayStartUtc
+  );
+
+  if (!active) {
+    return { hasActiveRequest: false as const, request: null };
+  }
+
+  return {
+    hasActiveRequest: true as const,
+    request: toActiveRequestSummary(active),
+  };
+};
+
+/**
+ * DRAFT 견적요청 생성 — 활성 요청이 있으면 409
+ */
+export const createEstimateRequest = async (userId: string) => {
+  const todayStartUtc = toUtcDateOnly(getTodayDateStringKst());
+  const active = await estimateRequestRepository.findActiveEstimateRequest(
+    userId,
+    todayStartUtc
+  );
+
+  if (active) {
+    throw new AppError('ACTIVE_REQUEST_EXISTS');
+  }
+
+  const created =
+    await estimateRequestRepository.createDraftEstimateRequest(userId);
+
+  return {
+    id: created.id,
+    status: created.status,
+    currentStep: created.currentStep,
+    totalSteps: created.totalSteps,
+  };
+};
+
+/**
+ * 견적요청 상세 조회 — 본인만
+ */
+export const getEstimateRequestDetail = async (
+  estimateRequestId: number,
+  userId: string
+) => {
+  const row =
+    await estimateRequestRepository.findEstimateRequestById(estimateRequestId);
+
+  if (!row) {
+    throw new AppError('REQUEST_NOT_FOUND');
+  }
+
+  if (row.userId !== userId) {
+    throw new AppError('FORBIDDEN', '본인의 견적 요청만 조회할 수 있습니다.');
+  }
+
+  return toEstimateRequestDetail(row);
+};
+
+/**
+ * 단계별 입력 저장 (step 1~3)
+ * currentStep 은 뒤로 가지 않고 max(기존, min(step+1, 3)) 로만 전진
+ */
+export const saveEstimateRequestStep = async (
+  estimateRequestId: number,
+  userId: string,
+  body: SaveEstimateRequestStepBody
+) => {
+  const existing = await getOwnedDraftOrThrow(estimateRequestId, userId);
+
+  let updateData: Parameters<
+    typeof estimateRequestRepository.updateEstimateRequestDraft
+  >[1];
+
+  if (body.step === 1) {
+    updateData = { moveType: body.data.moveType };
+  } else if (body.step === 2) {
+    assertMoveDateNotPast(body.data.moveDate);
+    updateData = { moveDate: toUtcDateOnly(body.data.moveDate) };
+  } else {
+    updateData = {
+      departureZipCode: body.data.departureZipCode,
+      departureAddress: body.data.departureAddress,
+      departureDetailAddress: body.data.departureDetailAddress,
+      arrivalZipCode: body.data.arrivalZipCode,
+      arrivalAddress: body.data.arrivalAddress,
+      arrivalDetailAddress: body.data.arrivalDetailAddress,
+    };
+  }
+
+  // 입력 스텝은 최대 3 — 저장 후 다음 입력 단계로 전진 (완료 UI step 4는 submit 후)
+  const nextStep = Math.min(body.step + 1, 3);
+  const currentStep = Math.max(existing.currentStep, nextStep);
+
+  const updated = await estimateRequestRepository.updateEstimateRequestDraft(
+    estimateRequestId,
+    { ...updateData, currentStep }
+  );
+
+  return {
+    id: updated.id,
+    currentStep: updated.currentStep,
+    totalSteps: updated.totalSteps,
+    isReadyToSubmit: isReadyToSubmit(updated),
+  };
+};
+
+/**
+ * moveType 문자열을 MoveType enum 으로 검증
+ */
+const parseMoveTypeValue = (value: string): MoveType => {
+  if (
+    value === MoveTypeEnum.SMALL ||
+    value === MoveTypeEnum.HOME ||
+    value === MoveTypeEnum.OFFICE
+  ) {
+    return value;
+  }
+
+  throw new AppError('VALIDATION_ERROR', '유효한 이사 종류를 선택해 주세요.');
+};
+
+/**
+ * 완료 항목 단건 재수정 (DRAFT만)
+ */
+export const reviseEstimateRequestField = async (
+  estimateRequestId: number,
+  userId: string,
+  body: ReviseEstimateRequestFieldBody
+) => {
+  await getOwnedDraftOrThrow(estimateRequestId, userId);
+
+  const field = body.field as EstimateRequestRevisableField;
+  let updateData: Parameters<
+    typeof estimateRequestRepository.updateEstimateRequestDraft
+  >[1];
+
+  if (field === 'moveType') {
+    updateData = { moveType: parseMoveTypeValue(body.value) };
+  } else if (field === 'moveDate') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.value)) {
+      throw new AppError('VALIDATION_ERROR', '날짜 형식이 올바르지 않습니다.');
+    }
+
+    assertMoveDateNotPast(body.value);
+    updateData = { moveDate: toUtcDateOnly(body.value) };
+  } else {
+    updateData = { [field]: body.value };
+  }
+
+  const updated = await estimateRequestRepository.updateEstimateRequestDraft(
+    estimateRequestId,
+    updateData
+  );
+
+  // 응답에는 수정한 필드만 포함 (명세 예시: { id, moveDate })
+  const response: Record<string, string | number | null> = {
+    id: updated.id,
+  };
+
+  if (field === 'moveDate') {
+    response.moveDate = formatDateOnly(updated.moveDate);
+  } else if (field === 'moveType') {
+    response.moveType = updated.moveType;
+  } else {
+    response[field] = updated[field];
+  }
+
+  return response;
+};
+
+/**
+ * 견적요청 제출 — 필수값 검증 후 SUBMITTED 전환, currentStep=4
+ */
+export const submitEstimateRequest = async (
+  estimateRequestId: number,
+  userId: string
+) => {
+  const existing = await getOwnedDraftOrThrow(estimateRequestId, userId);
+
+  if (!isReadyToSubmit(existing)) {
+    throw new AppError('MISSING_REQUIRED_FIELDS');
+  }
+
+  const submittedAt = new Date();
+  const updated = await estimateRequestRepository.submitEstimateRequest(
+    estimateRequestId,
+    submittedAt
+  );
+
+  return {
+    id: updated.id,
+    status: updated.status,
+    submittedAt:
+      updated.submittedAt?.toISOString() ?? submittedAt.toISOString(),
   };
 };

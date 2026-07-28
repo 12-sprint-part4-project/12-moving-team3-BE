@@ -280,3 +280,131 @@ export const countServiceAreaEstimateRequests = async (
   const where = buildWhere({ ...params, serviceArea: true }, new Date());
   return db.estimateRequest.count({ where });
 };
+
+// --- 일반 유저 견적요청 (DRAFT → SUBMITTED) ---
+
+const customerDetailSelect = {
+  id: true,
+  userId: true,
+  status: true,
+  currentStep: true,
+  totalSteps: true,
+  moveType: true,
+  moveDate: true,
+  departureZipCode: true,
+  departureAddress: true,
+  departureDetailAddress: true,
+  arrivalZipCode: true,
+  arrivalAddress: true,
+  arrivalDetailAddress: true,
+  submittedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export type CustomerEstimateRequestRow = Prisma.EstimateRequestGetPayload<{
+  select: typeof customerDetailSelect;
+}>;
+
+/**
+ * 활성 견적요청 where 조건
+ * - DRAFT / SUBMITTED: 항상 활성
+ * - CONFIRMED: 이사일(오늘 KST 기준)이 지나기 전까지 활성
+ */
+const buildActiveRequestWhere = (
+  userId: string,
+  todayStartUtc: Date
+): Prisma.EstimateRequestWhereInput => ({
+  userId,
+  OR: [
+    {
+      status: {
+        in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.SUBMITTED],
+      },
+    },
+    {
+      status: EstimateRequestStatus.CONFIRMED,
+      moveDate: { gte: todayStartUtc },
+    },
+  ],
+});
+
+/**
+ * 유저의 활성 견적요청 1건 조회 (없으면 null)
+ */
+export const findActiveEstimateRequest = async (
+  userId: string,
+  todayStartUtc: Date,
+  db: DbClient = prisma
+): Promise<CustomerEstimateRequestRow | null> => {
+  return db.estimateRequest.findFirst({
+    where: buildActiveRequestWhere(userId, todayStartUtc),
+    orderBy: { createdAt: 'desc' },
+    select: customerDetailSelect,
+  });
+};
+
+/**
+ * DRAFT 견적요청 생성 (step 1부터 시작)
+ */
+export const createDraftEstimateRequest = async (
+  userId: string,
+  db: DbClient = prisma
+): Promise<CustomerEstimateRequestRow> => {
+  return db.estimateRequest.create({
+    data: {
+      userId,
+      status: EstimateRequestStatus.DRAFT,
+      currentStep: 1,
+      totalSteps: 4,
+    },
+    select: customerDetailSelect,
+  });
+};
+
+/**
+ * ID로 견적요청 상세 조회
+ */
+export const findEstimateRequestById = async (
+  id: number,
+  db: DbClient = prisma
+): Promise<CustomerEstimateRequestRow | null> => {
+  return db.estimateRequest.findUnique({
+    where: { id },
+    select: customerDetailSelect,
+  });
+};
+
+/**
+ * DRAFT 견적요청 필드 부분 업데이트 (단계 저장 / 재수정 공통)
+ */
+export const updateEstimateRequestDraft = async (
+  id: number,
+  data: Prisma.EstimateRequestUpdateInput,
+  db: DbClient = prisma
+): Promise<CustomerEstimateRequestRow> => {
+  return db.estimateRequest.update({
+    where: { id },
+    data,
+    select: customerDetailSelect,
+  });
+};
+
+/**
+ * DRAFT → SUBMITTED 전환
+ */
+export const submitEstimateRequest = async (
+  id: number,
+  submittedAt: Date,
+  db: DbClient = prisma
+): Promise<CustomerEstimateRequestRow> => {
+  return db.estimateRequest.update({
+    where: { id },
+    data: {
+      status: EstimateRequestStatus.SUBMITTED,
+      submittedAt,
+      currentStep: 4,
+    },
+    select: customerDetailSelect,
+  });
+};

@@ -9,6 +9,7 @@ import adminAuthRouter from './routes/admin-auth.route';
 import moverRouter from './routes/mover.route';
 import chatRouter from './routes/chat.route';
 import authRouter from './routes/auth.route';
+import estimateRequestRouter from './routes/estimate-request.route';
 import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
 
@@ -60,6 +61,7 @@ app.use('/', testRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
+app.use('/api/estimate-requests', estimateRequestRouter);
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 
