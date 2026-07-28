@@ -1,12 +1,10 @@
-import type { ChatRoomType, UserType } from '@prisma/client';
+import type { ChatRoomType, MoveType, UserType } from '@prisma/client';
+import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
+import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
 import type { CreateChatRoomBody } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
-
-interface AuthUser {
-  id: string;
-  userType: UserType;
-}
+import { toProfileImageUrl } from '../utils/profile-image.util';
 
 interface CreateChatRoomResult {
   status: 200 | 201;
@@ -19,8 +17,30 @@ interface CreateChatRoomResult {
   };
 }
 
+interface ChatRoomDetailResult {
+  partner: {
+    id: string;
+    userType: UserType;
+    nickname: string;
+    profileImageUrl: string | null;
+  };
+  requestSummary: {
+    estimateRequestId: number;
+    moveType: MoveType | null;
+    moveDate: string | null;
+    originAddress: string | null;
+    destinationAddress: string | null;
+  } | null;
+  quoteId: number | null;
+  isMessagingAllowed: boolean;
+  updatedAt: string;
+}
+
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
+
+/** Date를 YYYY-MM-DD 형식으로 변환한다. */
+const toDateString = (date: Date) => date.toISOString().slice(0, 10);
 
 /**
  * 채팅방 참여자 ID 목록을 결정한다.
@@ -28,19 +48,19 @@ const toIsoString = (date: Date) => date.toISOString();
  * - MOVER: 본인이 moverId와 일치해야 하며, 견적 요청의 고객을 포함한다.
  */
 const resolveParticipantIds = async (params: {
-  authUser: AuthUser;
+  authUser: AuthenticatedUser;
   moverId: string;
   estimateRequestId?: number;
 }): Promise<string[]> => {
   if (params.authUser.userType === 'CUSTOMER') {
-    if (params.authUser.id === params.moverId) {
+    if (params.authUser.userId === params.moverId) {
       throw new AppError('INVALID_REQUEST');
     }
 
-    return [params.authUser.id, params.moverId];
+    return [params.authUser.userId, params.moverId];
   }
 
-  if (params.authUser.id !== params.moverId) {
+  if (params.authUser.userId !== params.moverId) {
     throw new AppError('FORBIDDEN');
   }
 
@@ -97,7 +117,7 @@ const findExistingRoom = async (params: {
  * - COMMUNITY는 현재 미지원
  */
 export const createChatRoom = async (
-  authUser: AuthUser,
+  authUser: AuthenticatedUser,
   body: CreateChatRoomBody
 ): Promise<CreateChatRoomResult> => {
   if (body.roomType === 'COMMUNITY') {
@@ -167,7 +187,7 @@ export const createChatRoom = async (
 
     if (
       authUser.userType === 'CUSTOMER' &&
-      estimateRequest.userId !== authUser.id
+      estimateRequest.userId !== authUser.userId
     ) {
       throw new AppError('FORBIDDEN');
     }
@@ -245,5 +265,64 @@ export const createChatRoom = async (
       createdAt: toIsoString(createdRoom.createdAt),
       updatedAt: toIsoString(createdRoom.updatedAt),
     },
+  };
+};
+
+/**
+ * 채팅방 상세 정보를 조회한다.
+ * - 활성 참여자(leftAt IS NULL)만 접근 가능
+ * - partner는 상대방 유저 정보를 반환
+ */
+export const getChatRoomDetail = async (
+  authUser: AuthenticatedUser,
+  roomId: number
+): Promise<ChatRoomDetailResult> => {
+  const room = await chatRepository.findRoomDetailById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const isActiveParticipant = room.participants.some(
+    (participant) => participant.participantId === authUser.userId
+  );
+
+  if (!isActiveParticipant) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  const partnerParticipant = room.participants.find(
+    (participant) => participant.participantId !== authUser.userId
+  );
+
+  if (!partnerParticipant) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const partner = partnerParticipant.user;
+
+  return {
+    partner: {
+      id: partner.id,
+      userType: partner.userType,
+      nickname: partner.nickname,
+      profileImageUrl: toProfileImageUrl(partner.profileImageKey),
+    },
+    requestSummary: room.estimateRequest
+      ? {
+          estimateRequestId: room.estimateRequest.id,
+          moveType: room.estimateRequest.moveType,
+          moveDate: room.estimateRequest.moveDate
+            ? toDateString(room.estimateRequest.moveDate)
+            : null,
+          originAddress: room.estimateRequest.departureAddress,
+          destinationAddress: room.estimateRequest.arrivalAddress,
+        }
+      : null,
+    quoteId: room.quoteId,
+    isMessagingAllowed: isMessagingAllowedByEstimateStatus(
+      room.estimateRequest?.status
+    ),
+    updatedAt: toIsoString(room.updatedAt),
   };
 };

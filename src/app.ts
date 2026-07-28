@@ -10,7 +10,6 @@ import moverRouter from './routes/mover.route';
 import chatRouter from './routes/chat.route';
 import authRouter from './routes/auth.route';
 import testRouter from './routes/test.route';
-import './types/express';
 
 const app = express();
 
