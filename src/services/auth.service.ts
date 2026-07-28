@@ -65,6 +65,20 @@ const toApiUserType = (userType: UserType): ApiUserType => {
   return userType === UserType.MOVER ? 'MOVER' : 'CUSTOMER';
 };
 
+const resolveIsProfileCompleted = (
+  customerProfile: {
+    service: unknown[];
+  } | null,
+  moverProfile: {
+    service: unknown[];
+  } | null
+): boolean => {
+  return (
+    (customerProfile?.service.length ?? 0) > 0 ||
+    (moverProfile?.service.length ?? 0) > 0
+  );
+};
+
 export const login = async (
   input: LoginServiceInput
 ): Promise<LoginServiceResult> => {
@@ -117,7 +131,10 @@ export const login = async (
       userType: apiUserType,
       email: user.email,
       phoneNumber: user.phoneNumber ?? '',
-      isProfileCompleted: Boolean(user.customerProfile || user.moverProfile),
+      isProfileCompleted: resolveIsProfileCompleted(
+        user.customerProfile,
+        user.moverProfile
+      ),
     },
     accessToken,
     refreshToken,
@@ -197,8 +214,9 @@ export const signup = async (
         nickname: result.user.nickname,
         email: result.user.email,
         phoneNumber: result.user.phoneNumber ?? input.phoneNumber,
-        isProfileCompleted: Boolean(
-          result.user.customerProfile || result.user.moverProfile
+        isProfileCompleted: resolveIsProfileCompleted(
+          result.user.customerProfile,
+          result.user.moverProfile
         ),
         createdAt: result.user.createdAt,
       },
