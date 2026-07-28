@@ -1,4 +1,9 @@
-import type { ChatRoomType, MoveType, UserType } from '@prisma/client';
+import type {
+  ChatRoomType,
+  MessageType,
+  MoveType,
+  UserType,
+} from '@prisma/client';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
@@ -17,13 +22,31 @@ interface CreateChatRoomResult {
   };
 }
 
+interface ChatRoomPartner {
+  id: string;
+  userType: UserType;
+  nickname: string;
+  profileImageUrl: string | null;
+}
+
+interface ChatRoomListItem {
+  roomId: number;
+  roomType: ChatRoomType;
+  partner: ChatRoomPartner;
+  lastMessage: {
+    content: string;
+    messageType: MessageType;
+    createdAt: string;
+  } | null;
+  unreadCount: number;
+}
+
+interface ChatRoomListResult {
+  rooms: ChatRoomListItem[];
+}
+
 interface ChatRoomDetailResult {
-  partner: {
-    id: string;
-    userType: UserType;
-    nickname: string;
-    profileImageUrl: string | null;
-  };
+  partner: ChatRoomPartner;
   requestSummary: {
     estimateRequestId: number;
     moveType: MoveType | null;
@@ -266,6 +289,80 @@ export const createChatRoom = async (
       updatedAt: toIsoString(createdRoom.updatedAt),
     },
   };
+};
+
+/**
+ * 채팅방 목록을 조회한다.
+ * - 활성 참여(leftAt IS NULL) 방만 포함
+ * - lastMessage / unreadCount는 최근 joinedAt 이후 메시지만 반영
+ */
+export const getChatRoomList = async (
+  authUser: AuthenticatedUser
+): Promise<ChatRoomListResult> => {
+  const rooms = await chatRepository.findActiveRoomsByUserId(authUser.userId);
+
+  const roomVisibility = rooms
+    .map((room) => {
+      const myParticipation = room.participants.find(
+        (participant) => participant.participantId === authUser.userId
+      );
+
+      if (!myParticipation) {
+        return null;
+      }
+
+      return {
+        room,
+        joinedAt: myParticipation.joinedAt,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  const roomFilters = roomVisibility.map(({ room, joinedAt }) => ({
+    roomId: room.id,
+    joinedAt,
+  }));
+
+  const [lastMessageByRoomId, unreadCountByRoomId] = await Promise.all([
+    chatRepository.findLastMessagesByRooms(roomFilters),
+    chatRepository.findUnreadCountsByRooms(authUser.userId, roomFilters),
+  ]);
+
+  const roomListItems = roomVisibility
+    .map(({ room }): ChatRoomListItem | null => {
+      const partnerParticipant = room.participants.find(
+        (participant) => participant.participantId !== authUser.userId
+      );
+
+      if (!partnerParticipant) {
+        return null;
+      }
+
+      const partner = partnerParticipant.user;
+      const lastMessage = lastMessageByRoomId.get(room.id);
+
+      return {
+        roomId: room.id,
+        roomType: room.roomType,
+        partner: {
+          id: partner.id,
+          userType: partner.userType,
+          nickname: partner.nickname,
+          profileImageUrl: toProfileImageUrl(partner.profileImageKey),
+        },
+        lastMessage: lastMessage
+          ? {
+              content: lastMessage.content,
+              messageType: lastMessage.messageType,
+              createdAt: toIsoString(lastMessage.createdAt),
+            }
+          : null,
+        unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
+      };
+    })
+    .filter((item): item is ChatRoomListItem => item !== null);
+
+  return { rooms: roomListItems };
 };
 
 /**

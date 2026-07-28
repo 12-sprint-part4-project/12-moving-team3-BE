@@ -11,6 +11,74 @@ const router = Router();
 
 /**
  * @swagger
+ * /api/chat/rooms:
+ *   get:
+ *     tags: [Chat]
+ *     summary: 채팅방 목록 조회
+ *     description: |
+ *       인증된 사용자가 활성 참여 중인 채팅방 목록을 반환합니다.
+ *       최근 메시지·미읽음 수는 재참여(joinedAt) 이후 메시지만 반영합니다.
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 채팅방 목록 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     rooms:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           roomId:
+ *                             type: integer
+ *                           roomType:
+ *                             type: string
+ *                             enum: [GENERAL, DESIGNATED, COMMUNITY]
+ *                           partner:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                                 format: uuid
+ *                               userType:
+ *                                 type: string
+ *                                 enum: [CUSTOMER, MOVER]
+ *                               nickname:
+ *                                 type: string
+ *                               profileImageUrl:
+ *                                 type: string
+ *                                 nullable: true
+ *                           lastMessage:
+ *                             type: object
+ *                             nullable: true
+ *                             properties:
+ *                               content:
+ *                                 type: string
+ *                               messageType:
+ *                                 type: string
+ *                                 enum: [TEXT, IMAGE]
+ *                               createdAt:
+ *                                 type: string
+ *                                 format: date-time
+ *                           unreadCount:
+ *                             type: integer
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/rooms', requireAuth, chatController.getChatRoomList);
+
+/**
+ * @swagger
  * /api/chat/rooms/{roomId}:
  *   get:
  *     tags: [Chat]
