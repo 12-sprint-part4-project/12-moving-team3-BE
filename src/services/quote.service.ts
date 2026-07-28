@@ -19,7 +19,11 @@ import type {
   RejectedQuoteListRow,
   SentQuoteListRow,
 } from '../repositories/quote.repository';
-import type { QuoteBody, QuoteListStatus } from '../schemas/quote.schema';
+import {
+  SENT_QUOTE_STATUSES,
+  type QuoteBody,
+  type QuoteListStatus,
+} from '../schemas/quote.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
 import { inferDistrictLabelFromAddress } from '../utils/region.util';
@@ -29,12 +33,6 @@ const DESIGNATED_MAX_PROPOSALS = 3;
 
 /** 일반 견적 요청 최대 PROPOSAL 수 */
 const GENERAL_MAX_PROPOSALS = 5;
-
-/** status=SENT 조회 대상 견적 상태 */
-const SENT_QUOTE_STATUSES: QuoteStatus[] = [
-  QuoteStatus.PENDING,
-  QuoteStatus.CONFIRMED,
-];
 
 export interface SubmitQuoteInput {
   moverId: string;

@@ -1,3 +1,4 @@
+import { QuoteStatus } from '@prisma/client';
 import { z } from 'zod';
 
 // Path Parameter: estimateRequestId 숫자 변환 및 필수 검증.
@@ -18,6 +19,12 @@ export type QuoteIdParams = z.infer<typeof quoteIdParamsSchema>;
 export const QUOTE_LIST_STATUS_VALUES = ['REJECTED', 'SENT'] as const;
 
 export type QuoteListStatus = (typeof QUOTE_LIST_STATUS_VALUES)[number];
+
+/** status=SENT 목록 조회 및 보낸 견적 권한 검증용 상태 */
+export const SENT_QUOTE_STATUSES: QuoteStatus[] = [
+  QuoteStatus.PENDING,
+  QuoteStatus.CONFIRMED,
+];
 
 /** 목록 조회 기본 페이지 크기 */
 const DEFAULT_QUOTE_LIST_LIMIT = 8;

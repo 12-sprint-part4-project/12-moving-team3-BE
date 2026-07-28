@@ -6,7 +6,10 @@ import {
   type Quote,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import type { QuoteListStatus } from '../schemas/quote.schema';
+import {
+  SENT_QUOTE_STATUSES,
+  type QuoteListStatus,
+} from '../schemas/quote.schema';
 
 /** 비관적 락으로 조회한 견적 요청 행 */
 export interface LockedEstimateRequest {
@@ -93,12 +96,6 @@ export interface FindQuotesByMoverParams {
   take: number;
 }
 
-/** status=SENT 조회 대상 견적 상태 */
-const SENT_QUOTE_STATUSES: QuoteStatus[] = [
-  QuoteStatus.PENDING,
-  QuoteStatus.CONFIRMED,
-];
-
 /**
  * listStatus 기준 조회 대상 QuoteStatus 배열 반환
  */
@@ -149,7 +146,7 @@ export const countActiveProposals = async (
     where: {
       estimateRequestId,
       deletedAt: null,
-      status: { in: [QuoteStatus.PENDING, QuoteStatus.CONFIRMED] },
+      status: { in: SENT_QUOTE_STATUSES },
     },
   });
 };
