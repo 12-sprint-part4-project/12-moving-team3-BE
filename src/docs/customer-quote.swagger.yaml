@@ -61,51 +61,50 @@ components:
       type: object
       properties:
         data:
-          oneOf:
-            - type: 'null'
-            - type: object
+          type: object
+          nullable: true
+          properties:
+            estimateRequestId:
+              type: integer
+              example: 101
+            status:
+              type: string
+              enum: [SUBMITTED]
+              example: SUBMITTED
+              description: 대기 중 견적 요청 상태 (SUBMITTED)
+            serviceType:
+              type: string
+              enum: [SMALL, HOME, OFFICE]
+              nullable: true
+              example: HOME
+            moveDate:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-05-10T00:00:00.000Z'
+            fromAddress:
+              type: string
+              nullable: true
+              example: 서울 강남구
+              description: 시·군·구 단위 요약 주소
+            toAddress:
+              type: string
+              nullable: true
+              example: 서울 서초구
+              description: 시·군·구 단위 요약 주소
+            quoteCount:
+              type: object
               properties:
-                estimateRequestId:
+                general:
                   type: integer
-                  example: 101
-                status:
-                  type: string
-                  enum: [SUBMITTED]
-                  example: SUBMITTED
-                  description: 대기 중 견적 요청 상태 (SUBMITTED)
-                serviceType:
-                  type: string
-                  enum: [SMALL, HOME, OFFICE]
-                  nullable: true
-                  example: HOME
-                moveDate:
-                  type: string
-                  format: date
-                  nullable: true
-                  example: '2024-05-10'
-                fromAddress:
-                  type: string
-                  nullable: true
-                  example: 서울 강남구
-                  description: 시·군·구 단위 요약 주소
-                toAddress:
-                  type: string
-                  nullable: true
-                  example: 서울 서초구
-                  description: 시·군·구 단위 요약 주소
-                quoteCount:
-                  type: object
-                  properties:
-                    general:
-                      type: integer
-                      example: 2
-                    designated:
-                      type: integer
-                      example: 1
-                quotes:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/CustomerQuoteItem'
+                  example: 2
+                designated:
+                  type: integer
+                  example: 1
+            quotes:
+              type: array
+              items:
+                $ref: '#/components/schemas/CustomerQuoteItem'
     CustomerPastQuoteGroup:
       type: object
       properties:
@@ -125,9 +124,9 @@ components:
           example: HOME
         moveDate:
           type: string
-          format: date
+          format: date-time
           nullable: true
-          example: '2024-05-10'
+          example: '2024-05-10T00:00:00.000Z'
         fromAddress:
           type: string
           nullable: true
@@ -196,9 +195,9 @@ components:
               example: HOME
             moveDate:
               type: string
-              format: date
+              format: date-time
               nullable: true
-              example: '2024-05-10'
+              example: '2024-05-10T00:00:00.000Z'
             fromAddress:
               type: string
               nullable: true
@@ -238,7 +237,7 @@ paths:
                       estimateRequestId: 101
                       status: SUBMITTED
                       serviceType: HOME
-                      moveDate: '2024-05-10'
+                      moveDate: '2024-05-10T00:00:00.000Z'
                       fromAddress: 서울 강남구
                       toAddress: 서울 서초구
                       quoteCount:
@@ -344,7 +343,7 @@ paths:
                     - estimateRequestId: 99
                       submittedAt: '2024-05-05T10:00:00.000Z'
                       serviceType: HOME
-                      moveDate: '2024-05-10'
+                      moveDate: '2024-05-10T00:00:00.000Z'
                       fromAddress: 서울 강남구
                       toAddress: 서울 서초구
                       quotes:
@@ -452,7 +451,7 @@ paths:
                   status: PENDING
                   isDesignated: true
                   serviceType: HOME
-                  moveDate: '2024-05-10'
+                  moveDate: '2024-05-10T00:00:00.000Z'
                   fromAddress: 서울시 강남구 테헤란로 123
                   toAddress: 서울시 서초구 서초대로 456
                   mover:
@@ -465,6 +464,16 @@ paths:
                     confirmedQuoteCount: 150
                     favoriteCount: 350
                     isFavorited: true
+        '400':
+          description: 잘못된 path 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: 요청 형식이 올바르지 않습니다.
         '401':
           description: 인증 실패
           content:

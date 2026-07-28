@@ -401,7 +401,6 @@ export interface CustomerQuoteDetailRow {
     moveDate: Date | null;
     departureAddress: string | null;
     arrivalAddress: string | null;
-    userId: string;
   };
 }
 
@@ -411,6 +410,7 @@ export interface FindCustomerPastEstimateRequestsParams {
   cursor?: number;
   limit: number;
   estimateRequestId?: number;
+  estimateRequestStatuses: EstimateRequestStatus[];
   quoteStatuses: QuoteStatus[];
 }
 
@@ -523,7 +523,10 @@ export const findPendingEstimateRequestWithQuotes = async (
       userId: customerId,
       status: EstimateRequestStatus.SUBMITTED,
     },
-    orderBy: { submittedAt: 'desc' },
+    orderBy: [
+      { submittedAt: { sort: 'desc', nulls: 'last' } },
+      { id: 'desc' },
+    ],
     select: {
       id: true,
       status: true,
@@ -560,10 +563,7 @@ export const findCustomerPastEstimateRequests = async (
         id: params.estimateRequestId,
         userId: params.customerId,
         status: {
-          in: [
-            EstimateRequestStatus.CONFIRMED,
-            EstimateRequestStatus.COMPLETED,
-          ],
+          in: params.estimateRequestStatuses,
         },
       },
       select: {
@@ -595,7 +595,7 @@ export const findCustomerPastEstimateRequests = async (
     where: {
       userId: params.customerId,
       status: {
-        in: [EstimateRequestStatus.CONFIRMED, EstimateRequestStatus.COMPLETED],
+        in: params.estimateRequestStatuses,
       },
     },
     orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
@@ -655,7 +655,6 @@ export const findCustomerQuoteById = async (
           moveDate: true,
           departureAddress: true,
           arrivalAddress: true,
-          userId: true,
         },
       },
     },

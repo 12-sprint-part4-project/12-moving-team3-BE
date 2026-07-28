@@ -476,6 +476,12 @@ const resolveCustomerQuoteStatuses = (
   return SENT_QUOTE_STATUSES;
 };
 
+/** 과거 견적 요청으로 조회할 EstimateRequest 상태 */
+const PAST_ESTIMATE_REQUEST_STATUSES: EstimateRequestStatus[] = [
+  EstimateRequestStatus.CONFIRMED,
+  EstimateRequestStatus.COMPLETED,
+];
+
 /**
  * 과거 견적 요청 목록 조회
  * 잘못된 커서는 Prisma P2025 → INVALID_QUERY_PARAM 으로 변환
@@ -609,7 +615,7 @@ const buildPastQuoteGroups = async (
  * 일반/지정 견적 건수 집계
  */
 const countQuotesByDesignation = (
-  quotes: CustomerQuoteRow[]
+  quotes: Array<{ isDesignated: boolean }>
 ): { general: number; designated: number } =>
   quotes.reduce(
     (acc, quote) => {
@@ -651,7 +657,7 @@ export const getCustomerPendingQuotes = async (
       estimateRequest.departureAddress
     ),
     toAddress: inferDistrictLabelFromAddress(estimateRequest.arrivalAddress),
-    quoteCount: countQuotesByDesignation(estimateRequest.quotes),
+    quoteCount: countQuotesByDesignation(quotes),
     quotes,
   };
 };
@@ -672,6 +678,7 @@ export const getCustomerPastQuotes = async (
     cursor: input.cursor,
     limit: input.limit,
     estimateRequestId: input.estimateRequestId,
+    estimateRequestStatuses: PAST_ESTIMATE_REQUEST_STATUSES,
     quoteStatuses: resolveCustomerQuoteStatuses(input.filter),
   });
 
