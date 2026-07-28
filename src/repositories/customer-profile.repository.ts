@@ -12,25 +12,47 @@ export const findCustomerProfileByUserId = async (userId: string) => {
   });
 };
 
-export interface UpdateCustomerProfileInput {
+export interface RegisterCustomerProfileInput {
   userId: string;
   region: Region;
   service: MoveType[];
+  profileImageKey: string | null;
 }
 
-export const updateCustomerProfile = async (
-  input: UpdateCustomerProfileInput
+export const registerCustomerProfile = async (
+  input: RegisterCustomerProfileInput
 ) => {
-  return prisma.customerProfile.update({
-    where: { userId: input.userId },
-    data: {
-      region: input.region,
-      service: input.service,
-    },
-    select: {
-      region: true,
-      service: true,
-      updatedAt: true,
-    },
+  return prisma.$transaction(async (tx) => {
+    await tx.customerProfile.update({
+      where: { userId: input.userId },
+      data: {
+        region: input.region,
+        service: input.service,
+      },
+    });
+
+    const user = await tx.user.update({
+      where: { id: input.userId },
+      data: {
+        profileImageKey: input.profileImageKey,
+      },
+      select: {
+        profileImageKey: true,
+      },
+    });
+
+    const profile = await tx.customerProfile.findUniqueOrThrow({
+      where: { userId: input.userId },
+      select: {
+        region: true,
+        service: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      ...profile,
+      profileImageKey: user.profileImageKey,
+    };
   });
 };

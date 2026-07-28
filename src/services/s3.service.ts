@@ -1,7 +1,7 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import type {} from 'multer';
-import { s3Client } from '../config/s3.js';
+import { s3Client } from '../config/s3';
 
 export const uploadImage = async (
   file: Express.Multer.File,
