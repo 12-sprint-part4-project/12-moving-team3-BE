@@ -431,7 +431,7 @@ paths:
               example:
                 error:
                   code: INVALID_QUERY_PARAM
-                  message: 유효하지 않은 요청 파라미터입니다..
+                  message: 유효하지 않은 요청 파라미터입니다.
         '401':
           description: Access Token 누락 또는 유효하지 않음
           content:
@@ -766,7 +766,7 @@ paths:
               example:
                 error:
                   code: INVALID_QUERY_PARAM
-                  message: 유효하지 않은 요청 파라미터입니다..
+                  message: 유효하지 않은 요청 파라미터입니다.
         '401':
           description: Access Token 누락 또는 유효하지 않음
           content:
