@@ -70,7 +70,7 @@ export const getMoverDetail = async (
     const moverDetail = await moversService.getMoverDetail(id);
 
     res.status(200).json({
-      data: moverDetail,
+      data: moverDetail.data,
     });
   } catch (error) {
     next(error);
