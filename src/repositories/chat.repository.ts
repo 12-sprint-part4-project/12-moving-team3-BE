@@ -2,6 +2,7 @@ import type { ChatRoom, ChatRoomType, MessageType, Prisma } from '@prisma/client
 import { prisma } from '../lib/prisma';
 
 export type ChatRoomRecord = ChatRoom;
+export type ChatTransactionClient = Prisma.TransactionClient;
 
 interface CreateChatRoomData {
   estimateRequestId?: number;
@@ -469,7 +470,7 @@ export const createChatRoom = async (
  * 이전 leftAt row는 유지하고, leftAt IS NULL인 새 row만 생성한다.
  */
 const rejoinLeftParticipants = async (
-  tx: Prisma.TransactionClient,
+  tx: ChatTransactionClient,
   roomId: number,
   excludeUserId: string
 ) => {
@@ -505,6 +506,7 @@ const rejoinLeftParticipants = async (
       roomId,
       participantId,
     })),
+    skipDuplicates: true,
   });
 };
 
