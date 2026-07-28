@@ -66,17 +66,19 @@ const toApiUserType = (userType: UserType): ApiUserType => {
 };
 
 const resolveIsProfileCompleted = (
-  customerProfile: {
-    service: unknown[];
-  } | null,
-  moverProfile: {
-    service: unknown[];
-  } | null
+  userType: UserType,
+  customerProfile: { service: unknown[] } | null,
+  moverProfile: { service: unknown[] } | null
 ): boolean => {
-  return (
-    (customerProfile?.service.length ?? 0) > 0 ||
-    (moverProfile?.service.length ?? 0) > 0
-  );
+  if (userType === UserType.CUSTOMER) {
+    return (customerProfile?.service.length ?? 0) > 0;
+  }
+
+  if (userType === UserType.MOVER) {
+    return (moverProfile?.service.length ?? 0) > 0;
+  }
+
+  return false;
 };
 
 export const login = async (
@@ -132,6 +134,7 @@ export const login = async (
       email: user.email,
       phoneNumber: user.phoneNumber ?? '',
       isProfileCompleted: resolveIsProfileCompleted(
+        user.userType,
         user.customerProfile,
         user.moverProfile
       ),
@@ -215,6 +218,7 @@ export const signup = async (
         email: result.user.email,
         phoneNumber: result.user.phoneNumber ?? input.phoneNumber,
         isProfileCompleted: resolveIsProfileCompleted(
+          result.user.userType,
           result.user.customerProfile,
           result.user.moverProfile
         ),
