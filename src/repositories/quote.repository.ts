@@ -319,25 +319,16 @@ export async function findQuotesByMoverWithCount(
     status: { in: resolveListStatuses(params.listStatus) },
   };
 
-  if (params.listStatus === 'REJECTED') {
-    const [items, totalCount] = await prisma.$transaction([
-      prisma.quote.findMany({
-        where,
-        select: rejectedQuoteListSelect,
-        orderBy: { createdAt: 'desc' },
-        skip: params.skip,
-        take: params.take,
-      }),
-      prisma.quote.count({ where }),
-    ]);
-
-    return { items, totalCount };
-  }
+  // listStatus 기준 select 분기
+  const select =
+    params.listStatus === 'REJECTED'
+      ? rejectedQuoteListSelect
+      : sentQuoteListSelect;
 
   const [items, totalCount] = await prisma.$transaction([
     prisma.quote.findMany({
       where,
-      select: sentQuoteListSelect,
+      select,
       orderBy: { createdAt: 'desc' },
       skip: params.skip,
       take: params.take,
