@@ -10,6 +10,7 @@ import moverRouter from './routes/mover.route';
 import chatRouter from './routes/chat.route';
 import authRouter from './routes/auth.route';
 import testRouter from './routes/test.route';
+import communityRouter from './routes/community.route';
 
 const app = express();
 
@@ -57,6 +58,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use('/', testRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
