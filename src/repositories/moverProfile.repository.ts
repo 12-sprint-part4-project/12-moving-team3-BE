@@ -126,7 +126,10 @@ const buildMoverListOrderBy = (
 };
 
 const moverProfileRepository = {
-  /** Read: 목록 조회 (where / orderBy / include / pagination은 repository에서 조합) */
+  /**
+   * Read: 목록 조회 (where / orderBy / include / pagination은 repository에서 조합)
+   * TODO: 페이지네이션 meta가 필요하면 count 쿼리(또는 findMany+count 트랜잭션) 추가 후 { items, total } 반환
+   */
   findMovers: async (
     filters: FindMoversFilters,
     tx?: Prisma.TransactionClient
@@ -144,7 +147,10 @@ const moverProfileRepository = {
     });
   },
 
-  /** Read: id로 상세 조회 */
+  /**
+   * Read: id로 상세 조회
+   * TODO: 상세 화면에 필요한 relation(리뷰, 찜 수 등)이 있으면 moverDetailInclude 확장
+   */
   findMoverProfileById: async (
     id: number,
     tx?: Prisma.TransactionClient
@@ -157,6 +163,7 @@ const moverProfileRepository = {
     });
   },
 
+  // TODO: 프로필 등록/수정 API를 이어서 만들면 service·controller와 연결
   createMoverProfile: async (
     data: CreateMoverProfileInput,
     tx?: Prisma.TransactionClient
@@ -169,6 +176,7 @@ const moverProfileRepository = {
     });
   },
 
+  // TODO: 프로필 등록/수정 API를 이어서 만들면 service·controller와 연결
   updateMoverProfile: async (
     id: number,
     data: UpdateMoverProfileInput,
@@ -183,6 +191,7 @@ const moverProfileRepository = {
     });
   },
 
+  // TODO: 프로필 삭제/탈퇴 정책이 정해지면 service·controller와 연결
   deleteMoverProfile: async (id: number, tx?: Prisma.TransactionClient) => {
     const dbClient = tx ?? prisma;
 

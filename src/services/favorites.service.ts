@@ -22,7 +22,7 @@ export const addFavorite = async ({
   userType,
   moverId,
 }: AddFavoriteInput) => {
-  // 인증된 유저의 타입은 auth에서 넘어온 값을 신뢰
+  // TODO: route에서 allowUserTypes('CUSTOMER')를 쓰면 이 FORBIDDEN 체크는 제거/중복 여부 정리
   if (userType === 'MOVER') {
     throw new AppError('FORBIDDEN');
   }

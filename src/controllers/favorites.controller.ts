@@ -4,7 +4,10 @@ import type { FavoriteMoverIdParam } from '../schemas/favorites.schema';
 import * as favoritesService from '../services/favorites.service';
 import { AppError } from '../utils/app.error';
 
-/** 인증 미들웨어가 주입할 user. 타입 확장은 인증 담당자가 담당 */
+/**
+ * TODO: auth.middleware의 getAuthenticatedUser(res)로 교체하고
+ * 아래 AuthenticatedRequest / req.user 사용 제거
+ */
 type AuthenticatedRequest = Request & {
   user?: {
     id: string;
@@ -18,6 +21,7 @@ export const addFavorite = async (
   next: NextFunction
 ) => {
   try {
+    // TODO: getAuthenticatedUser(res) → { userId, userType } 사용
     if (!req.user) {
       throw new AppError('UNAUTHORIZED');
     }
@@ -43,6 +47,7 @@ export const removeFavorite = async (
   next: NextFunction
 ) => {
   try {
+    // TODO: getAuthenticatedUser(res) → { userId } 사용
     if (!req.user) {
       throw new AppError('UNAUTHORIZED');
     }

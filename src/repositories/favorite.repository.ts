@@ -9,6 +9,7 @@ const favoriteSelect = {
   createdAt: true,
 } satisfies Prisma.FavoriteSelect;
 
+// TODO: 필요 시 tx?: Prisma.TransactionClient 지원 (다른 repository와 패턴 통일)
 export const findFavoriteByUserAndMover = async (
   userId: string,
   moverId: string

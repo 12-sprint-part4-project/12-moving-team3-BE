@@ -4,6 +4,7 @@ import moverProfileRepository, {
 } from '../repositories/moverProfile.repository';
 import { AppError } from '../utils/app.error';
 
+// TODO: schemas/movers.schema.ts 등으로 분리하고, route의 validateRequest에서 검증하도록 이전
 const REGION_VALUES = [
   'SEOUL',
   'GYEONGGI',
@@ -127,6 +128,7 @@ const buildMoverListFilters = (
 };
 
 const moversService = {
+  // TODO: query 파싱이 zod로 옮겨지면 FindMoversFilters를 바로 받도록 시그니처 변경
   getMovers: async (queryParams: Record<string, unknown>) => {
     const filters = buildMoverListFilters(queryParams);
     return moverProfileRepository.findMovers(filters);
@@ -146,6 +148,7 @@ const moversService = {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
+    // TODO: 상세 응답에 리뷰/평점/찜 수 등 추가 필드가 명세에 있으면 repository include·매핑 보강
     return moverDetail;
   },
 };
