@@ -181,7 +181,7 @@ paths:
       summary: 기사님이 받은 견적 요청 목록 조회
       description: |
         기사(Mover)에게 들어온 견적 요청 목록을 커서 기반으로 조회합니다.
-        이미 견적을 제출/반려했거나 이사일이 지난 요청은 기본적으로 제외됩니다.
+        이미 견적을 제출/반려했거나, 견적이 확정되었거나, 이사일이 지난 요청은 기본적으로 제외됩니다.
         Access Token이 필요하며, userType이 MOVER인 계정만 접근할 수 있습니다.
       security:
         - bearerAuth: []
@@ -304,7 +304,7 @@ paths:
         단일 엔드포인트에서 Request Body의 'type' 필드에 따라 기능을 분기합니다.
         - 'PROPOSAL': 견적 보내기 (price, comment 필수)
         - 'REJECTION': 반려하기 (rejectReason 필수)
-          - confirmedQuoteId가 설정된(견적 확정된) 요청은 반려 불가
+        - confirmedQuoteId가 설정된(견적 확정된) 요청은 보내기/반려 모두 불가
 
         동시성 제어:
         - 지정견적 요청은 최대 3개, 일반 견적 요청은 최대 5개까지 PROPOSAL 접수
@@ -430,8 +430,8 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error:
-                  code: REQUEST_NOT_FOUND
-                  message: 견적 요청을 찾을 수 없습니다.
+                  code: ESTIMATE_REQUEST_NOT_FOUND
+                  message: 존재하지 않는 견적 요청입니다.
         '409':
           description: |
             비즈니스 충돌
@@ -439,7 +439,7 @@ paths:
             - REQUEST_CLOSED: 견적 제출 인원 마감 (지정 3 / 일반 5)
             - QUOTE_ALREADY_SUBMITTED: 이미 견적 제출
             - ALREADY_REJECTED: 이미 반려
-            - ALREADY_CONFIRMED_REQUEST: 견적 확정된 요청에 대한 반려 시도
+            - ALREADY_CONFIRMED_REQUEST: 견적 확정된 요청에 대한 보내기/반려 시도
           content:
             application/json:
               schema:

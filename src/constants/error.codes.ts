@@ -79,10 +79,6 @@ export const ERROR_CODES = {
     status: 400,
     message: '요청 본문 형식이 올바르지 않습니다.',
   },
-  REQUEST_NOT_FOUND: {
-    status: 404,
-    message: '견적 요청을 찾을 수 없습니다.',
-  },
   REQUEST_EXPIRED: {
     status: 409,
     message: '이사일이 지나 견적 요청이 만료되었습니다.',
