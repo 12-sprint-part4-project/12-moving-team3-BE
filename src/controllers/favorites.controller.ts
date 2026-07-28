@@ -39,8 +39,7 @@ export const removeFavorite = async (
     });
 
     res.status(200).json({
-      success: true,
-      message: '찜이 취소되었습니다.',
+      data: {},
     });
   } catch (error) {
     next(error);
