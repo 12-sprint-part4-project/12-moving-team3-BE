@@ -377,34 +377,56 @@ export const findEstimateRequestById = async (
 
 /**
  * DRAFT 견적요청 필드 부분 업데이트 (단계 저장 / 재수정 공통)
+ * id + userId + status=DRAFT 를 한 번에 조건으로 걸어 race condition(검사 후 갱신 사이 경합)을 막음
+ * 조건에 맞는 행이 없으면 null (이미 제출됐거나 소유자가 다른 경우)
  */
 export const updateEstimateRequestDraft = async (
   id: number,
-  data: Prisma.EstimateRequestUpdateInput,
+  userId: string,
+  data: Prisma.EstimateRequestUpdateManyMutationInput,
   db: DbClient = prisma
-): Promise<CustomerEstimateRequestRow> => {
-  return db.estimateRequest.update({
-    where: { id },
+): Promise<CustomerEstimateRequestRow | null> => {
+  const { count } = await db.estimateRequest.updateMany({
+    where: { id, userId, status: EstimateRequestStatus.DRAFT },
     data,
+  });
+
+  if (count === 0) {
+    return null;
+  }
+
+  return db.estimateRequest.findUnique({
+    where: { id },
     select: customerDetailSelect,
   });
 };
 
 /**
  * DRAFT → SUBMITTED 전환
+ * 소유자·DRAFT 조건을 갱신 where에 포함해 동시 제출/수정 race condition을 원자적으로 차단
+ * 0건 갱신 시 null
  */
 export const submitEstimateRequest = async (
   id: number,
+  userId: string,
   submittedAt: Date,
   db: DbClient = prisma
-): Promise<CustomerEstimateRequestRow> => {
-  return db.estimateRequest.update({
-    where: { id },
+): Promise<CustomerEstimateRequestRow | null> => {
+  const { count } = await db.estimateRequest.updateMany({
+    where: { id, userId, status: EstimateRequestStatus.DRAFT },
     data: {
       status: EstimateRequestStatus.SUBMITTED,
       submittedAt,
       currentStep: 4,
     },
+  });
+
+  if (count === 0) {
+    return null;
+  }
+
+  return db.estimateRequest.findUnique({
+    where: { id },
     select: customerDetailSelect,
   });
 };

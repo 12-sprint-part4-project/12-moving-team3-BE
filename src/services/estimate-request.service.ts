@@ -405,7 +405,7 @@ export const saveEstimateRequestStep = async (
 
   let updateData: Parameters<
     typeof estimateRequestRepository.updateEstimateRequestDraft
-  >[1];
+  >[2];
 
   if (body.step === 1) {
     updateData = { moveType: body.data.moveType };
@@ -427,10 +427,18 @@ export const saveEstimateRequestStep = async (
   const nextStep = Math.min(body.step + 1, 3);
   const currentStep = Math.max(existing.currentStep, nextStep);
 
+  // DRAFT 조건부 원자 갱신 — 선검사와 갱신 사이 경합 시 null
   const updated = await estimateRequestRepository.updateEstimateRequestDraft(
     estimateRequestId,
+    userId,
     { ...updateData, currentStep }
   );
+
+  if (!updated) {
+    // 경합으로 DRAFT가 아니게 된 경우 등 — 재검증으로 적절한 에러 코드 반환
+    await getOwnedDraftOrThrow(estimateRequestId, userId);
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+  }
 
   return {
     id: updated.id,
@@ -468,7 +476,7 @@ export const reviseEstimateRequestField = async (
   const field = body.field as EstimateRequestRevisableField;
   let updateData: Parameters<
     typeof estimateRequestRepository.updateEstimateRequestDraft
-  >[1];
+  >[2];
 
   if (field === 'moveType') {
     updateData = { moveType: parseMoveTypeValue(body.value) };
@@ -485,8 +493,14 @@ export const reviseEstimateRequestField = async (
 
   const updated = await estimateRequestRepository.updateEstimateRequestDraft(
     estimateRequestId,
+    userId,
     updateData
   );
+
+  if (!updated) {
+    await getOwnedDraftOrThrow(estimateRequestId, userId);
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+  }
 
   // 응답에는 수정한 필드만 포함 (명세 예시: { id, moveDate })
   const response: Record<string, string | number | null> = {
@@ -518,10 +532,17 @@ export const submitEstimateRequest = async (
   }
 
   const submittedAt = new Date();
+  // DRAFT 조건부 원자 제출 — 동시 이중 제출 race condition 차단
   const updated = await estimateRequestRepository.submitEstimateRequest(
     estimateRequestId,
+    userId,
     submittedAt
   );
+
+  if (!updated) {
+    await getOwnedDraftOrThrow(estimateRequestId, userId);
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+  }
 
   return {
     id: updated.id,
