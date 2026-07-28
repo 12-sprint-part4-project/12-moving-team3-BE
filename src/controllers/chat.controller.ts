@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import type {
+  ChatRoomIdParams,
   CreateChatRoomBody,
   GetChatMessagesQuery,
 } from '../schemas/chat.schema';
@@ -8,9 +9,7 @@ import * as chatService from '../services/chat.service';
 import { AppError } from '../utils/app.error';
 
 interface ValidatedLocals {
-  params?: {
-    roomId: number;
-  };
+  params?: ChatRoomIdParams;
   query?: GetChatMessagesQuery;
 }
 

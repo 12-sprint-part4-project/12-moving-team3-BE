@@ -73,14 +73,18 @@ interface ChatMessageItem {
   createdAt: string;
 }
 
+interface ChatMessagesData {
+  messages: ChatMessageItem[];
+}
+
+interface ChatMessagesMeta {
+  hasNext: boolean;
+  nextCursor: number | null;
+}
+
 interface ChatMessagesResult {
-  data: {
-    messages: ChatMessageItem[];
-  };
-  meta: {
-    hasNext: boolean;
-    nextCursor: number | null;
-  };
+  data: ChatMessagesData;
+  meta: ChatMessagesMeta;
 }
 
 /** Date를 ISO 8601 문자열로 변환한다. */

@@ -17,6 +17,13 @@ interface RoomLastMessage {
   createdAt: Date;
 }
 
+interface FindMessagesByRoomCursorParams {
+  roomId: number;
+  joinedAt: Date;
+  before?: number;
+  limit: number;
+}
+
 /** 삭제되지 않은 MOVER 유저(기사님)를 ID로 조회한다. */
 export const findMoverById = async (moverId: string) => {
   return prisma.user.findFirst({
@@ -369,12 +376,9 @@ export const findActiveParticipation = async (
  * - joinedAt 이후 메시지만 포함
  * - id 내림차순, limit+1건 조회로 hasNext 판단
  */
-export const findMessagesByRoomCursor = async (params: {
-  roomId: number;
-  joinedAt: Date;
-  before?: number;
-  limit: number;
-}) => {
+export const findMessagesByRoomCursor = async (
+  params: FindMessagesByRoomCursorParams
+) => {
   const rows = await prisma.chatMessage.findMany({
     where: {
       roomId: params.roomId,
