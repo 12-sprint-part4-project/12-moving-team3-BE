@@ -2,9 +2,14 @@ import {
   Prisma,
   QuoteStatus,
   type EstimateRequestStatus,
+  type MoveType,
   type Quote,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import {
+  SENT_QUOTE_STATUSES,
+  type QuoteListStatus,
+} from '../schemas/quote.schema';
 
 /** 비관적 락으로 조회한 견적 요청 행 */
 export interface LockedEstimateRequest {
@@ -27,6 +32,80 @@ export interface CreateQuoteData {
 }
 
 export type QuoteTransactionClient = Prisma.TransactionClient;
+
+/** 견적 상세 조회 결과 */
+export interface QuoteDetailRow {
+  id: number;
+  estimateRequestId: number;
+  moverId: string | null;
+  price: number | null;
+  status: QuoteStatus;
+  isDesignated: boolean;
+  estimateRequest: {
+    moveType: MoveType | null;
+    moveDate: Date | null;
+    departureAddress: string | null;
+    arrivalAddress: string | null;
+    submittedAt: Date | null;
+    createdAt: Date;
+    status: EstimateRequestStatus;
+    user: { name: string };
+  };
+}
+
+/** 반려 견적 목록 행 */
+export interface RejectedQuoteListRow {
+  id: number;
+  estimateRequestId: number;
+  isDesignated: boolean;
+  createdAt: Date;
+  estimateRequest: {
+    moveType: MoveType | null;
+    moveDate: Date | null;
+    departureAddress: string | null;
+    arrivalAddress: string | null;
+    user: { name: string };
+  };
+}
+
+/** 보낸 견적 목록 행 */
+export interface SentQuoteListRow {
+  id: number;
+  estimateRequestId: number;
+  price: number | null;
+  status: QuoteStatus;
+  isDesignated: boolean;
+  createdAt: Date;
+  estimateRequest: {
+    moveType: MoveType | null;
+    moveDate: Date | null;
+    departureAddress: string | null;
+    arrivalAddress: string | null;
+    status: EstimateRequestStatus;
+    user: { name: string };
+  };
+}
+
+export type QuoteListRow = RejectedQuoteListRow | SentQuoteListRow;
+
+/** 견적 목록 조회 파라미터 */
+export interface FindQuotesByMoverParams {
+  moverId: string;
+  listStatus: QuoteListStatus;
+  skip: number;
+  take: number;
+}
+
+/**
+ * listStatus 기준 조회 대상 QuoteStatus 배열 반환
+ */
+const resolveListStatuses = (listStatus: QuoteListStatus): QuoteStatus[] => {
+  if (listStatus === 'REJECTED') {
+    return [QuoteStatus.REJECTED];
+  }
+
+  return SENT_QUOTE_STATUSES;
+};
 
 /**
  * 견적 요청 행에 SELECT FOR UPDATE 비관적 락 적용 후 조회
@@ -67,7 +146,7 @@ export const countActiveProposals = async (
     where: {
       estimateRequestId,
       deletedAt: null,
-      status: { in: [QuoteStatus.PENDING, QuoteStatus.CONFIRMED] },
+      status: { in: SENT_QUOTE_STATUSES },
     },
   });
 };
@@ -140,3 +219,122 @@ export const runInTransaction = async <T>(
 ): Promise<T> => {
   return prisma.$transaction(async (tx) => handler(tx));
 };
+
+/** 견적 상세 조회용 select */
+const quoteDetailSelect = {
+  id: true,
+  estimateRequestId: true,
+  moverId: true,
+  price: true,
+  status: true,
+  isDesignated: true,
+  deletedAt: true,
+  estimateRequest: {
+    select: {
+      moveType: true,
+      moveDate: true,
+      departureAddress: true,
+      arrivalAddress: true,
+      submittedAt: true,
+      createdAt: true,
+      status: true,
+      user: { select: { name: true } },
+    },
+  },
+} satisfies Prisma.QuoteSelect;
+
+/** 반려 견적 목록용 select */
+const rejectedQuoteListSelect = {
+  id: true,
+  estimateRequestId: true,
+  isDesignated: true,
+  createdAt: true,
+  estimateRequest: {
+    select: {
+      moveType: true,
+      moveDate: true,
+      departureAddress: true,
+      arrivalAddress: true,
+      user: { select: { name: true } },
+    },
+  },
+} satisfies Prisma.QuoteSelect;
+
+/** 보낸 견적 목록용 select */
+const sentQuoteListSelect = {
+  id: true,
+  estimateRequestId: true,
+  price: true,
+  status: true,
+  isDesignated: true,
+  createdAt: true,
+  estimateRequest: {
+    select: {
+      moveType: true,
+      moveDate: true,
+      departureAddress: true,
+      arrivalAddress: true,
+      status: true,
+      user: { select: { name: true } },
+    },
+  },
+} satisfies Prisma.QuoteSelect;
+
+/**
+ * 견적 ID로 상세 조회
+ */
+export const findQuoteById = async (
+  quoteId: number
+): Promise<QuoteDetailRow | null> => {
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    select: quoteDetailSelect,
+  });
+
+  // soft-delete 된 견적은 미존재로 처리
+  if (!quote || quote.deletedAt !== null) {
+    return null;
+  }
+
+  const { deletedAt: _deletedAt, ...detail } = quote;
+  return detail;
+};
+
+/**
+ * 기사님 견적 목록 및 총 개수를 동일 트랜잭션에서 조회
+ * listStatus 기준 최소 필드만 select
+ */
+export function findQuotesByMoverWithCount(
+  params: FindQuotesByMoverParams & { listStatus: 'REJECTED' }
+): Promise<{ items: RejectedQuoteListRow[]; totalCount: number }>;
+export function findQuotesByMoverWithCount(
+  params: FindQuotesByMoverParams & { listStatus: 'SENT' }
+): Promise<{ items: SentQuoteListRow[]; totalCount: number }>;
+export async function findQuotesByMoverWithCount(
+  params: FindQuotesByMoverParams
+): Promise<{ items: QuoteListRow[]; totalCount: number }> {
+  const where: Prisma.QuoteWhereInput = {
+    moverId: params.moverId,
+    deletedAt: null,
+    status: { in: resolveListStatuses(params.listStatus) },
+  };
+
+  // listStatus 기준 select 분기
+  const select =
+    params.listStatus === 'REJECTED'
+      ? rejectedQuoteListSelect
+      : sentQuoteListSelect;
+
+  const [items, totalCount] = await prisma.$transaction([
+    prisma.quote.findMany({
+      where,
+      select,
+      orderBy: { createdAt: 'desc' },
+      skip: params.skip,
+      take: params.take,
+    }),
+    prisma.quote.count({ where }),
+  ]);
+
+  return { items, totalCount };
+}

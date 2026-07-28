@@ -1,8 +1,16 @@
-import type { ChatRoomType, MoveType, UserType } from '@prisma/client';
+import type {
+  ChatRoomType,
+  MessageType,
+  MoveType,
+  UserType,
+} from '@prisma/client';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
-import type { CreateChatRoomBody } from '../schemas/chat.schema';
+import type {
+  CreateChatRoomBody,
+  GetChatMessagesQuery,
+} from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
 import { toProfileImageUrl } from '../utils/profile-image.util';
 
@@ -17,13 +25,31 @@ interface CreateChatRoomResult {
   };
 }
 
+interface ChatRoomPartner {
+  id: string;
+  userType: UserType;
+  nickname: string;
+  profileImageUrl: string | null;
+}
+
+interface ChatRoomListItem {
+  roomId: number;
+  roomType: ChatRoomType;
+  partner: ChatRoomPartner;
+  lastMessage: {
+    content: string;
+    messageType: MessageType;
+    createdAt: string;
+  } | null;
+  unreadCount: number;
+}
+
+interface ChatRoomListResult {
+  rooms: ChatRoomListItem[];
+}
+
 interface ChatRoomDetailResult {
-  partner: {
-    id: string;
-    userType: UserType;
-    nickname: string;
-    profileImageUrl: string | null;
-  };
+  partner: ChatRoomPartner;
   requestSummary: {
     estimateRequestId: number;
     moveType: MoveType | null;
@@ -34,6 +60,31 @@ interface ChatRoomDetailResult {
   quoteId: number | null;
   isMessagingAllowed: boolean;
   updatedAt: string;
+}
+
+interface ChatMessageItem {
+  messageId: number;
+  senderId: string;
+  senderUserType: UserType;
+  messageType: MessageType;
+  content: string;
+  isFiltered: boolean;
+  attachments: string[];
+  createdAt: string;
+}
+
+interface ChatMessagesData {
+  messages: ChatMessageItem[];
+}
+
+interface ChatMessagesMeta {
+  hasNext: boolean;
+  nextCursor: number | null;
+}
+
+interface ChatMessagesResult {
+  data: ChatMessagesData;
+  meta: ChatMessagesMeta;
 }
 
 /** Date를 ISO 8601 문자열로 변환한다. */
@@ -269,6 +320,87 @@ export const createChatRoom = async (
 };
 
 /**
+ * 채팅방 목록을 조회한다.
+ * - 활성 참여(leftAt IS NULL) 방만 포함
+ * - 상대가 나간 방도 목록에 유지(partner는 최신 참여 이력 기준)
+ * - lastMessage / unreadCount는 최근 joinedAt 이후 메시지만 반영
+ */
+export const getChatRoomList = async (
+  authUser: AuthenticatedUser
+): Promise<ChatRoomListResult> => {
+  const rooms = await chatRepository.findActiveRoomsByUserId(authUser.userId);
+
+  const roomVisibility = rooms
+    .map((room) => {
+      const myParticipation = room.participants.find(
+        (participant) =>
+          participant.participantId === authUser.userId &&
+          participant.leftAt === null
+      );
+
+      if (!myParticipation) {
+        return null;
+      }
+
+      return {
+        room,
+        joinedAt: myParticipation.joinedAt,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  const roomFilters = roomVisibility.map(({ room, joinedAt }) => ({
+    roomId: room.id,
+    joinedAt,
+  }));
+
+  const [lastMessageByRoomId, unreadCountByRoomId] = await Promise.all([
+    chatRepository.findLastMessagesByRooms(roomFilters),
+    chatRepository.findUnreadCountsByRooms(authUser.userId, roomFilters),
+  ]);
+
+  const roomListItems = roomVisibility
+    .map(({ room }): ChatRoomListItem | null => {
+      const partnerCandidates = room.participants.filter(
+        (participant) => participant.participantId !== authUser.userId
+      );
+
+      const partnerParticipant =
+        partnerCandidates.find((participant) => participant.leftAt === null) ??
+        partnerCandidates[0];
+
+      if (!partnerParticipant) {
+        return null;
+      }
+
+      const partner = partnerParticipant.user;
+      const lastMessage = lastMessageByRoomId.get(room.id);
+
+      return {
+        roomId: room.id,
+        roomType: room.roomType,
+        partner: {
+          id: partner.id,
+          userType: partner.userType,
+          nickname: partner.nickname,
+          profileImageUrl: toProfileImageUrl(partner.profileImageKey),
+        },
+        lastMessage: lastMessage
+          ? {
+              content: lastMessage.content,
+              messageType: lastMessage.messageType,
+              createdAt: toIsoString(lastMessage.createdAt),
+            }
+          : null,
+        unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
+      };
+    })
+    .filter((item): item is ChatRoomListItem => item !== null);
+
+  return { rooms: roomListItems };
+};
+
+/**
  * 채팅방 상세 정보를 조회한다.
  * - 활성 참여자(leftAt IS NULL)만 접근 가능
  * - partner는 상대방 유저 정보를 반환
@@ -324,5 +456,62 @@ export const getChatRoomDetail = async (
       room.estimateRequest?.status
     ),
     updatedAt: toIsoString(room.updatedAt),
+  };
+};
+
+/**
+ * 채팅방 메시지 이력을 커서 기반으로 조회한다.
+ * - 활성 참여자만 접근 가능
+ * - 가장 최근 joinedAt 이후 메시지만 반환
+ * - before(messageId) 이전 메시지를 id 내림차순으로 조회
+ */
+export const getChatMessages = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  query: GetChatMessagesQuery
+): Promise<ChatMessagesResult> => {
+  const room = await chatRepository.findRoomById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const participation = await chatRepository.findActiveParticipation(
+    roomId,
+    authUser.userId
+  );
+
+  if (!participation) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  const { messages, hasNext } = await chatRepository.findMessagesByRoomCursor({
+    roomId,
+    joinedAt: participation.joinedAt,
+    before: query.before,
+    limit: query.limit,
+  });
+
+  const messageItems: ChatMessageItem[] = messages.map((message) => ({
+    messageId: message.id,
+    senderId: message.senderId,
+    senderUserType: message.sender.userType,
+    messageType: message.messageType,
+    content: message.content,
+    isFiltered: message.isFiltered,
+    attachments: message.attachments.map((attachment) => attachment.fileKey),
+    createdAt: toIsoString(message.createdAt),
+  }));
+
+  const oldestMessage = messageItems[messageItems.length - 1];
+
+  return {
+    data: {
+      messages: messageItems,
+    },
+    meta: {
+      hasNext,
+      nextCursor: hasNext && oldestMessage ? oldestMessage.messageId : null,
+    },
   };
 };
