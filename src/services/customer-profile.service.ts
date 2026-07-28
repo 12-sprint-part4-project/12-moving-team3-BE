@@ -22,7 +22,7 @@ export const registerCustomerProfile = async (
   }
 
   if (existingProfile.service.length > 0) {
-    throw new AppError('PROFILE_ALREADY_COMPLETED');
+    throw new AppError('PROFILE_ALREADY_EXISTS');
   }
 
   const profileImageKey = input.file
