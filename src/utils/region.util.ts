@@ -110,3 +110,19 @@ export const inferRegionLabelFromAddress = (
   const region = inferRegionFromAddress(address);
   return region ? getRegionLabel(region) : null;
 };
+
+/**
+ * 주소 앞 2개 토큰으로 시·군·구 단위 라벨 생성
+ * 예: "서울 중구 삼일대로 343" -> "서울 중구"
+ */
+export const inferDistrictLabelFromAddress = (
+  address: string | null | undefined
+): string | null => {
+  if (!address) return null;
+
+  const tokens = address.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+  if (tokens.length === 1) return tokens[0];
+
+  return `${tokens[0]} ${tokens[1]}`;
+};

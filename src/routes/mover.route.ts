@@ -3,7 +3,12 @@ import * as estimateRequestController from '../controllers/estimate-request.cont
 import * as quoteController from '../controllers/quote.controller';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { estimateRequestListQuerySchema } from '../schemas/estimate-request.schema';
-import { quoteBodySchema, quoteParamsSchema } from '../schemas/quote.schema';
+import {
+  quoteBodySchema,
+  quoteIdParamsSchema,
+  quoteListQuerySchema,
+  quoteParamsSchema,
+} from '../schemas/quote.schema';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -33,4 +38,27 @@ router.post(
   quoteController.submitQuote
 );
 
+// 보낸 견적 / 반려한 견적 목록 조회 (Swagger 문서: src/docs/mover.swagger.yaml)
+router.get(
+  '/quotes',
+  requireAuth,
+  allowUserTypes('MOVER'),
+  validateRequest({
+    query: quoteListQuerySchema,
+    errorCode: 'INVALID_QUERY_PARAM',
+  }),
+  quoteController.getQuotes
+);
+
+// 견적 상세 조회 (Swagger 문서: src/docs/mover.swagger.yaml)
+router.get(
+  '/quotes/:quoteId',
+  requireAuth,
+  allowUserTypes('MOVER'),
+  validateRequest({
+    params: quoteIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  quoteController.getQuoteDetail
+);
 export default router;
