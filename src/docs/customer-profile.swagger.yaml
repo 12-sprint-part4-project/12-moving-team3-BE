@@ -50,10 +50,10 @@ paths:
       tags: [Customers]
       summary: 일반 유저 프로필 등록/수정
       description: |
-        일반 유저(CUSTOMER)가 최초 프로필 정보를 등록합니다.
+        일반 유저(CUSTOMER)가 프로필 정보를 등록하거나 수정합니다.
         - Content-Type: `multipart/form-data`
         - `profileImage`는 선택값입니다.
-        - `profileImage`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
+        - `profileImage`를 보내지 않으면 프로필 이미지는 null로 저장됩니다.
       security:
         - bearerAuth: []
       requestBody:

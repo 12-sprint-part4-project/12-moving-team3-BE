@@ -10,7 +10,7 @@ export const saveMoverProfile = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const body = req.body as MoverProfileBody;
+    const body = res.locals.validated.body as MoverProfileBody;
 
     const profile = await moverProfileService.saveMoverProfile({
       userId,

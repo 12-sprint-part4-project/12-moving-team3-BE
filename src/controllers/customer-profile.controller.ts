@@ -10,7 +10,7 @@ export const registerCustomerProfile = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const body = req.body as CustomerProfileBody;
+    const body = res.locals.validated.body as CustomerProfileBody;
 
     const profile = await customerProfileService.registerCustomerProfile({
       userId,

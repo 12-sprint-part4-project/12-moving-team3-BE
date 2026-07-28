@@ -12,7 +12,7 @@ import {
 
 const router = Router();
 
-// 일반 유저 프로필 등록/수정 (Swagger: src/docs/customer-profile.swagger.yaml)
+// 일반 유저 프로필 등록 (Swagger: src/docs/customer-profile.swagger.yaml)
 router.patch(
   '/profile',
   requireAuth,
