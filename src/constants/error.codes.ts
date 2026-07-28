@@ -35,6 +35,7 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 채팅방입니다.',
   },
+  // 견적 요청 미존재 — chat/quote/estimate-request 공통
   ESTIMATE_REQUEST_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 견적 요청입니다.',
@@ -50,6 +51,18 @@ export const ERROR_CODES = {
   FORBIDDEN: {
     status: 403,
     message: '기사님은 찜 기능을 사용할 수 없습니다.',
+  },
+  VALIDATION_ERROR: {
+    status: 400,
+    message: '입력값이 올바르지 않습니다.',
+  },
+  ACTIVE_REQUEST_EXISTS: {
+    status: 409,
+    message: '이미 진행 중인 견적 요청이 있습니다.',
+  },
+  REQUEST_ALREADY_SUBMITTED: {
+    status: 409,
+    message: '이미 제출된 견적 요청은 수정할 수 없습니다.',
   },
   PROFILE_ALREADY_EXISTS: {
     status: 409,
