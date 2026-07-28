@@ -62,9 +62,9 @@ app.use('/', testRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
+app.use('/api/users/customers', customerRouter);
 app.use('/api/estimate-requests', estimateRequestRouter);
 app.use('/api/users/movers', moverRouter);
-app.use('/api/users/customers', customerRouter);
 app.use('/api/chat', chatRouter);
 
 app.use(errorHandler);

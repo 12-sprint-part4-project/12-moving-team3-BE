@@ -1,4 +1,4 @@
-import type { DeviceType, UserType, Prisma } from '@prisma/client';
+import { UserType, type DeviceType, type Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -32,8 +32,8 @@ export const findUserWithLocalAuthByEmail = async (email: string) => {
       userType: true,
       email: true,
       phoneNumber: true,
-      customerProfile: { select: { id: true } },
-      moverProfile: { select: { id: true } },
+      customerProfile: { select: { id: true, service: true } },
+      moverProfile: { select: { id: true, service: true } },
       authAccounts: {
         where: { provider: 'LOCAL' },
         select: { passwordHash: true },
@@ -78,6 +78,20 @@ export const createUserWithLocalAuth = async (
           passwordHash: input.passwordHash,
         },
       },
+      ...(input.userType === UserType.CUSTOMER
+        ? {
+            customerProfile: {
+              create: {},
+            },
+          }
+        : {}),
+      ...(input.userType === UserType.MOVER
+        ? {
+            moverProfile: {
+              create: {},
+            },
+          }
+        : {}),
     },
     select: {
       id: true,
@@ -87,8 +101,8 @@ export const createUserWithLocalAuth = async (
       email: true,
       phoneNumber: true,
       createdAt: true,
-      customerProfile: { select: { id: true } },
-      moverProfile: { select: { id: true } },
+      customerProfile: { select: { id: true, service: true } },
+      moverProfile: { select: { id: true, service: true } },
     },
   });
 };

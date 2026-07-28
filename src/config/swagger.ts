@@ -144,7 +144,7 @@ const options: swaggerJSDoc.Options = {
                       type: 'boolean',
                       example: false,
                       description:
-                        'CustomerProfile 또는 MoverProfile 존재 여부로 계산',
+                        'CUSTOMER: CustomerProfile.service 길이 > 0, MOVER: MoverProfile.service 길이 > 0',
                     },
                     createdAt: {
                       type: 'string',
@@ -222,6 +222,8 @@ const options: swaggerJSDoc.Options = {
                     isProfileCompleted: {
                       type: 'boolean',
                       example: true,
+                      description:
+                        'CUSTOMER: CustomerProfile.service 길이 > 0, MOVER: MoverProfile.service 길이 > 0',
                     },
                   },
                 },

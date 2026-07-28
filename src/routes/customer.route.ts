@@ -1,13 +1,29 @@
 import { Router } from 'express';
+import * as customerProfileController from '../controllers/customer-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import { upload } from '../middlewares/upload.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
+import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
 import {
   pastQuotesQuerySchema,
   quoteIdParamsSchema,
 } from '../schemas/quote.schema';
 
 const router = Router();
+
+// 일반 유저 프로필 등록 (Swagger: src/docs/customer-profile.swagger.yaml)
+router.patch(
+  '/profile',
+  requireAuth,
+  allowUserTypes('CUSTOMER'),
+  upload.single('profileImage'),
+  validateRequest({
+    body: customerProfileBodySchema,
+    errorCode: 'INVALID_REQUEST_BODY',
+  }),
+  customerProfileController.registerCustomerProfile
+);
 
 // 대기 중인 견적 리스트 조회 (Swagger: src/docs/customer-quote.swagger.yaml)
 router.get(

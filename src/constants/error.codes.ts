@@ -61,7 +61,7 @@ export const ERROR_CODES = {
   },
   PROFILE_ALREADY_EXISTS: {
     status: 409,
-    message: '이미 등록된 프로필이 존재합니다.',
+    message: '이미 프로필 등록을 완료했습니다.',
   },
   PROFILE_NOT_FOUND: {
     status: 404,
