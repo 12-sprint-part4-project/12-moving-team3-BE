@@ -43,13 +43,13 @@ router.get(
 
 //리뷰 등록
 router.post(
-  '/:quoteId',
+  '/quotes/:quoteId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
   validateRequest({
     params: quoteIdParamsSchema,
     body: reviewBodySchema,
-    errorCode: 'INVALID_REQUEST',
+    errorCode: 'INVALID_REQUEST_BODY',
   })
 );
 //리뷰 수정
@@ -60,7 +60,7 @@ router.patch(
   validateRequest({
     params: reviewIdParamsSchema,
     body: reviewBodySchema,
-    errorCode: 'INVALID_REQUEST',
+    errorCode: 'INVALID_REQUEST_BODY',
   })
 );
 //리뷰 삭제 (소프트 딜리트)
