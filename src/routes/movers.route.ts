@@ -34,7 +34,7 @@ router.get(
 );
 
 // 찜한 기사님 목록 조회 (로그인한 customer만 접근 가능)
-//TODO: Swagger 문서 추가, page limit 쿼리 파라미터 넣어주기
+//TODO: Swagger 문서 추가
 router.get(
   '/favorites',
   requireAuth,

@@ -3,7 +3,10 @@ import type {
   MoverListSort,
 } from '../repositories/moverProfile.repository';
 import moverProfileRepository from '../repositories/moverProfile.repository';
-import type { MoversListQuery } from '../schemas/movers.schema';
+import type {
+  FavoriteMoversQuery,
+  MoversListQuery,
+} from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
 
 const toMoverListSort = (
@@ -50,8 +53,14 @@ const moversService = {
     return moverDetail;
   },
 
-  getFavoriteMovers: async (userId: string) => {
-    return await moverProfileRepository.findFavoriteMoversById(userId);
+  getFavoriteMovers: async ({
+    userId,
+    query,
+  }: {
+    userId: string;
+    query: FavoriteMoversQuery;
+  }) => {
+    return await moverProfileRepository.findFavoriteMoversById(userId, query);
   },
 };
 

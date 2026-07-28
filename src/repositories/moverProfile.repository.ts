@@ -1,6 +1,7 @@
 import type { MoveType, Prisma, Region } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
+import { FavoriteMoversQuery } from '../schemas/movers.schema';
 
 export type MoverListSort =
   'career_asc' | 'career_desc' | 'createdAt_asc' | 'createdAt_desc';
@@ -159,12 +160,19 @@ const moverProfileRepository = {
 
   findFavoriteMoversById: async (
     userId: string,
+    query: FavoriteMoversQuery,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+
     return dbClient.favorite.findMany({
       where: { userId },
-      include: moverDetailInclude,
+      include: moverListInclude,
+      skip: (page - 1) * limit,
+      take: limit,
     });
   },
 };
