@@ -1,6 +1,8 @@
 import { QuoteStatus } from '@prisma/client';
 import { z } from 'zod';
 
+// --- [기사님(MOVER)용 API] ---
+
 // Path Parameter: estimateRequestId 숫자 변환 및 필수 검증.
 export const quoteParamsSchema = z.object({
   estimateRequestId: z.coerce.number().int().positive(),
@@ -73,3 +75,30 @@ export const quoteBodySchema = z.discriminatedUnion('type', [
 export type QuoteBody = z.infer<typeof quoteBodySchema>;
 export type ProposalBody = z.infer<typeof proposalBodySchema>;
 export type RejectionBody = z.infer<typeof rejectionBodySchema>;
+
+// --- [일반 유저(CUSTOMER)용 API] ---
+
+/** 과거 견적 필터 허용 값 */
+export const PAST_QUOTE_FILTER_VALUES = ['ALL', 'CONFIRMED'] as const;
+
+export type PastQuoteFilter = (typeof PAST_QUOTE_FILTER_VALUES)[number];
+
+/** 과거 견적 목록 기본 페이지 크기 */
+const DEFAULT_PAST_QUOTE_LIMIT = 8;
+
+// 받았던 견적 목록 조회 Query 스키마
+// filter 유효성은 Service에서 INVALID_FILTER_TYPE으로 검증
+export const pastQuotesQuerySchema = z.object({
+  cursor: z.coerce.number().int().positive().optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(DEFAULT_PAST_QUOTE_LIMIT),
+  estimateRequestId: z.coerce.number().int().positive().optional(),
+  filter: z.string().optional().default('ALL'),
+});
+
+export type PastQuotesQuery = z.infer<typeof pastQuotesQuerySchema>;
