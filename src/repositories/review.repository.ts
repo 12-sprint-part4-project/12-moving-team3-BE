@@ -2,6 +2,30 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 const reviewRepository = {
+  getReviewsByMoverId: async (
+    moverId: string,
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+    return dbClient.review.findMany({
+      where: {
+        deletedAt: null,
+        quote: { moverId },
+      },
+      select: {
+        id: true,
+        rating: true,
+        content: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  },
   /**
    * 기사(User id) 한 명의 리뷰 통계를 만든다.
    * 반환: 평점별 개수, 총 개수, 평균 평점

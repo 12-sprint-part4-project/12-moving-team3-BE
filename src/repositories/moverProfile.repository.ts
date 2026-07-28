@@ -134,7 +134,7 @@ const moverProfileRepository = {
   ) => {
     const dbClient = tx ?? prisma;
     const page = filters.page ?? 1;
-    const limit = filters.limit ?? 20;
+    const limit = filters.limit ?? 10;
 
     return dbClient.moverProfile.findMany({
       where: buildMoverListWhere(filters),
@@ -149,11 +149,14 @@ const moverProfileRepository = {
    * Read: id로 상세 조회
    * TODO: 상세 화면에 필요한 relation(리뷰, 찜 수 등)이 있으면 moverDetailInclude 확장
    */
-  findMoverProfileById: async (id: number, tx?: Prisma.TransactionClient) => {
+  findMoverProfileById: async (
+    moverId: string,
+    tx?: Prisma.TransactionClient
+  ) => {
     const dbClient = tx ?? prisma;
 
     return dbClient.moverProfile.findUnique({
-      where: { id },
+      where: { userId: moverId },
       include: moverDetailInclude,
     });
   },
@@ -173,6 +176,16 @@ const moverProfileRepository = {
       include: moverListInclude,
       skip: (page - 1) * limit,
       take: limit,
+    });
+  },
+
+  countMovers: async (
+    filters: FindMoversFilters,
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+    return dbClient.moverProfile.count({
+      where: buildMoverListWhere(filters),
     });
   },
 

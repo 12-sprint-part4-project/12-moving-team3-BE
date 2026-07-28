@@ -38,13 +38,14 @@ const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
 };
 
 const moversService = {
+  //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMovers: async (query: MoversListQuery) => {
     const filters = toFindMoversFilters(query);
     //기사님 정보
     const movers = await moverProfileRepository.findMovers(filters);
 
-    //리뷰 정보
-    const reviews = await Promise.all(
+    //리뷰 정보를 합한 객체로 변환
+    const moversWithReviews = await Promise.all(
       movers.map(async (mover) => {
         const reviewStats = await reviewRepository.getReviewStatsByMoverId(
           mover.user.id
@@ -70,22 +71,34 @@ const moversService = {
       hasPrevPage: hasPrevPage,
     };
     return {
-      data: movers,
+      data: moversWithReviews,
       meta: {
         pagination: pagination,
       },
     };
   },
 
-  getMoverDetail: async (id: number) => {
-    const moverDetail = await moverProfileRepository.findMoverProfileById(id);
+  //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
+  getMoverDetail: async (moverId: string) => {
+    //기사님 상세 정보
+    const moverDetail =
+      await moverProfileRepository.findMoverProfileById(moverId);
+    //리뷰 통계
+    const reviewStats = await reviewRepository.getReviewStatsByMoverId(moverId);
+    //리뷰 전체
+    const reviews = await reviewRepository.getReviewsByMoverId(moverId);
 
     if (!moverDetail) {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
-    // TODO: 상세 응답에 리뷰/평점/찜 수 등 추가 필드가 명세에 있으면 repository include·매핑 보강
-    return moverDetail;
+    return {
+      data: {
+        moverDetail,
+        reviewStats,
+        reviews,
+      },
+    };
   },
 
   getFavoriteMovers: async ({
