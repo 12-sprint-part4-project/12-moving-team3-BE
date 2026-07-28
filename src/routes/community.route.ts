@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import * as postController from '../controllers/post.controller';
-import { optionalAuth } from '../middlewares/auth.middleware';
+import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
+  createPostBodySchema,
   postIdParamsSchema,
   postListQuerySchema,
+  updatePostBodySchema,
 } from '../schemas/post.schema';
 
 const router = Router();
@@ -235,6 +237,176 @@ router.get(
     errorCode: 'INVALID_REQUEST',
   }),
   postController.getPostById
+);
+
+/**
+ * @swagger
+ * /api/posts:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 게시글 생성
+ *     description: |
+ *       로그인한 사용자가 게시글을 생성합니다.
+ *       가구 나눔(FURNITURE_SHARE) 카테고리는 latitude, longitude가 필수입니다.
+ *       imageKeys는 최대 5장까지 등록할 수 있습니다.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [category, title, content]
+ *             properties:
+ *               category:
+ *                 type: string
+ *                 enum: [MOVING_TIP, QUESTION, REVIEW, ETC, FURNITURE_SHARE]
+ *               region:
+ *                 type: string
+ *                 enum: [SEOUL, GYEONGGI, INCHEON, GANGWON, CHUNGBUK, CHUNGNAM, SEJONG, DAEJEON, JEONBUK, GWANGJU_JEONNAM, GYEONGBUK, DAEGU, ULSAN, GYEONGNAM, BUSAN, JEJU]
+ *               title:
+ *                 type: string
+ *                 maxLength: 100
+ *               content:
+ *                 type: string
+ *               imageKeys:
+ *                 type: array
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: 게시글 생성 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/',
+  requireAuth,
+  validateRequest({ body: createPostBodySchema, errorCode: 'INVALID_REQUEST' }),
+  postController.createPost
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}:
+ *   patch:
+ *     tags: [Posts]
+ *     summary: 게시글 수정
+ *     description: |
+ *       본인 게시글의 content, imageKeys만 수정할 수 있습니다.
+ *       imageKeys를 보내면 기존 이미지는 전체 교체됩니다.
+ *       content, imageKeys 중 최소 1개는 포함해야 합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               content:
+ *                 type: string
+ *               imageKeys:
+ *                 type: array
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: 게시글 수정 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.patch(
+  '/:postId',
+  requireAuth,
+  validateRequest({
+    params: postIdParamsSchema,
+    body: updatePostBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  postController.updatePost
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}:
+ *   delete:
+ *     tags: [Posts]
+ *     summary: 게시글 삭제
+ *     description: 본인 게시글을 soft delete합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 게시글 삭제 성공
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.delete(
+  '/:postId',
+  requireAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  postController.deletePost
 );
 
 export default router;

@@ -27,3 +27,31 @@ export const postIdParamsSchema = z.object({
 });
 
 export type PostIdParams = z.infer<typeof postIdParamsSchema>;
+
+export const MAX_POST_IMAGES = 5;
+
+/** 게시글 생성 요청 바디 */
+export const createPostBodySchema = z.object({
+  category: z.enum(PostsCategory),
+  region: z.enum(Region).optional(),
+  title: z.string().min(1).max(100),
+  content: z.string().min(1),
+  imageKeys: z.array(z.string()).max(MAX_POST_IMAGES).optional().default([]),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+});
+
+export type CreatePostBody = z.infer<typeof createPostBodySchema>;
+
+/** 게시글 수정 요청 바디 (content, imageKeys만 수정 가능) */
+export const updatePostBodySchema = z
+  .object({
+    content: z.string().min(1).optional(),
+    imageKeys: z.array(z.string()).max(MAX_POST_IMAGES).optional(),
+  })
+  .refine(
+    (data) => data.content !== undefined || data.imageKeys !== undefined,
+    { message: 'content 또는 imageKeys 중 하나 이상 필요합니다.' }
+  );
+
+export type UpdatePostBody = z.infer<typeof updatePostBodySchema>;

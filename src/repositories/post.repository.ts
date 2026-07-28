@@ -1,6 +1,10 @@
 import { PostsCategory, Region, type Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import type { PostSort } from '../schemas/post.schema';
+import type {
+  CreatePostBody,
+  PostSort,
+  UpdatePostBody,
+} from '../schemas/post.schema';
 
 export interface PostCursor {
   id: number;
@@ -156,5 +160,55 @@ export const findPostById = async (postId: number, userId?: string) => {
           }
         : {}),
     },
+  });
+};
+
+/** 게시글 생성 (이미지 포함 트랜잭션) */
+export const createPost = async (userId: string, body: CreatePostBody) => {
+  return prisma.post.create({
+    data: {
+      userId,
+      category: body.category,
+      region: body.region,
+      title: body.title,
+      content: body.content,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      images: {
+        create: body.imageKeys.map((imageKey) => ({ imageKey })),
+      },
+    },
+    select: { id: true },
+  });
+};
+
+/** 게시글 수정 (기존 이미지 전체 교체) */
+export const updatePost = async (postId: number, body: UpdatePostBody) => {
+  return prisma.$transaction(async (tx) => {
+    // 이미지 교체 시 기존 이미지 삭제 후 재생성
+    if (body.imageKeys !== undefined) {
+      await tx.postImage.deleteMany({ where: { postId } });
+    }
+
+    return tx.post.update({
+      where: { id: postId },
+      data: {
+        ...(body.content !== undefined && { content: body.content }),
+        ...(body.imageKeys !== undefined && {
+          images: {
+            create: body.imageKeys.map((imageKey) => ({ imageKey })),
+          },
+        }),
+      },
+      select: { id: true },
+    });
+  });
+};
+
+/** 게시글 soft delete */
+export const softDeletePost = async (postId: number) => {
+  return prisma.post.update({
+    where: { id: postId },
+    data: { deletedAt: new Date() },
   });
 };
