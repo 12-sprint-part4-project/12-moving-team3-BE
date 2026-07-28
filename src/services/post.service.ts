@@ -223,6 +223,10 @@ export const updatePost = async (
 
   const updated = await postRepository.updatePost(postId, body);
 
+  if (!updated) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
   return { id: updated.id };
 };
 

@@ -203,24 +203,35 @@ export const updatePost = async (
   postId: number,
   body: UpdatePostBody,
   db?: DbClient
-) => {
-  const run = async (client: DbClient) => {
-    if (body.imageKeys !== undefined) {
-      await client.postImage.deleteMany({ where: { postId } });
+): Promise<{ id: number } | null> => {
+  const run = async (client: DbClient): Promise<{ id: number } | null> => {
+    const updateData: Prisma.PostUpdateManyMutationInput = {};
+
+    if (body.content !== undefined) {
+      updateData.content = body.content;
+    } else if (body.imageKeys !== undefined) {
+      updateData.updatedAt = new Date();
     }
 
-    return client.post.update({
-      where: { id: postId },
-      data: {
-        ...(body.content !== undefined && { content: body.content }),
-        ...(body.imageKeys !== undefined && {
-          images: {
-            create: body.imageKeys.map((imageKey) => ({ imageKey })),
-          },
-        }),
-      },
-      select: { id: true },
-    });
+    if (Object.keys(updateData).length > 0) {
+      const result = await client.post.updateMany({
+        where: { id: postId, deletedAt: null },
+        data: updateData,
+      });
+
+      if (result.count === 0) {
+        return null;
+      }
+    }
+
+    if (body.imageKeys !== undefined) {
+      await client.postImage.deleteMany({ where: { postId } });
+      await client.postImage.createMany({
+        data: body.imageKeys.map((imageKey) => ({ postId, imageKey })),
+      });
+    }
+
+    return { id: postId };
   };
 
   if (db) {

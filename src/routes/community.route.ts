@@ -267,18 +267,25 @@ router.get(
  *                 enum: [SEOUL, GYEONGGI, INCHEON, GANGWON, CHUNGBUK, CHUNGNAM, SEJONG, DAEJEON, JEONBUK, GWANGJU_JEONNAM, GYEONGBUK, DAEGU, ULSAN, GYEONGNAM, BUSAN, JEJU]
  *               title:
  *                 type: string
+ *                 minLength: 1
  *                 maxLength: 100
  *               content:
  *                 type: string
+ *                 minLength: 1
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
  *                 items:
  *                   type: string
+ *                   minLength: 1
  *               latitude:
  *                 type: number
+ *                 minimum: -90
+ *                 maximum: 90
  *               longitude:
  *                 type: number
+ *                 minimum: -180
+ *                 maximum: 180
  *     responses:
  *       201:
  *         description: 게시글 생성 성공
@@ -334,11 +341,13 @@ router.post(
  *             properties:
  *               content:
  *                 type: string
+ *                 minLength: 1
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
  *                 items:
  *                   type: string
+ *                   minLength: 1
  *     responses:
  *       200:
  *         description: 게시글 수정 성공
