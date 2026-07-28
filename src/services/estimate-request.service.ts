@@ -10,6 +10,7 @@ import type {
 } from '../repositories/estimate-request.repository';
 import {
   TOTAL_INPUT_STEPS,
+  moveDateSchema,
   type EstimateRequestRevisableField,
   type EstimateRequestSort,
   type ReviseEstimateRequestFieldBody,
@@ -482,12 +483,14 @@ export const reviseEstimateRequestField = async (
   if (field === 'moveType') {
     updateData = { moveType: parseMoveTypeValue(body.value) };
   } else if (field === 'moveDate') {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.value)) {
+    // step 저장과 동일하게 moveDateSchema(달력 유효성 포함)로 검증
+    const parsed = moveDateSchema.safeParse(body.value);
+    if (!parsed.success) {
       throw new AppError('VALIDATION_ERROR', '날짜 형식이 올바르지 않습니다.');
     }
 
-    assertMoveDateNotPast(body.value);
-    updateData = { moveDate: toUtcDateOnly(body.value) };
+    assertMoveDateNotPast(parsed.data);
+    updateData = { moveDate: toUtcDateOnly(parsed.data) };
   } else {
     updateData = { [field]: body.value };
   }

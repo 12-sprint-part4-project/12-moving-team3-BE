@@ -65,10 +65,10 @@ export type EstimateRequestIdParams = z.infer<
 
 const moveTypeSchema = z.enum(MoveType);
 
-/** YYYY-MM-DD 형식의 이사 날짜 문자열 */
-const moveDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식이 올바르지 않습니다.');
+/** YYYY-MM-DD + 달력상 실존 날짜 (2026-02-31 등 거부). step 저장·필드 재수정 공용 */
+export const moveDateSchema = z.iso.date({
+  error: '날짜 형식이 올바르지 않습니다.',
+});
 
 const addressFieldSchema = z.string().trim().min(1);
 
