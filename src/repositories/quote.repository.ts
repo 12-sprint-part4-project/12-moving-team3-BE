@@ -523,10 +523,7 @@ export const findPendingEstimateRequestWithQuotes = async (
       userId: customerId,
       status: EstimateRequestStatus.SUBMITTED,
     },
-    orderBy: [
-      { submittedAt: { sort: 'desc', nulls: 'last' } },
-      { id: 'desc' },
-    ],
+    orderBy: [{ submittedAt: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
     select: {
       id: true,
       status: true,
@@ -596,6 +593,12 @@ export const findCustomerPastEstimateRequests = async (
       userId: params.customerId,
       status: {
         in: params.estimateRequestStatuses,
+      },
+      quotes: {
+        some: {
+          deletedAt: null,
+          status: { in: params.quoteStatuses },
+        },
       },
     },
     orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
