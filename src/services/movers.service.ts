@@ -10,6 +10,7 @@ import type {
   MoversListQuery,
 } from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
+import { toProfileImageUrl } from '../utils/profile-image.util';
 import {
   decodeFavoriteListCursor,
   decodeMoverListCursor,
@@ -55,6 +56,18 @@ const EMPTY_REVIEW_STATS = {
   averageRating: null,
 };
 
+/** profileImageKey → profileImageUrl (클라이언트용) */
+const mapUserProfileImage = <T extends { profileImageKey: string | null }>(
+  user: T
+): Omit<T, 'profileImageKey'> & { profileImageUrl: string | null } => {
+  const { profileImageKey, ...rest } = user;
+
+  return {
+    ...rest,
+    profileImageUrl: toProfileImageUrl(profileImageKey),
+  };
+};
+
 const moversService = {
   //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMovers: async (query: MoversListQuery) => {
@@ -70,6 +83,7 @@ const moversService = {
 
         return {
           ...mover,
+          user: mapUserProfileImage(mover.user),
           review: reviewStats,
         };
       })
@@ -105,7 +119,10 @@ const moversService = {
 
     return {
       data: {
-        moverDetail,
+        moverDetail: {
+          ...moverDetail,
+          user: mapUserProfileImage(moverDetail.user),
+        },
         reviewStats,
         reviews,
       },
@@ -133,6 +150,9 @@ const moversService = {
         if (!favorite.moverId) {
           return {
             ...favorite,
+            mover: favorite.mover
+              ? mapUserProfileImage(favorite.mover)
+              : favorite.mover,
             reviewStats: EMPTY_REVIEW_STATS,
             favoritedCount: 0,
           };
@@ -145,6 +165,9 @@ const moversService = {
 
         return {
           ...favorite,
+          mover: favorite.mover
+            ? mapUserProfileImage(favorite.mover)
+            : favorite.mover,
           reviewStats,
           favoritedCount,
         };

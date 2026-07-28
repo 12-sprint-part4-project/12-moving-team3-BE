@@ -104,7 +104,7 @@ paths:
                     user:
                       id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                       nickname: 빠른이사맨
-                      profileImageKey: profiles/mover-12.jpg
+                      profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                     serviceRegions:
                       - id: 1
                         region: SEOUL
@@ -200,7 +200,7 @@ paths:
                     mover:
                       id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                       name: 김기사
-                      profileImageKey: profiles/mover-12.jpg
+                      profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                       moverProfile:
                         career: 5
                         serviceRegions:
@@ -319,7 +319,7 @@ paths:
                       id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                       name: 김기사
                       nickname: 빠른이사맨
-                      profileImageKey: profiles/mover-12.jpg
+                      profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                     serviceRegions:
                       - id: 1
                         region: SEOUL
