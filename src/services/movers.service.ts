@@ -1,4 +1,7 @@
-import type { FindMoversFilters, MoverListSort } from '../repositories/moverProfile.repository';
+import type {
+  FindMoversFilters,
+  MoverListSort,
+} from '../repositories/moverProfile.repository';
 import moverProfileRepository from '../repositories/moverProfile.repository';
 import type { MoversListQuery } from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
@@ -11,12 +14,14 @@ const toMoverListSort = (
     return undefined;
   }
 
-  const resolvedOrder =
-    order ?? (sort === 'career' ? 'asc' : 'desc');
+  const resolvedOrder = order ?? (sort === 'career' ? 'asc' : 'desc');
 
   return `${sort}_${resolvedOrder}` as MoverListSort;
 };
 
+/**
+ * 검증된 MoversListQuery → repository FindMoversFilters
+ */
 const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
   return {
     keyword: query.keyword,
@@ -35,8 +40,7 @@ const moversService = {
   },
 
   getMoverDetail: async (id: number) => {
-    const moverDetail =
-      await moverProfileRepository.findMoverProfileById(id);
+    const moverDetail = await moverProfileRepository.findMoverProfileById(id);
 
     if (!moverDetail) {
       throw new AppError('MOVER_NOT_FOUND');
@@ -44,6 +48,10 @@ const moversService = {
 
     // TODO: 상세 응답에 리뷰/평점/찜 수 등 추가 필드가 명세에 있으면 repository include·매핑 보강
     return moverDetail;
+  },
+
+  getFavoriteMovers: async (userId: string) => {
+    return await moverProfileRepository.findFavoriteMoversById(userId);
   },
 };
 

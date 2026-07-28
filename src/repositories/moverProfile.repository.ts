@@ -3,10 +3,7 @@ import type { MoveType, Prisma, Region } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export type MoverListSort =
-  | 'career_asc'
-  | 'career_desc'
-  | 'createdAt_asc'
-  | 'createdAt_desc';
+  'career_asc' | 'career_desc' | 'createdAt_asc' | 'createdAt_desc';
 
 /** service → repository로 넘기는 목록 조회 조건 (Prisma 문법 없음) */
 export interface FindMoversFilters {
@@ -151,10 +148,7 @@ const moverProfileRepository = {
    * Read: id로 상세 조회
    * TODO: 상세 화면에 필요한 relation(리뷰, 찜 수 등)이 있으면 moverDetailInclude 확장
    */
-  findMoverProfileById: async (
-    id: number,
-    tx?: Prisma.TransactionClient
-  ) => {
+  findMoverProfileById: async (id: number, tx?: Prisma.TransactionClient) => {
     const dbClient = tx ?? prisma;
 
     return dbClient.moverProfile.findUnique({
@@ -163,40 +157,14 @@ const moverProfileRepository = {
     });
   },
 
-  // TODO: 프로필 등록/수정 API를 이어서 만들면 service·controller와 연결
-  createMoverProfile: async (
-    data: CreateMoverProfileInput,
+  findFavoriteMoversById: async (
+    userId: string,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
-
-    return dbClient.moverProfile.create({
-      data,
+    return dbClient.favorite.findMany({
+      where: { userId },
       include: moverDetailInclude,
-    });
-  },
-
-  // TODO: 프로필 등록/수정 API를 이어서 만들면 service·controller와 연결
-  updateMoverProfile: async (
-    id: number,
-    data: UpdateMoverProfileInput,
-    tx?: Prisma.TransactionClient
-  ) => {
-    const dbClient = tx ?? prisma;
-
-    return dbClient.moverProfile.update({
-      where: { id },
-      data,
-      include: moverDetailInclude,
-    });
-  },
-
-  // TODO: 프로필 삭제/탈퇴 정책이 정해지면 service·controller와 연결
-  deleteMoverProfile: async (id: number, tx?: Prisma.TransactionClient) => {
-    const dbClient = tx ?? prisma;
-
-    return dbClient.moverProfile.delete({
-      where: { id },
     });
   },
 };

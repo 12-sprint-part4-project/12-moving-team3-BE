@@ -17,12 +17,14 @@ const toStringArray = (value: unknown): string[] => {
 };
 
 const regionArraySchema = z.preprocess(
-  (value) => (value === undefined || value === '' ? undefined : toStringArray(value)),
+  (value) =>
+    value === undefined || value === '' ? undefined : toStringArray(value),
   z.array(z.enum(Region)).min(1)
 );
 
 const moveTypeArraySchema = z.preprocess(
-  (value) => (value === undefined || value === '' ? undefined : toStringArray(value)),
+  (value) =>
+    value === undefined || value === '' ? undefined : toStringArray(value),
   z.array(z.enum(MoveType)).min(1)
 );
 
@@ -42,5 +44,12 @@ export const moverDetailParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+/** GET /api/movers/favorites query */
+export const favoriteMoversQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(10).optional().default(10),
+});
+
 export type MoversListQuery = z.infer<typeof moversListQuerySchema>;
 export type MoverDetailParams = z.infer<typeof moverDetailParamsSchema>;
+export type FavoriteMoversQuery = z.infer<typeof favoriteMoversQuerySchema>;
