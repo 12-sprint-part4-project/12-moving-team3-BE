@@ -1,5 +1,9 @@
 import type { MoveType } from '@prisma/client';
-import { EstimateRequestStatus, MoveType as MoveTypeEnum } from '@prisma/client';
+import {
+  EstimateRequestStatus,
+  MoveType as MoveTypeEnum,
+  Prisma,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import type {
@@ -358,27 +362,44 @@ export const getActiveEstimateRequest = async (userId: string) => {
 
 /**
  * DRAFT 견적요청 생성 — 활성 요청이 있으면 409
+ * 조회+생성을 트랜잭션으로 묶고, 유저당 DRAFT 1건 unique로 동시 생성 race condition을 차단
  */
 export const createEstimateRequest = async (userId: string) => {
   const todayStartUtc = toUtcDateOnly(getTodayDateStringKst());
-  const active = await estimateRequestRepository.findActiveEstimateRequest(
-    userId,
-    todayStartUtc
-  );
 
-  if (active) {
-    throw new AppError('ACTIVE_REQUEST_EXISTS');
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const active = await estimateRequestRepository.findActiveEstimateRequest(
+        userId,
+        todayStartUtc,
+        tx
+      );
+
+      if (active) {
+        throw new AppError('ACTIVE_REQUEST_EXISTS');
+      }
+
+      const created =
+        await estimateRequestRepository.createDraftEstimateRequest(userId, tx);
+
+      return {
+        id: created.id,
+        status: created.status,
+        currentStep: created.currentStep,
+        totalSteps: created.totalSteps,
+      };
+    });
+  } catch (error) {
+    // 동시 생성으로 DRAFT unique 충돌 시에도 활성 요청 존재와 동일하게 처리
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new AppError('ACTIVE_REQUEST_EXISTS');
+    }
+
+    throw error;
   }
-
-  const created =
-    await estimateRequestRepository.createDraftEstimateRequest(userId);
-
-  return {
-    id: created.id,
-    status: created.status,
-    currentStep: created.currentStep,
-    totalSteps: created.totalSteps,
-  };
 };
 
 /**
