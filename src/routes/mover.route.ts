@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import * as estimateRequestController from '../controllers/estimate-request.controller';
+import * as quoteController from '../controllers/quote.controller';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { estimateRequestListQuerySchema } from '../schemas/estimate-request.schema';
+import { quoteBodySchema, quoteParamsSchema } from '../schemas/quote.schema';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -16,6 +18,19 @@ router.get(
     errorCode: 'INVALID_QUERY_PARAM',
   }),
   estimateRequestController.getReceivedEstimateRequests
+);
+
+// 견적 보내기 / 반려하기 (Swagger 문서: src/docs/mover.swagger.yaml)
+router.post(
+  '/estimate-requests/:estimateRequestId/quotes',
+  requireAuth,
+  allowUserTypes('MOVER'),
+  validateRequest({
+    params: quoteParamsSchema,
+    body: quoteBodySchema,
+    errorCode: 'INVALID_REQUEST_BODY',
+  }),
+  quoteController.submitQuote
 );
 
 export default router;
