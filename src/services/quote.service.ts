@@ -1,6 +1,9 @@
-import { QuoteStatus, type Quote } from '@prisma/client';
+import { Prisma, QuoteStatus, type Quote } from '@prisma/client';
 import * as quoteRepository from '../repositories/quote.repository';
-import type { QuoteTransactionClient } from '../repositories/quote.repository';
+import type {
+  CreateQuoteData,
+  QuoteTransactionClient,
+} from '../repositories/quote.repository';
 import type { QuoteBody } from '../schemas/quote.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
@@ -24,6 +27,13 @@ const getMaxProposalCount = (isDesignated: boolean): number =>
   isDesignated ? DESIGNATED_MAX_PROPOSALS : GENERAL_MAX_PROPOSALS;
 
 /**
+ * Prisma P2002(Unique Constraint) 여부 판별
+ */
+const isUniqueConstraintError = (error: unknown): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === 'P2002';
+
+/**
  * 동일 무버의 기존 견적/반려 여부 검증
  */
 const assertNoExistingQuote = (
@@ -38,6 +48,24 @@ const assertNoExistingQuote = (
   }
 
   throw new AppError('QUOTE_ALREADY_SUBMITTED');
+};
+
+/**
+ * 견적 생성. 복합 유니크 위반 시 QUOTE_ALREADY_SUBMITTED 로 변환
+ */
+const createQuote = async (
+  tx: QuoteTransactionClient,
+  data: CreateQuoteData
+): Promise<Quote> => {
+  try {
+    return await quoteRepository.createQuote(tx, data);
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new AppError('QUOTE_ALREADY_SUBMITTED');
+    }
+
+    throw error;
+  }
 };
 
 /**
@@ -148,7 +176,7 @@ const createProposal = async ({
   }
 
   // PENDING 견적 생성
-  return quoteRepository.createQuote(tx, {
+  return createQuote(tx, {
     estimateRequestId,
     moverId,
     status: QuoteStatus.PENDING,
@@ -182,7 +210,7 @@ const createRejection = async ({
   assertNoExistingQuote(existingQuote);
 
   // REJECTED 견적 생성
-  return quoteRepository.createQuote(tx, {
+  return createQuote(tx, {
     estimateRequestId,
     moverId,
     status: QuoteStatus.REJECTED,

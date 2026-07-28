@@ -5,7 +5,6 @@ import {
   type Quote,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { AppError } from '../utils/app.error';
 
 /** 비관적 락으로 조회한 견적 요청 행 */
 export interface LockedEstimateRequest {
@@ -28,13 +27,6 @@ export interface CreateQuoteData {
 }
 
 export type QuoteTransactionClient = Prisma.TransactionClient;
-
-/**
- * Prisma P2002(Unique Constraint) 여부 판별
- */
-const isUniqueConstraintError = (error: unknown): boolean =>
-  error instanceof Prisma.PrismaClientKnownRequestError &&
-  error.code === 'P2002';
 
 /**
  * 견적 요청 행에 SELECT FOR UPDATE 비관적 락 적용 후 조회
@@ -81,7 +73,7 @@ export const countActiveProposals = async (
 };
 
 /**
- * 해당 무버의 기존 견적(미삭제) 조회
+ * 해당 기사님의 기존 견적(미삭제) 조회
  */
 export const findExistingQuote = async (
   tx: QuoteTransactionClient,
@@ -122,32 +114,22 @@ export const isDesignatedMover = async (
 
 /**
  * 견적(PROPOSAL/REJECTION) 생성
- * P2002 발생 시 QUOTE_ALREADY_SUBMITTED 로 변환
  */
 export const createQuote = async (
   tx: QuoteTransactionClient,
   data: CreateQuoteData
 ): Promise<Quote> => {
-  try {
-    return await tx.quote.create({
-      data: {
-        estimateRequestId: data.estimateRequestId,
-        moverId: data.moverId,
-        status: data.status,
-        isDesignated: data.isDesignated,
-        price: data.price,
-        comment: data.comment,
-        rejectReason: data.rejectReason,
-      },
-    });
-  } catch (error) {
-    // 복합 유니크(estimateRequestId, moverId) 위반 → 중복 제출
-    if (isUniqueConstraintError(error)) {
-      throw new AppError('QUOTE_ALREADY_SUBMITTED');
-    }
-
-    throw error;
-  }
+  return tx.quote.create({
+    data: {
+      estimateRequestId: data.estimateRequestId,
+      moverId: data.moverId,
+      status: data.status,
+      isDesignated: data.isDesignated,
+      price: data.price,
+      comment: data.comment,
+      rejectReason: data.rejectReason,
+    },
+  });
 };
 
 /**
