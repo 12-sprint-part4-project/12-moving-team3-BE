@@ -64,10 +64,6 @@ export const ERROR_CODES = {
     status: 409,
     message: '이미 제출된 견적 요청은 수정할 수 없습니다.',
   },
-  CUSTOMER_ONLY: {
-    status: 403,
-    message: '일반 회원만 이용할 수 있습니다.',
-  },
   PROFILE_ALREADY_EXISTS: {
     status: 409,
     message: '이미 등록된 프로필이 존재합니다.',

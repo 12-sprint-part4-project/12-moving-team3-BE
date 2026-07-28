@@ -89,6 +89,12 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/EstimateRequestDetail'
+        '400':
+          description: 유효하지 않은 estimateRequestId (INVALID_REQUEST)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -315,7 +321,9 @@ paths:
                         type: string
                         format: date-time
         '400':
-          description: 필수값 누락
+          description: |
+            유효하지 않은 estimateRequestId(INVALID_REQUEST) 또는
+            제출에 필요한 필수 입력 누락(REQUIRED_FIELD_MISSING)
           content:
             application/json:
               schema:
