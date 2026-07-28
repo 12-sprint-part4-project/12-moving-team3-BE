@@ -1,6 +1,14 @@
 import { PostsCategory } from '@prisma/client';
-import type { PostListQuery, PostSort } from '../schemas/post.schema';
-import { CONTENT_PREVIEW_MAX_LENGTH, POST_SORT_VALUES } from '../schemas/post.schema';
+import type {
+  CreatePostBody,
+  PostListQuery,
+  PostSort,
+  UpdatePostBody,
+} from '../schemas/post.schema';
+import {
+  CONTENT_PREVIEW_MAX_LENGTH,
+  POST_SORT_VALUES,
+} from '../schemas/post.schema';
 import * as postRepository from '../repositories/post.repository';
 import type { PostCursor } from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
@@ -139,7 +147,9 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
     items: items.map((post) => mapPostListItem(post, userId)),
     meta: {
       nextCursor:
-        hasNextPage && lastRow ? encodeCursor(getCursorValue(sort, lastRow)) : null,
+        hasNextPage && lastRow
+          ? encodeCursor(getCursorValue(sort, lastRow))
+          : null,
       hasNextPage,
     },
   };
@@ -175,4 +185,58 @@ export const getPostById = async (postId: number, userId?: string) => {
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
   };
+};
+
+/** 게시글 생성 */
+export const createPost = async (userId: string, body: CreatePostBody) => {
+  if (
+    body.category === PostsCategory.FURNITURE_SHARE &&
+    (body.latitude === undefined || body.longitude === undefined)
+  ) {
+    throw new AppError('POST_LOCATION_REQUIRED');
+  }
+
+  const post = await postRepository.createPost(userId, body);
+
+  return { id: post.id };
+};
+
+const assertPostOwner = async (postId: number, userId: string) => {
+  const post = await postRepository.findPostOwner(postId);
+
+  if (!post) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  if (post.userId !== userId) {
+    throw new AppError('POST_FORBIDDEN');
+  }
+};
+
+/** 게시글 수정 */
+export const updatePost = async (
+  postId: number,
+  userId: string,
+  body: UpdatePostBody
+) => {
+  await assertPostOwner(postId, userId);
+
+  const updated = await postRepository.updatePost(postId, body);
+
+  if (!updated) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  return { id: updated.id };
+};
+
+/** 게시글 삭제 (soft delete) */
+export const deletePost = async (postId: number, userId: string) => {
+  await assertPostOwner(postId, userId);
+
+  const result = await postRepository.softDeletePost(postId);
+
+  if (result.count === 0) {
+    throw new AppError('POST_NOT_FOUND');
+  }
 };
