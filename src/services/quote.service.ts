@@ -1,12 +1,28 @@
-import { Prisma, QuoteStatus, type Quote } from '@prisma/client';
+import {
+  EstimateRequestStatus,
+  Prisma,
+  QuoteStatus,
+  type Quote,
+} from '@prisma/client';
+import type {
+  QuoteDetailDto,
+  QuoteListResultDto,
+  RejectedQuoteListItemDto,
+  SentQuoteListItemDto,
+} from '../dtos/quote.dto';
+import { existsMoverProfile } from '../repositories/estimate-request.repository';
 import * as quoteRepository from '../repositories/quote.repository';
 import type {
   CreateQuoteData,
+  QuoteDetailRow,
   QuoteTransactionClient,
+  RejectedQuoteListRow,
+  SentQuoteListRow,
 } from '../repositories/quote.repository';
-import type { QuoteBody } from '../schemas/quote.schema';
+import type { QuoteBody, QuoteListStatus } from '../schemas/quote.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
+import { inferDistrictLabelFromAddress } from '../utils/region.util';
 
 /** 지정 견적 요청 최대 PROPOSAL 수 */
 const DESIGNATED_MAX_PROPOSALS = 3;
@@ -14,10 +30,28 @@ const DESIGNATED_MAX_PROPOSALS = 3;
 /** 일반 견적 요청 최대 PROPOSAL 수 */
 const GENERAL_MAX_PROPOSALS = 5;
 
+/** status=SENT 조회 대상 견적 상태 */
+const SENT_QUOTE_STATUSES: QuoteStatus[] = [
+  QuoteStatus.PENDING,
+  QuoteStatus.CONFIRMED,
+];
+
 export interface SubmitQuoteInput {
   moverId: string;
   estimateRequestId: number;
   body: QuoteBody;
+}
+
+export interface GetQuoteDetailInput {
+  moverId: string;
+  quoteId: number;
+}
+
+export interface GetQuotesInput {
+  moverId: string;
+  status: QuoteListStatus;
+  page: number;
+  limit: number;
 }
 
 /**
@@ -217,4 +251,173 @@ const createRejection = async ({
     isDesignated: isDesignatedTarget,
     rejectReason: body.rejectReason,
   });
+};
+
+/**
+ * 이사 완료 여부 판별
+ */
+const isMoveCompleted = (status: EstimateRequestStatus): boolean =>
+  status === EstimateRequestStatus.COMPLETED;
+
+/**
+ * 견적 상세 응답 DTO 변환
+ */
+const toQuoteDetailDto = (quote: QuoteDetailRow): QuoteDetailDto => {
+  const { estimateRequest } = quote;
+
+  return {
+    id: quote.id,
+    estimateRequestId: quote.estimateRequestId,
+    price: quote.price,
+    isMoveCompleted: isMoveCompleted(estimateRequest.status),
+    customer: { name: estimateRequest.user.name },
+    moveType: estimateRequest.moveType,
+    isDesignated: quote.isDesignated,
+    requestedAt: estimateRequest.submittedAt ?? estimateRequest.createdAt,
+    moveDate: estimateRequest.moveDate,
+    fromAddress: estimateRequest.departureAddress,
+    toAddress: estimateRequest.arrivalAddress,
+  };
+};
+
+/**
+ * 반려 견적 목록 아이템 DTO 변환
+ */
+const toRejectedQuoteListItem = (
+  quote: RejectedQuoteListRow
+): RejectedQuoteListItemDto => {
+  const { estimateRequest } = quote;
+
+  return {
+    id: quote.id,
+    estimateRequestId: quote.estimateRequestId,
+    customer: { name: estimateRequest.user.name },
+    moveType: estimateRequest.moveType,
+    isDesignated: quote.isDesignated,
+    moveDate: estimateRequest.moveDate,
+    fromRegionLabel: inferDistrictLabelFromAddress(
+      estimateRequest.departureAddress
+    ),
+    toRegionLabel: inferDistrictLabelFromAddress(
+      estimateRequest.arrivalAddress
+    ),
+    createdAt: quote.createdAt,
+  };
+};
+
+/**
+ * 보낸 견적 목록 아이템 DTO 변환
+ */
+const toSentQuoteListItem = (quote: SentQuoteListRow): SentQuoteListItemDto => {
+  const { estimateRequest } = quote;
+
+  return {
+    id: quote.id,
+    estimateRequestId: quote.estimateRequestId,
+    customer: { name: estimateRequest.user.name },
+    moveType: estimateRequest.moveType,
+    isConfirmed: quote.status === QuoteStatus.CONFIRMED,
+    isDesignated: quote.isDesignated,
+    moveDate: estimateRequest.moveDate,
+    fromRegionLabel: inferDistrictLabelFromAddress(
+      estimateRequest.departureAddress
+    ),
+    toRegionLabel: inferDistrictLabelFromAddress(
+      estimateRequest.arrivalAddress
+    ),
+    price: quote.price,
+    isMoveCompleted: isMoveCompleted(estimateRequest.status),
+    createdAt: quote.createdAt,
+  };
+};
+
+/**
+ * 견적 상세 조회
+ */
+export const getQuoteDetail = async (
+  input: GetQuoteDetailInput
+): Promise<QuoteDetailDto> => {
+  const quote = await quoteRepository.findQuoteById(input.quoteId);
+
+  // 존재하지 않거나 삭제된 견적 처리
+  if (!quote) {
+    throw new AppError('QUOTE_NOT_FOUND');
+  }
+
+  // 본인이 보낸 견적(PENDING/CONFIRMED)만 조회 가능하도록 권한 검증
+  const isOwnSentQuote =
+    quote.moverId === input.moverId &&
+    SENT_QUOTE_STATUSES.includes(quote.status);
+
+  if (!isOwnSentQuote) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  return toQuoteDetailDto(quote);
+};
+
+/**
+ * 보낸 견적 / 반려한 견적 목록 조회
+ * status 쿼리 기준 분기 및 offset 페이지네이션 적용
+ */
+export const getQuotes = async (
+  input: GetQuotesInput
+): Promise<QuoteListResultDto> => {
+  // 프로필 존재 여부만 확인
+  const hasProfile = await existsMoverProfile(input.moverId);
+
+  if (!hasProfile) {
+    throw new AppError('PROFILE_NOT_REGISTERED');
+  }
+
+  const skip = (input.page - 1) * input.limit;
+
+  // status 분기별 최소 필드 조회 및 DTO 매핑
+  if (input.status === 'REJECTED') {
+    const { items, totalCount } =
+      await quoteRepository.findQuotesByMoverWithCount({
+        moverId: input.moverId,
+        listStatus: 'REJECTED',
+        skip,
+        take: input.limit,
+      });
+
+    return {
+      items: items.map(toRejectedQuoteListItem),
+      meta: buildPaginationMeta(totalCount, input.page, input.limit),
+    };
+  }
+
+  const { items, totalCount } =
+    await quoteRepository.findQuotesByMoverWithCount({
+      moverId: input.moverId,
+      listStatus: 'SENT',
+      skip,
+      take: input.limit,
+    });
+
+  return {
+    items: items.map(toSentQuoteListItem),
+    meta: buildPaginationMeta(totalCount, input.page, input.limit),
+  };
+};
+
+/**
+ * 페이지네이션 메타데이터 생성
+ */
+const buildPaginationMeta = (
+  totalCount: number,
+  currentPage: number,
+  limit: number
+): QuoteListResultDto['meta'] => {
+  const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / limit);
+
+  return {
+    totalCount,
+    totalPages,
+    currentPage,
+    limit,
+    hasNextPage: currentPage < totalPages,
+    hasPrevPage: currentPage > 1 && totalCount > 0,
+  };
 };
