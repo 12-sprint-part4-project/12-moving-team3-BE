@@ -15,7 +15,6 @@ import type {
 import {
   TOTAL_INPUT_STEPS,
   moveDateSchema,
-  type EstimateRequestRevisableField,
   type EstimateRequestSort,
   type ReviseEstimateRequestFieldBody,
   type SaveEstimateRequestStepBody,
@@ -504,7 +503,7 @@ export const reviseEstimateRequestField = async (
 ) => {
   await getOwnedDraftOrThrow(estimateRequestId, userId);
 
-  const field = body.field as EstimateRequestRevisableField;
+  const { field } = body;
   let updateData: Parameters<
     typeof estimateRequestRepository.updateEstimateRequestDraft
   >[2];
