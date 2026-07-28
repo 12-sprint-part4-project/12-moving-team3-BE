@@ -4,6 +4,7 @@ import type { PostSort } from '../schemas/post.schema';
 
 export interface PostCursor {
   id: number;
+  sort: PostSort;
   value: string;
 }
 

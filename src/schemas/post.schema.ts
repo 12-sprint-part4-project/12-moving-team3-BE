@@ -13,8 +13,8 @@ export type PostSort = (typeof POST_SORT_VALUES)[number];
 export const CONTENT_PREVIEW_MAX_LENGTH = 100;
 
 export const postListQuerySchema = z.object({
-  category: z.nativeEnum(PostsCategory).optional(),
-  region: z.nativeEnum(Region).optional(),
+  category: z.enum(PostsCategory).optional(),
+  region: z.enum(Region).optional(),
   sort: z.enum(POST_SORT_VALUES).optional().default('LATEST'),
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(20).optional().default(10),

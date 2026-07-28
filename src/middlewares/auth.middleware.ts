@@ -61,30 +61,30 @@ export const getAuthenticatedUser = (res: Response): AuthenticatedUser => {
 };
 
 /**
- * Access Token 선택. 토큰이 없으면 비로그인으로 통과하고,
- * 토큰이 있으면 검증 후 res.locals.user에 저장한다.
+ * Access Token 선택. 토큰이 없거나 유효하지 않으면 비로그인으로 통과하고,
+ * 유효한 토큰이 있으면 검증 후 res.locals.user에 저장한다.
  */
 export const optionalAuth: RequestHandler = (req, res, next) => {
+  const header = req.get('authorization');
+  const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
+
+  if (!token) {
+    next();
+    return;
+  }
+
   try {
-    const header = req.get('authorization');
-    const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
-
-    if (!token) {
-      next();
-      return;
-    }
-
     const payload = verifyAccessToken(token);
 
     res.locals.user = {
       userId: payload.sub,
       userType: payload.userType,
     } satisfies AuthenticatedUser;
-
-    next();
   } catch {
-    next(new AppError('UNAUTHORIZED'));
+    // 선택적 인증: 만료·잘못된 토큰은 비로그인으로 취급
   }
+
+  next();
 };
 
 /** optionalAuth 뒤에 사용. 로그인한 경우에만 user를 반환한다. */
