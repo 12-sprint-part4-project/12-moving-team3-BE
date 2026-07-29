@@ -125,12 +125,6 @@ interface GetCustomerWritableQuotesResult {
   };
 }
 
-// TODO: DTO 정의 후 반환 타입 구체화
-type ReviewListResult = {
-  items: unknown[];
-  meta: ReviewPaginationMeta;
-};
-
 interface ReviewDetail {
   id: number;
   quoteId: number;
@@ -267,10 +261,10 @@ export const getCustomerReviews = async (
 ): Promise<GetCustomerReviewsResult> => {
   const { customerId, page, limit } = input;
 
-  const listResult = await reviewRepository.getReviewsByCustomerId(
-    customerId,
-    { page, limit }
-  );
+  const listResult = await reviewRepository.getReviewsByCustomerId(customerId, {
+    page,
+    limit,
+  });
 
   const reviews: CustomerReviewListItem[] = listResult.items.map((review) => {
     const quote = review.quote;
@@ -376,8 +370,7 @@ export const updateReview = async (
   } = input;
 
   // 1. 활성 리뷰 조회
-  const existingReview =
-    await reviewRepository.findActiveReviewById(reviewId);
+  const existingReview = await reviewRepository.findActiveReviewById(reviewId);
 
   if (!existingReview) {
     throw new AppError('REVIEW_NOT_FOUND');
@@ -403,9 +396,7 @@ export const updateReview = async (
   return updatedReview;
 };
 
-export const deleteReview = async (
-  input: DeleteReviewInput
-): Promise<void> => {
+export const deleteReview = async (input: DeleteReviewInput): Promise<void> => {
   const { customerId, reviewId } = input;
 
   const deletedCount = await reviewRepository.softDeleteReview({
