@@ -210,6 +210,17 @@ components:
               description: 도로명/지번 주소 (arrivalAddress). 동·호수(detailAddress)는 미포함.
             mover:
               $ref: '#/components/schemas/CustomerQuoteMover'
+    ConfirmQuoteResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [confirmedQuoteId]
+          properties:
+            confirmedQuoteId:
+              type: integer
+              example: 1
+              description: 확정된 견적 ID
 
 paths:
   /api/users/customers/quotes:
@@ -513,5 +524,105 @@ paths:
                     error:
                       code: MOVER_NOT_FOUND
                       message: 존재하지 않는 기사님입니다.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Customers]
+      summary: 견적 확정하기
+      description: |
+        고객이 받은 견적 중 하나를 확정합니다.
+        해당 견적(Quote)과 연결된 이사 요청(Estimate Request)을 함께 CONFIRMED로 변경하고,
+        confirmedQuoteId를 설정합니다.
+        EstimateRequest가 SUBMITTED가 아니거나 이미 확정된 경우, 또는 동일 견적 재확정 시 409를 반환합니다.
+        이사일이 지난 요청은 REQUEST_EXPIRED(409)를 반환합니다.
+        Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          description: 확정할 견적서 ID
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: 견적 확정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmQuoteResponse'
+              example:
+                data:
+                  confirmedQuoteId: 1
+        '400':
+          description: 잘못된 path 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: 요청 형식이 올바르지 않습니다.
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '404':
+          description: 견적서 또는 연결된 이사 요청을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quoteNotFound:
+                  summary: 존재하지 않거나 삭제된 견적
+                  value:
+                    error:
+                      code: QUOTE_NOT_FOUND
+                      message: 존재하지 않거나 삭제된 견적서입니다.
+                estimateRequestNotFound:
+                  summary: 연결된 이사 요청 없음
+                  value:
+                    error:
+                      code: ESTIMATE_REQUEST_NOT_FOUND
+                      message: 존재하지 않는 견적 요청입니다.
+        '409':
+          description: 확정 불가 (이미 확정됨 / 이사일 경과)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyConfirmed:
+                  summary: 이미 확정된 이사 요청 또는 견적 재확정
+                  value:
+                    error:
+                      code: ALREADY_CONFIRMED_REQUEST
+                      message: 이미 예약이 확정된 이사 요청입니다.
+                requestExpired:
+                  summary: 이사일 경과
+                  value:
+                    error:
+                      code: REQUEST_EXPIRED
+                      message: 이사일이 지나 견적 요청이 만료되었습니다.
         '500':
           $ref: '#/components/responses/InternalServerError'

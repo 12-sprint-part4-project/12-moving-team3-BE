@@ -77,7 +77,7 @@ export const ERROR_CODES = {
   },
   ALREADY_CONFIRMED_REQUEST: {
     status: 409,
-    message: '이미 다른 견적으로 예약이 확정된 이사 요청입니다.',
+    message: '이미 예약이 확정된 이사 요청입니다.',
   },
   QUOTE_NOT_FOUND: {
     status: 404,

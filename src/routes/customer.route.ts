@@ -57,4 +57,16 @@ router.get(
   quoteController.getCustomerQuoteDetail
 );
 
+// 견적 확정하기 (Swagger: src/docs/customer-quote.swagger.yaml)
+router.patch(
+  '/quotes/:quoteId',
+  requireAuth,
+  allowUserTypes('CUSTOMER'),
+  validateRequest({
+    params: quoteIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  quoteController.confirmQuote
+);
+
 export default router;

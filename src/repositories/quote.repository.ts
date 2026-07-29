@@ -665,3 +665,56 @@ export const findCustomerQuoteById = async (
 
   return quote;
 };
+
+/** 확정 대상 견적 행 */
+export interface CustomerQuoteForConfirmRow {
+  id: number;
+  estimateRequestId: number;
+  status: QuoteStatus;
+}
+
+/**
+ * 고객 소유 확정 대상 견적 조회 (PENDING/CONFIRMED)
+ */
+export const findCustomerQuoteForConfirm = async (
+  tx: QuoteTransactionClient,
+  quoteId: number,
+  customerId: string
+): Promise<CustomerQuoteForConfirmRow | null> => {
+  return tx.quote.findFirst({
+    where: {
+      id: quoteId,
+      deletedAt: null,
+      status: { in: SENT_QUOTE_STATUSES },
+      estimateRequest: { userId: customerId },
+    },
+    select: {
+      id: true,
+      estimateRequestId: true,
+      status: true,
+    },
+  });
+};
+
+/**
+ * 견적·이사 요청 확정 상태 업데이트
+ */
+export const confirmQuoteWithEstimateRequest = async (
+  tx: QuoteTransactionClient,
+  quoteId: number,
+  estimateRequestId: number
+): Promise<void> => {
+  await Promise.all([
+    tx.quote.update({
+      where: { id: quoteId },
+      data: { status: QuoteStatus.CONFIRMED },
+    }),
+    tx.estimateRequest.update({
+      where: { id: estimateRequestId },
+      data: {
+        status: EstimateRequestStatus.CONFIRMED,
+        confirmedQuoteId: quoteId,
+      },
+    }),
+  ]);
+};

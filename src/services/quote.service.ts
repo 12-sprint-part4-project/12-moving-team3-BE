@@ -5,6 +5,7 @@ import {
   type Quote,
 } from '@prisma/client';
 import type {
+  ConfirmQuoteDto,
   CustomerPastQuoteGroupDto,
   CustomerPastQuotesResultDto,
   CustomerPendingQuotesDto,
@@ -457,6 +458,11 @@ export interface GetCustomerQuoteDetailInput {
   quoteId: number;
 }
 
+export interface ConfirmQuoteInput {
+  customerId: string;
+  quoteId: number;
+}
+
 /**
  * 과거 견적 filter 값 타입 가드
  */
@@ -737,4 +743,60 @@ export const getCustomerQuoteDetail = async (
     toAddress: quote.estimateRequest.arrivalAddress,
     mover: toCustomerQuoteMoverDto(mover),
   };
+};
+
+/**
+ * 견적 확정
+ * Quote·EstimateRequest 상태 변경 및 confirmedQuoteId 업데이트를 트랜잭션으로 처리
+ */
+export const confirmQuote = async (
+  input: ConfirmQuoteInput
+): Promise<ConfirmQuoteDto> => {
+  const { customerId, quoteId } = input;
+
+  return quoteRepository.runInTransaction(async (tx) => {
+    // 고객 소유 견적 조회
+    const quote = await quoteRepository.findCustomerQuoteForConfirm(
+      tx,
+      quoteId,
+      customerId
+    );
+
+    if (!quote) {
+      throw new AppError('QUOTE_NOT_FOUND');
+    }
+
+    // 이사 요청 비관적 락 조회
+    const estimateRequest = await quoteRepository.findEstimateRequestForUpdate(
+      tx,
+      quote.estimateRequestId
+    );
+
+    if (!estimateRequest) {
+      throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+    }
+
+    // 이미 확정·완료된 이사 요청 여부 검증
+    if (
+      estimateRequest.confirmedQuoteId !== null ||
+      estimateRequest.status !== EstimateRequestStatus.SUBMITTED ||
+      quote.status !== QuoteStatus.PENDING
+    ) {
+      throw new AppError('ALREADY_CONFIRMED_REQUEST');
+    }
+
+    // 이사일 경과 여부 검증
+    if (isMoveDateExpired(estimateRequest.moveDate)) {
+      throw new AppError('REQUEST_EXPIRED');
+    }
+
+    // 견적·이사 요청 상태 업데이트
+    await quoteRepository.confirmQuoteWithEstimateRequest(
+      tx,
+      quoteId,
+      quote.estimateRequestId
+    );
+
+    return { confirmedQuoteId: quoteId };
+  });
 };
