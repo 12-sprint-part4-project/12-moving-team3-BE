@@ -10,7 +10,7 @@ import {
   SENT_QUOTE_STATUSES,
   type QuoteListStatus,
 } from '../schemas/quote.schema';
-import { startOfDay } from '../utils/date.util';
+import { startOfDayKst } from '../utils/date.util';
 
 // --- [기사님(MOVER)용 API] ---
 
@@ -719,7 +719,7 @@ export const findWritableQuotesByCustomerId = async (
   tx?: Prisma.TransactionClient
 ) => {
   const dbClient = tx ?? prisma;
-  const todayStart = startOfDay(new Date());
+  const todayStart = startOfDayKst(new Date());
   const skip = (params.page - 1) * params.limit;
 
   const where: Prisma.QuoteWhereInput = {
