@@ -699,4 +699,3 @@ export const leaveChatRoom = async (
     leftAt: toIsoString(leftAt),
   };
 };
-

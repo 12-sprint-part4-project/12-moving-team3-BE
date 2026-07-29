@@ -36,3 +36,4 @@ generated/
 skills-lock.json
 .cursor/rules/chat.mdc
 .cursor/rules/github-issue.mdc
+.cursor/rules/github-pr.mdc

@@ -1,4 +1,9 @@
-import { Prisma, type ChatRoom, type ChatRoomType, type MessageType } from '@prisma/client';
+import {
+  Prisma,
+  type ChatRoom,
+  type ChatRoomType,
+  type MessageType,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export type ChatRoomRecord = ChatRoom;
@@ -212,7 +217,7 @@ export const findRoomDetailById = async (roomId: number) => {
  * 미읽음 합산 등 partner/방 메타가 필요 없는 집계에 사용한다.
  */
 export const findActiveRoomFiltersByUserId = async (userId: string) => {
-return prisma.chatRoomParticipant.findMany({
+  return prisma.chatRoomParticipant.findMany({
     where: {
       participantId: userId,
       leftAt: null,
@@ -618,7 +623,10 @@ export const createTextMessage = async (
   await tx.chatRoom.updateMany({
     where: {
       id: data.roomId,
-      OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: message.createdAt } }],
+      OR: [
+        { lastMessageAt: null },
+        { lastMessageAt: { lt: message.createdAt } },
+      ],
     },
     data: { lastMessageAt: message.createdAt },
   });
