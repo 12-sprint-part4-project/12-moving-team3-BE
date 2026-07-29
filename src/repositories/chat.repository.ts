@@ -402,8 +402,12 @@ export const findActiveParticipation = async (
 };
 
 /** 유저가 해당 방에 참여한 이력이 있는지(leftAt 무관) 확인한다. */
-export const findAnyParticipation = async (roomId: number, userId: string) => {
-  return prisma.chatRoomParticipant.findFirst({
+export const findAnyParticipation = async (
+  roomId: number,
+  userId: string,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.chatRoomParticipant.findFirst({
     where: {
       roomId,
       participantId: userId,
@@ -421,9 +425,10 @@ export const findAnyParticipation = async (roomId: number, userId: string) => {
 export const leaveActiveParticipation = async (
   roomId: number,
   userId: string,
-  leftAt: Date
+  leftAt: Date,
+  dbClient: ChatDbClient = prisma
 ) => {
-  return prisma.chatRoomParticipant.updateMany({
+  return dbClient.chatRoomParticipant.updateMany({
     where: {
       roomId,
       participantId: userId,

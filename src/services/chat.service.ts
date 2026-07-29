@@ -664,7 +664,7 @@ export const leaveChatRoom = async (
       throw new AppError('ALREADY_LEFT');
     }
 
-    throw new AppError('FORBIDDEN');
+    throw new AppError('FORBIDDEN', '채팅방 참여 권한이 없습니다.');
   }
 
   return {
