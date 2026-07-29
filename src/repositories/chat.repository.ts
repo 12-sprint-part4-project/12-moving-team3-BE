@@ -613,6 +613,21 @@ export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
     return { lastReadMessageId };
   }
 
+  // 행이 이미 존재하지만 전진 조건을 만족하지 못한 경우, 예외 없이 현재 값을 바로 반환한다.
+  const existing = await prisma.chatReadStatus.findUnique({
+    where: {
+      roomId_readerId: {
+        roomId,
+        readerId,
+      },
+    },
+    select: { lastReadMessageId: true },
+  });
+
+  if (existing) {
+    return { lastReadMessageId: existing.lastReadMessageId };
+  }
+
   try {
     return await prisma.chatReadStatus.create({
       data: {
