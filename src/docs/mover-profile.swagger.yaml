@@ -66,8 +66,137 @@ components:
               format: date-time
               example: '2026-07-28T08:20:00.000Z'
 
+    MoverProfileMeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - profileId
+            - userId
+            - name
+            - nickname
+            - email
+            - phoneNumber
+            - profileImageUrl
+            - career
+            - shortDescription
+            - description
+            - service
+            - serviceRegions
+            - createdAt
+            - updatedAt
+          properties:
+            profileId:
+              type: integer
+              example: 15
+            userId:
+              type: string
+              format: uuid
+              example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            name:
+              type: string
+              example: 김코드
+            nickname:
+              type: string
+              example: 김코드
+            email:
+              type: string
+              format: email
+              example: mover@example.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+              example: null
+            career:
+              type: integer
+              nullable: true
+              example: 8
+            shortDescription:
+              type: string
+              nullable: true
+              example: 꼼꼼한이사
+            description:
+              type: string
+              nullable: true
+              example: 포장부터 정리까지 책임지고 진행합니다.
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [HOME, SMALL]
+            serviceRegions:
+              type: array
+              items:
+                type: string
+                enum:
+                  - SEOUL
+                  - GYEONGGI
+                  - INCHEON
+                  - GANGWON
+                  - CHUNGBUK
+                  - CHUNGNAM
+                  - SEJONG
+                  - DAEJEON
+                  - JEONBUK
+                  - GWANGJU_JEONNAM
+                  - GYEONGBUK
+                  - DAEGU
+                  - ULSAN
+                  - GYEONGNAM
+                  - BUSAN
+                  - JEJU
+              example: [SEOUL, GYEONGGI]
+            createdAt:
+              type: string
+              format: date-time
+              example: '2026-07-20T13:30:00.000Z'
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-21T10:00:00.000Z'
+
 paths:
   /api/users/movers/profile:
+    get:
+      tags: [Movers]
+      summary: 기사님 본인 프로필 조회
+      description: |
+        로그인한 기사님(MOVER)의 등록된 프로필을 조회합니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoverProfileMeResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 기사님(MOVER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록된 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       tags: [Movers]
       summary: 기사님 프로필 등록/수정
