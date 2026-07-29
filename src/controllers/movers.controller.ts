@@ -9,38 +9,25 @@ import moversService from '../services/movers.service';
 import { AppError } from '../utils/app.error';
 import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 
-//쿼리, 패스 파라미터를 res.locals.validated에서 꺼내오는 함수들
-const getValidatedListQuery = (res: Response): MoversListQuery => {
-  const query = res.locals.validated?.query;
+/** res.locals.validated에서 query/params를 꺼내오는 공통 헬퍼 */
+const getValidatedData = <T>(res: Response, key: 'query' | 'params'): T => {
+  const value = res.locals.validated?.[key];
 
-  if (query == null || typeof query !== 'object') {
+  if (value == null || typeof value !== 'object') {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  return query as MoversListQuery;
+  return value as T;
 };
 
-const getValidatedDetailParams = (res: Response): MoverDetailParams => {
-  const params = res.locals.validated?.params;
+const getValidatedListQuery = (res: Response): MoversListQuery =>
+  getValidatedData<MoversListQuery>(res, 'query');
 
-  if (params == null || typeof params !== 'object') {
-    throw new AppError('INVALID_QUERY_PARAM');
-  }
+const getValidatedDetailParams = (res: Response): MoverDetailParams =>
+  getValidatedData<MoverDetailParams>(res, 'params');
 
-  return params as MoverDetailParams;
-};
-
-const getValidatedFavoriteMoversQuery = (
-  res: Response
-): FavoriteMoversQuery => {
-  const query = res.locals.validated?.query;
-
-  if (query == null || typeof query !== 'object') {
-    throw new AppError('INVALID_QUERY_PARAM');
-  }
-
-  return query as FavoriteMoversQuery;
-};
+const getValidatedFavoriteMoversQuery = (res: Response): FavoriteMoversQuery =>
+  getValidatedData<FavoriteMoversQuery>(res, 'query');
 
 export const getMovers = async (
   _req: Request,
