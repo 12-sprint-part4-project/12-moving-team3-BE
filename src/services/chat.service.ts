@@ -4,6 +4,11 @@ import type {
   MoveType,
   UserType,
 } from '@prisma/client';
+import {
+  CHAT_ATTACHMENT_MAX_SIZE,
+  CHAT_ATTACHMENT_PRESIGN_EXPIRES_IN,
+  generateChatAttachmentKey,
+} from '../constants/chat-attachment.constants';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
 import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
@@ -12,11 +17,13 @@ import type {
   CreateChatRoomBody,
   GetChatMessagesQuery,
   MarkChatRoomAsReadBody,
+  PresignChatAttachmentBody,
   SendChatMessageBody,
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
 import { toProfileImageUrl } from '../utils/profile-image.util';
+import { createPresignedUploadUrl } from './s3.service';
 
 interface CreateChatRoomResult {
   status: 200 | 201;
@@ -698,4 +705,31 @@ export const leaveChatRoom = async (
     roomId,
     leftAt: toIsoString(leftAt),
   };
+};
+
+interface PresignChatAttachmentResult {
+  uploadUrl: string;
+  fileKey: string;
+}
+
+/**
+ * 채팅 첨부 이미지 업로드용 Presigned URL을 발급한다.
+ * fileSize는 PUT 서명(ContentLength)에 포함되며, 5MB 초과 시 거부한다.
+ */
+export const presignChatAttachment = async (
+  body: PresignChatAttachmentBody
+): Promise<PresignChatAttachmentResult> => {
+  if (body.fileSize > CHAT_ATTACHMENT_MAX_SIZE) {
+    throw new AppError('IMAGE_SIZE_EXCEEDED');
+  }
+
+  const fileKey = generateChatAttachmentKey(body.contentType);
+  const uploadUrl = await createPresignedUploadUrl({
+    key: fileKey,
+    contentType: body.contentType,
+    contentLength: body.fileSize,
+    expiresIn: CHAT_ATTACHMENT_PRESIGN_EXPIRES_IN,
+  });
+
+  return { uploadUrl, fileKey };
 };
