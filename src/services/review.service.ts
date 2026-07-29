@@ -1,10 +1,12 @@
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
+import type { MoveType } from '@prisma/client';
 import * as quoteRepository from '../repositories/quote.repository';
 import type { QuoteForReviewCreate } from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
 import type { ReviewBody } from '../schemas/review.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateReached } from '../utils/date.util';
+import { toProfileImageUrl } from '../utils/profile-image.util';
 
 /** 목록 조회 공통 페이지네이션 메타 */
 export interface ReviewPaginationMeta {
@@ -77,6 +79,52 @@ type GetMoverReviewsResult = {
   };
 };
 
+type CustomerReviewListItem = {
+  id: number;
+  rating: number;
+  content: string;
+  createdAt: Date;
+  mover: {
+    id: string;
+    name: string;
+    profileImageUrl: string | null;
+  } | null;
+  quote: {
+    id: number;
+    moveType: MoveType | null;
+    moveDate: string | null;
+    price: number | null;
+    isDesignated: boolean;
+  } | null;
+};
+
+type GetCustomerReviewsResult = {
+  reviews: CustomerReviewListItem[];
+  meta: {
+    pagination: ReviewPaginationMeta;
+  };
+};
+
+type WritableQuoteListItem = {
+  quoteId: number;
+  moveType: MoveType | null;
+  isDesignated: boolean;
+  moveDate: string | null;
+  price: number | null;
+  mover: {
+    id: string;
+    name: string;
+    profileImageUrl: string | null;
+  } | null;
+};
+
+type GetCustomerWritableQuotesResult = {
+  writableQuotes: WritableQuoteListItem[];
+  meta: {
+    pagination: ReviewPaginationMeta;
+  };
+};
+
 // TODO: DTO 정의 후 반환 타입 구체화
 type ReviewListResult = {
   items: unknown[];
@@ -89,6 +137,15 @@ type ReviewDetail = {
   rating: number;
   content: string;
   createdAt: Date;
+};
+
+/** Date(@db.Date) → YYYY-MM-DD */
+const formatDateOnly = (date: Date | null): string | null => {
+  if (!date) {
+    return null;
+  }
+
+  return date.toISOString().slice(0, 10);
 };
 
 const isUniqueConstraintError = (error: unknown): boolean =>
@@ -166,19 +223,94 @@ export const getMoverReviews = async (
 };
 
 export const getCustomerWritableQuotes = async (
-  _input: GetCustomerWritableQuotesInput
-): Promise<ReviewListResult> => {
-  // TODO: implement
-  throw new Error('Not implemented');
+  input: GetCustomerWritableQuotesInput
+): Promise<GetCustomerWritableQuotesResult> => {
+  const { customerId, page, limit } = input;
+
+  const listResult = await quoteRepository.findWritableQuotesByCustomerId(
+    customerId,
+    { page, limit }
+  );
+
+  const writableQuotes: WritableQuoteListItem[] = listResult.items.map(
+    (quote) => ({
+      quoteId: quote.id,
+      moveType: quote.estimateRequest.moveType,
+      isDesignated: quote.isDesignated,
+      moveDate: formatDateOnly(quote.estimateRequest.moveDate),
+      price: quote.price,
+      mover: quote.mover
+        ? {
+            id: quote.mover.id,
+            name: quote.mover.name,
+            profileImageUrl: toProfileImageUrl(quote.mover.profileImageKey),
+          }
+        : null,
+    })
+  );
+
+  return {
+    writableQuotes,
+    meta: {
+      pagination: {
+        currentPage: page,
+        pageSize: limit,
+        totalCount: listResult.totalCount,
+        hasNextPage: page * limit < listResult.totalCount,
+      },
+    },
+  };
 };
 
 export const getCustomerReviews = async (
-  _input: GetCustomerReviewsInput
-): Promise<ReviewListResult> => {
-  // TODO: implement
-  throw new Error('Not implemented');
-};
+  input: GetCustomerReviewsInput
+): Promise<GetCustomerReviewsResult> => {
+  const { customerId, page, limit } = input;
 
+  const listResult = await reviewRepository.getReviewsByCustomerId(
+    customerId,
+    { page, limit }
+  );
+
+  const reviews: CustomerReviewListItem[] = listResult.items.map((review) => {
+    const quote = review.quote;
+
+    return {
+      id: review.id,
+      rating: review.rating,
+      content: review.content,
+      createdAt: review.createdAt,
+      mover: quote?.mover
+        ? {
+            id: quote.mover.id,
+            name: quote.mover.name,
+            profileImageUrl: toProfileImageUrl(quote.mover.profileImageKey),
+          }
+        : null,
+      quote: quote
+        ? {
+            id: quote.id,
+            moveType: quote.estimateRequest.moveType,
+            moveDate: formatDateOnly(quote.estimateRequest.moveDate),
+            price: quote.price,
+            isDesignated: quote.isDesignated,
+          }
+        : null,
+    };
+  });
+
+  return {
+    reviews,
+    meta: {
+      pagination: {
+        currentPage: page,
+        pageSize: limit,
+        totalCount: listResult.totalCount,
+        hasNextPage: page * limit < listResult.totalCount,
+      },
+    },
+  };
+};
 export const createReview = async (
   input: CreateReviewInput
 ): Promise<ReviewDetail> => {

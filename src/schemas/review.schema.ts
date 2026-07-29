@@ -30,18 +30,10 @@ export const reviewListQuerySchema = z.object({
 
 export type ReviewListQuery = z.infer<typeof reviewListQuerySchema>;
 
-const DEFAULT_REVIEW_WRITABLE_LIMIT = 8;
-
 /** 리뷰 작성 가능한 견적 조회 Query (page / limit 페이지네이션) */
 export const reviewWritableQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(6)
-    .optional()
-    .default(DEFAULT_REVIEW_WRITABLE_LIMIT),
+  limit: z.coerce.number().int().min(1).max(6).optional().default(6),
 });
 
 export type ReviewWritableQuery = z.infer<typeof reviewWritableQuerySchema>;

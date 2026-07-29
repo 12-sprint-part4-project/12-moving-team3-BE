@@ -51,6 +51,62 @@ const reviewRepository = {
 
     return { items, totalCount };
   },
+
+  /**
+   * 고객이 작성한 리뷰 목록 (페이지네이션, 최신순)
+   * quote / mover / estimateRequest 포함
+   */
+  getReviewsByCustomerId: async (
+    customerId: string,
+    params: { page: number; limit: number },
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+    const where: Prisma.ReviewWhereInput = {
+      deletedAt: null,
+      userId: customerId,
+    };
+    const skip = (params.page - 1) * params.limit;
+
+    const [items, totalCount] = await Promise.all([
+      dbClient.review.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: params.limit,
+        select: {
+          id: true,
+          rating: true,
+          content: true,
+          createdAt: true,
+          quote: {
+            select: {
+              id: true,
+              price: true,
+              isDesignated: true,
+              mover: {
+                select: {
+                  id: true,
+                  name: true,
+                  profileImageKey: true,
+                },
+              },
+              estimateRequest: {
+                select: {
+                  moveType: true,
+                  moveDate: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      dbClient.review.count({ where }),
+    ]);
+
+    return { items, totalCount };
+  },
+
   /**
    * 기사(User id) 한 명의 리뷰 통계를 만든다.
    * 반환: 평점별 개수, 총 개수, 평균 평점

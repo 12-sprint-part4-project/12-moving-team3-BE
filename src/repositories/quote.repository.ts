@@ -10,6 +10,7 @@ import {
   SENT_QUOTE_STATUSES,
   type QuoteListStatus,
 } from '../schemas/quote.schema';
+import { startOfDay } from '../utils/date.util';
 
 // --- [기사님(MOVER)용 API] ---
 
@@ -706,4 +707,65 @@ export const findQuoteForReviewCreate = async (
       },
     },
   });
+};
+
+/**
+ * 고객이 리뷰 작성 가능한 확정 견적 목록 (페이지네이션)
+ * createReview 작성 가능 조건과 동일
+ */
+export const findWritableQuotesByCustomerId = async (
+  customerId: string,
+  params: { page: number; limit: number },
+  tx?: Prisma.TransactionClient
+) => {
+  const dbClient = tx ?? prisma;
+  const todayStart = startOfDay(new Date());
+  const skip = (params.page - 1) * params.limit;
+
+  const where: Prisma.QuoteWhereInput = {
+    deletedAt: null,
+    status: QuoteStatus.CONFIRMED,
+    confirmedForRequest: { isNot: null },
+    estimateRequest: {
+      userId: customerId,
+      OR: [
+        { status: EstimateRequestStatus.COMPLETED },
+        { moveDate: { lte: todayStart } },
+      ],
+    },
+    // create와 동일: soft-delete 포함 리뷰가 있으면 재작성 불가
+    reviews: {
+      none: { userId: customerId },
+    },
+  };
+
+  const [items, totalCount] = await Promise.all([
+    dbClient.quote.findMany({
+      where,
+      orderBy: { estimateRequest: { moveDate: 'desc' } },
+      skip,
+      take: params.limit,
+      select: {
+        id: true,
+        price: true,
+        isDesignated: true,
+        mover: {
+          select: {
+            id: true,
+            name: true,
+            profileImageKey: true,
+          },
+        },
+        estimateRequest: {
+          select: {
+            moveType: true,
+            moveDate: true,
+          },
+        },
+      },
+    }),
+    dbClient.quote.count({ where }),
+  ]);
+
+  return { items, totalCount };
 };

@@ -72,7 +72,7 @@ export const getCustomerWritableReviews = async (
     });
 
     res.status(200).json({
-      data: { items: result.items },
+      data: { writableQuotes: result.writableQuotes },
       meta: result.meta,
     });
   } catch (error) {
@@ -96,7 +96,7 @@ export const getCustomerReviews = async (
     });
 
     res.status(200).json({
-      data: { items: result.items },
+      data: { reviews: result.reviews },
       meta: result.meta,
     });
   } catch (error) {
