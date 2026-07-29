@@ -28,10 +28,7 @@ export const requireAdminAuth: RequestHandler = (req, res, next) => {
     next();
   } catch (error) {
     // JWT 인증 실패만 401로 통일하고, 환경변수 누락 등 서버 오류는 그대로 넘겨 500 처리한다.
-    if (
-      error instanceof AppError &&
-      error.code === 'ADMIN_UNAUTHORIZED'
-    ) {
+    if (error instanceof AppError && error.code === 'ADMIN_UNAUTHORIZED') {
       next(error);
       return;
     }
