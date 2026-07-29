@@ -33,7 +33,7 @@ router.get(
     query: reviewWritableQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
   }),
-  reviewController.getCustomerWritableReviews
+  reviewController.getCustomerWritableQuotes
 );
 
 // 고객의 리뷰 목록 조회 (Swagger: src/docs/review.swagger.yaml)

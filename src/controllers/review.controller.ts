@@ -68,7 +68,7 @@ export const getMoverReviews = async (
 };
 
 /** GET /api/review/customer/writable — 리뷰 작성 가능한 견적 조회 */
-export const getCustomerWritableReviews = async (
+export const getCustomerWritableQuotes = async (
   _req: Request,
   res: Response,
   next: NextFunction
