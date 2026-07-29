@@ -331,6 +331,7 @@ export const findLastMessagesByRooms = async (
 /**
  * 방별 미읽음 메시지 수를 조회한다.
  * 마지막 읽은 메시지(id) 이후 + 본인 발신 제외 + joinedAt 이후만 카운트한다.
+ * 방마다 count를 나누지 않고, 방별 조건을 OR로 묶은 뒤 groupBy 한 번으로 집계한다.
  */
 export const findUnreadCountsByRooms = async (
   userId: string,
@@ -357,26 +358,28 @@ export const findUnreadCountsByRooms = async (
     lastReadStatuses.map((status) => [status.roomId, status.lastReadMessageId])
   );
 
-  const unreadCounts = await Promise.all(
-    rooms.map(async ({ roomId, joinedAt }) => {
-      const lastReadMessageId = lastReadMessageIdByRoomId.get(roomId);
+  const roomConditions = rooms.map(({ roomId, joinedAt }) => {
+    const lastReadMessageId = lastReadMessageIdByRoomId.get(roomId);
 
-      const count = await prisma.chatMessage.count({
-        where: {
-          roomId,
-          senderId: { not: userId },
-          createdAt: { gte: joinedAt },
-          ...(lastReadMessageId !== undefined && {
-            id: { gt: lastReadMessageId },
-          }),
-        },
-      });
+    return {
+      roomId,
+      createdAt: { gte: joinedAt },
+      ...(lastReadMessageId !== undefined && {
+        id: { gt: lastReadMessageId },
+      }),
+    };
+  });
 
-      return { roomId, count };
-    })
-  );
+  const grouped = await prisma.chatMessage.groupBy({
+    by: ['roomId'],
+    where: {
+      senderId: { not: userId },
+      OR: roomConditions,
+    },
+    _count: { _all: true },
+  });
 
-  return new Map(unreadCounts.map(({ roomId, count }) => [roomId, count]));
+  return new Map(grouped.map((row) => [row.roomId, row._count._all]));
 };
 
 /** 채팅방 존재 여부를 ID로 확인한다. */
