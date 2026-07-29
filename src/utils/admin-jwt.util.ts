@@ -51,6 +51,24 @@ export const createAdminAccessToken = (adminId: number): string => {
   );
 };
 
+export const verifyAdminAccessToken = (
+  accessToken: string
+): jwt.JwtPayload => {
+  const decoded = jwt.verify(
+    accessToken,
+    getRequiredEnv('ADMIN_JWT_ACCESS_SECRET'),
+    {
+      algorithms: ['HS256'],
+    }
+  );
+
+  if (typeof decoded === 'string') {
+    throw new Error('Invalid admin access token payload');
+  }
+
+  return decoded;
+};
+
 // 일반 유저 JWT secret과 분리
 export const createAdminRefreshToken = (adminId: number): string => {
   const payload: AdminRefreshTokenPayload = {
