@@ -214,25 +214,6 @@ const reviewRepository = {
     });
   },
 
-  /** 활성 리뷰 단건 조회 (삭제된 리뷰 제외) */
-  findActiveReviewById: async (
-    reviewId: number,
-    tx?: Prisma.TransactionClient
-  ) => {
-    const dbClient = tx ?? prisma;
-
-    return dbClient.review.findFirst({
-      where: {
-        id: reviewId,
-        deletedAt: null,
-      },
-      select: {
-        ...reviewDetailSelect,
-        userId: true,
-      },
-    });
-  },
-
   /**
    * 본인 활성 리뷰 수정
    * id + userId + deletedAt null 조건으로 소유권·삭제 여부를 함께 보장
