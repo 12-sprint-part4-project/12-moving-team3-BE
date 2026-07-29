@@ -230,6 +230,7 @@ const reviewRepository = {
   /**
    * 본인 활성 리뷰 수정
    * id + userId + deletedAt null 조건으로 소유권·삭제 여부를 함께 보장
+   * updateMany + 재조회는 동일 트랜잭션에서 원자적으로 실행
    */
   updateReview: async (
     data: {
@@ -240,30 +241,37 @@ const reviewRepository = {
     },
     tx?: Prisma.TransactionClient
   ) => {
-    const dbClient = tx ?? prisma;
-    const where = {
-      id: data.reviewId,
-      userId: data.userId,
-      deletedAt: null,
+    const execute = async (dbClient: ReviewTransactionClient) => {
+      const where = {
+        id: data.reviewId,
+        userId: data.userId,
+        deletedAt: null,
+      };
+
+      const result = await dbClient.review.updateMany({
+        where,
+        data: {
+          rating: data.rating,
+          content: data.content,
+          updatedAt: new Date(),
+        },
+      });
+
+      if (result.count === 0) {
+        return null;
+      }
+
+      return dbClient.review.findFirst({
+        where,
+        select: reviewDetailSelect,
+      });
     };
 
-    const result = await dbClient.review.updateMany({
-      where,
-      data: {
-        rating: data.rating,
-        content: data.content,
-        updatedAt: new Date(),
-      },
-    });
-
-    if (result.count === 0) {
-      return null;
+    if (tx) {
+      return execute(tx);
     }
 
-    return dbClient.review.findFirst({
-      where,
-      select: reviewDetailSelect,
-    });
+    return reviewRepository.runInTransaction(execute);
   },
 
   /**
