@@ -374,7 +374,7 @@ model UserReport {
   id            Int                @id @default(autoincrement())
   reporterId    String             @map("reporter_id") @db.Uuid
   target        UserReportTarget
-  targetId      Int                @map("target_id")
+  targetId      String             @map("target_id") @db.VarChar(36)  // Int → String
   category      UserReportCategory
   status        UserReportStatus   @default(PENDING)
   adminId       Int?               @map("admin_id")
@@ -383,6 +383,7 @@ model UserReport {
   admin         AdminUser?         @relation(fields: [adminId], references: [id])
   reporter      User               @relation(fields: [reporterId], references: [id])
 
+  @@unique([reporterId, target, targetId])  // 중복 신고 방지
   @@map("user_reports")
 }
 
