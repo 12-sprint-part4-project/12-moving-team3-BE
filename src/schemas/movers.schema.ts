@@ -41,7 +41,7 @@ export const moversListQuerySchema = z.object({
 
 /** GET /api/movers/:id path param */
 export const moverDetailParamsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 /** GET /api/movers/favorites query */
