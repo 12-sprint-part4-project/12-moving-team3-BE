@@ -16,6 +16,9 @@ export type PostSort = (typeof POST_SORT_VALUES)[number];
 /** 목록 응답 content 미리보기 최대 길이 */
 export const CONTENT_PREVIEW_MAX_LENGTH = 100;
 
+/** 댓글/대댓글 content 최대 길이 */
+export const COMMENT_CONTENT_MAX_LENGTH = 500;
+
 export const postListQuerySchema = z.object({
   category: z.enum(PostsCategory).optional(),
   region: z.enum(Region).optional(),
@@ -83,7 +86,7 @@ export const commentIdParamsSchema = z.object({
 export type CommentIdParams = z.infer<typeof commentIdParamsSchema>;
 
 export const createCommentBodySchema = z.object({
-  content: z.string().min(1),
+  content: z.string().min(1).max(COMMENT_CONTENT_MAX_LENGTH),
 });
 
 export type CreateCommentBody = z.infer<typeof createCommentBodySchema>;

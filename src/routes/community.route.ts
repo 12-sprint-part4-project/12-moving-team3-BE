@@ -590,6 +590,7 @@ router.delete(
  *               content:
  *                 type: string
  *                 minLength: 1
+ *                 maxLength: 500
  *     responses:
  *       201:
  *         description: 댓글 작성 성공
@@ -658,6 +659,7 @@ router.post(
  *               content:
  *                 type: string
  *                 minLength: 1
+ *                 maxLength: 500
  *     responses:
  *       201:
  *         description: 대댓글 작성 성공
