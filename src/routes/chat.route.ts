@@ -7,6 +7,7 @@ import {
   createChatRoomBodySchema,
   getChatMessagesQuerySchema,
   markChatRoomAsReadBodySchema,
+  presignChatAttachmentBodySchema,
   sendChatMessageBodySchema,
 } from '../schemas/chat.schema';
 
@@ -113,6 +114,82 @@ router.get('/rooms', requireAuth, chatController.getChatRoomList);
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/unread-count', requireAuth, chatController.getUnreadCount);
+
+/**
+ * @swagger
+ * /api/chat/attachments/presign:
+ *   post:
+ *     tags: [Chat]
+ *     summary: 채팅 첨부 이미지 업로드 URL 발급
+ *     description: |
+ *       채팅 IMAGE 메시지 전송 전, S3에 직접 업로드할 Presigned URL을 발급합니다.
+ *       허용 형식: JPEG, PNG, WebP. 장당 최대 5MB.
+ *       `fileSize`는 PUT 서명에 포함되므로, 실제 업로드 바이트와 일치해야 합니다.
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [contentType, fileSize]
+ *             properties:
+ *               contentType:
+ *                 type: string
+ *                 enum: [image/jpeg, image/png, image/webp]
+ *               fileSize:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5242880
+ *                 description: 업로드할 파일 크기(바이트). 최대 5MB.
+ *           example:
+ *             contentType: image/jpeg
+ *             fileSize: 1048576
+ *     responses:
+ *       200:
+ *         description: Presigned URL 발급 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     uploadUrl:
+ *                       type: string
+ *                       description: S3 PUT 업로드 URL (유효 시간 5분)
+ *                     fileKey:
+ *                       type: string
+ *                       description: IMAGE 메시지 attachments에 넣을 S3 key
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       413:
+ *         description: 이미지 용량 초과 (5MB)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error:
+ *                 code: IMAGE_SIZE_EXCEEDED
+ *                 message: 이미지 용량은 5MB 이하만 업로드할 수 있습니다.
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/attachments/presign',
+  requireAuth,
+  validateRequest({
+    body: presignChatAttachmentBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  chatController.presignChatAttachment
+);
 
 /**
  * @swagger
