@@ -55,6 +55,14 @@ export const decodeMoverListCursor = (
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
+  const isValidValue = decoded.sort.startsWith('career')
+    ? /^\d+$/.test(decoded.value)
+    : new Date(decoded.value).toISOString() === decoded.value;
+
+  if (!isValidValue) {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+
   return decoded;
 };
 
@@ -67,6 +75,10 @@ export const decodeFavoriteListCursor = (
   const decoded = decode(encoded);
 
   if (!isFavoriteListCursor(decoded)) {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+
+  if (new Date(decoded.value).toISOString() !== decoded.value) {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
