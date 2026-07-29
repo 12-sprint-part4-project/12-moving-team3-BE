@@ -17,6 +17,7 @@ import estimateRequestRouter from './routes/estimate-request.route';
 import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
 import reviewRouter from './routes/review.route';
+import reportRouter from './routes/report.route';
 
 const app = express();
 
@@ -74,6 +75,7 @@ app.use('/api/estimate-requests', estimateRequestRouter);
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/review', reviewRouter);
+app.use('/api/reports', reportRouter);
 
 app.use(errorHandler);
 
