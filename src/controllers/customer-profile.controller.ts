@@ -3,6 +3,23 @@ import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import type { CustomerProfileBody } from '../schemas/customer-profile.schema';
 import * as customerProfileService from '../services/customer-profile.service';
 
+export const getCustomerProfile = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId } = getAuthenticatedUser(res);
+    const profile = await customerProfileService.getCustomerProfile(userId);
+
+    res.status(200).json({
+      data: profile,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const registerCustomerProfile = async (
   req: Request,
   res: Response,

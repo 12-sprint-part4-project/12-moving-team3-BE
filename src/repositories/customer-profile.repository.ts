@@ -12,6 +12,29 @@ export const findCustomerProfileByUserId = async (userId: string) => {
   });
 };
 
+/** 본인 프로필 조회용 — User 정보 포함 */
+export const findCustomerProfileDetailByUserId = async (userId: string) => {
+  return prisma.customerProfile.findUnique({
+    where: { userId },
+    select: {
+      id: true,
+      region: true,
+      service: true,
+      createdAt: true,
+      updatedAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          profileImageKey: true,
+        },
+      },
+    },
+  });
+};
+
 export interface RegisterCustomerProfileInput {
   userId: string;
   region: Region;

@@ -16,6 +16,14 @@ import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
 
+// 기사님 본인 프로필 조회 (Swagger: src/docs/mover-profile.swagger.yaml)
+router.get(
+  '/profile',
+  requireAuth,
+  allowUserTypes('MOVER'),
+  moverProfileController.getMoverProfile
+);
+
 // 기사님 프로필 등록/수정 (Swagger: src/docs/mover-profile.swagger.yaml)
 router.patch(
   '/profile',
