@@ -8,33 +8,23 @@ export const findLike = async (postId: number, userId: string) => {
   });
 };
 
-/** 좋아요 생성 + likeCount 증가 (트랜잭션). post 미존재 시 null (트랜잭션 롤백). */
+/** 좋아요 생성 + likeCount 증가 (트랜잭션). post 미존재 시 null. */
 export const createLike = async (postId: number, userId: string) => {
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const like = await tx.postLike.create({
-        data: { postId, userId },
-        select: { id: true },
-      });
-
-      const postResult = await tx.post.updateMany({
-        where: { id: postId, deletedAt: null },
-        data: { likeCount: { increment: 1 } },
-      });
-
-      if (postResult.count === 0) {
-        throw new Error('POST_NOT_FOUND');
-      }
-
-      return like;
+  return prisma.$transaction(async (tx) => {
+    const postResult = await tx.post.updateMany({
+      where: { id: postId, deletedAt: null },
+      data: { likeCount: { increment: 1 } },
     });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'POST_NOT_FOUND') {
+
+    if (postResult.count === 0) {
       return null;
     }
 
-    throw error;
-  }
+    return tx.postLike.create({
+      data: { postId, userId },
+      select: { id: true },
+    });
+  });
 };
 
 /** 좋아요 삭제 + likeCount 감소 (트랜잭션) */
