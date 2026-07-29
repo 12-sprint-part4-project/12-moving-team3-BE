@@ -164,7 +164,7 @@ const assertReviewWritable = (
   const { estimateRequest } = quote;
 
   if (estimateRequest.userId !== customerId) {
-    throw new AppError('FORBIDDEN');
+    throw new AppError('REVIEW_FORBIDDEN');
   }
 
   const isConfirmedQuote =

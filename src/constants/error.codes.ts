@@ -216,6 +216,10 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 리뷰입니다.',
   },
+  REVIEW_FORBIDDEN: {
+    status: 403,
+    message: '본인 견적에만 리뷰를 작성할 수 있습니다.',
+  },
 
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
   ADMIN_INVALID_LOGIN_BODY: {
