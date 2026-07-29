@@ -586,8 +586,7 @@ export const sendChatMessage = async (
  * 채팅방 읽음 상태를 갱신한다.
  * - 활성 참여자만 처리 가능
  * - lastReadMessageId는 해당 방·joinedAt 이후 메시지여야 함
- * - 이미 더 앞선 메시지를 읽은 경우 현재 값을 그대로 반환(전진만 허용)
- * - 카카오톡 방식: 마지막 읽은 messageId만 기록하며 unread 계산에 사용
+ * - 방-참여자당 1건만 유지하며, 전진만 허용(원자적 갱신)
  */
 export const markChatRoomAsRead = async (
   authUser: AuthenticatedUser,
@@ -619,24 +618,12 @@ export const markChatRoomAsRead = async (
     throw new AppError('MESSAGE_NOT_FOUND');
   }
 
-  const currentLastReadMessageId =
-    await chatRepository.findLastReadMessageIdByRoom(
-      roomId,
-      authUser.userId
-    );
+  const readStatus = await chatRepository.advanceReadStatus({
+    roomId,
+    readerId: authUser.userId,
+    lastReadMessageId: body.lastReadMessageId,
+  });
 
-  if (
-    currentLastReadMessageId !== null &&
-    body.lastReadMessageId <= currentLastReadMessageId
-  ) {
-    return { lastReadMessageId: currentLastReadMessageId };
-  }
-
-  const readStatus = await chatRepository.upsertReadStatus(
-    body.lastReadMessageId,
-    authUser.userId
-  );
-
-  return { lastReadMessageId: readStatus.messageId };
+  return { lastReadMessageId: readStatus.lastReadMessageId };
 };
 

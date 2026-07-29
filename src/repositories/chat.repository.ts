@@ -1,4 +1,4 @@
-import type { ChatRoom, ChatRoomType, MessageType, Prisma } from '@prisma/client';
+import { Prisma, type ChatRoom, type ChatRoomType, type MessageType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export type ChatRoomRecord = ChatRoom;
@@ -32,6 +32,18 @@ interface CreateTextMessageData {
   content: string;
   isFiltered: boolean;
   rawContent?: string;
+}
+
+interface FindMessageInRoomAfterJoinedAtParams {
+  roomId: number;
+  messageId: number;
+  joinedAt: Date;
+}
+
+interface AdvanceReadStatusParams {
+  roomId: number;
+  readerId: string;
+  lastReadMessageId: number;
 }
 
 /** 삭제되지 않은 MOVER 유저(기사님)를 ID로 조회한다. */
@@ -311,28 +323,17 @@ export const findUnreadCountsByRooms = async (
   const lastReadStatuses = await prisma.chatReadStatus.findMany({
     where: {
       readerId: userId,
-      message: {
-        roomId: { in: roomIds },
-      },
+      roomId: { in: roomIds },
     },
     select: {
-      messageId: true,
-      message: {
-        select: { roomId: true },
-      },
+      roomId: true,
+      lastReadMessageId: true,
     },
-    orderBy: { messageId: 'desc' },
   });
 
-  const lastReadMessageIdByRoomId = new Map<number, number>();
-
-  for (const status of lastReadStatuses) {
-    const roomId = status.message.roomId;
-
-    if (!lastReadMessageIdByRoomId.has(roomId)) {
-      lastReadMessageIdByRoomId.set(roomId, status.messageId);
-    }
-  }
+  const lastReadMessageIdByRoomId = new Map(
+    lastReadStatuses.map((status) => [status.roomId, status.lastReadMessageId])
+  );
 
   const unreadCounts = await Promise.all(
     rooms.map(async ({ roomId, joinedAt }) => {
@@ -577,11 +578,9 @@ export const createTextMessage = async (
  * 해당 방의 메시지가 존재하는지 확인한다.
  * joinedAt 이후 메시지만 유효로 본다.
  */
-export const findMessageInRoomAfterJoinedAt = async (params: {
-  roomId: number;
-  messageId: number;
-  joinedAt: Date;
-}) => {
+export const findMessageInRoomAfterJoinedAt = async (
+  params: FindMessageInRoomAfterJoinedAtParams
+) => {
   return prisma.chatMessage.findFirst({
     where: {
       id: params.messageId,
@@ -594,48 +593,81 @@ export const findMessageInRoomAfterJoinedAt = async (params: {
   });
 };
 
-/** 유저가 해당 방에서 마지막으로 읽은 messageId를 조회한다. */
-export const findLastReadMessageIdByRoom = async (
-  roomId: number,
-  readerId: string
-) => {
-  const status = await prisma.chatReadStatus.findFirst({
-    where: {
-      readerId,
-      message: { roomId },
-    },
-    orderBy: { messageId: 'desc' },
-    select: { messageId: true },
-  });
-
-  return status?.messageId ?? null;
-};
-
 /**
- * 읽음 상태를 저장한다.
- * 동일 messageId+readerId가 이미 있으면 기존 row를 반환한다.
+ * 방-참여자 단위로 마지막 읽음 위치를 전진시킨다.
+ * 이미 같거나 더 앞선 값이면 갱신하지 않고 현재 값을 반환한다.
  */
-export const upsertReadStatus = async (
-  messageId: number,
-  readerId: string
-) => {
-  return prisma.chatReadStatus.upsert({
-    where: {
-      messageId_readerId: {
-        messageId,
+export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
+  const { roomId, readerId, lastReadMessageId } = params;
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const existing = await tx.chatReadStatus.findUnique({
+        where: {
+          roomId_readerId: {
+            roomId,
+            readerId,
+          },
+        },
+        select: { lastReadMessageId: true },
+      });
+
+      if (existing && lastReadMessageId <= existing.lastReadMessageId) {
+        return { lastReadMessageId: existing.lastReadMessageId };
+      }
+
+      if (existing) {
+        return tx.chatReadStatus.update({
+          where: {
+            roomId_readerId: {
+              roomId,
+              readerId,
+            },
+          },
+          data: { lastReadMessageId },
+          select: { lastReadMessageId: true },
+        });
+      }
+
+      return tx.chatReadStatus.create({
+        data: {
+          roomId,
+          readerId,
+          lastReadMessageId,
+        },
+        select: { lastReadMessageId: true },
+      });
+    });
+  } catch (error) {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      throw error;
+    }
+
+    // 동시 생성 충돌 시 전진만 허용하는 updateMany로 재시도한다.
+    await prisma.chatReadStatus.updateMany({
+      where: {
+        roomId,
         readerId,
+        lastReadMessageId: { lt: lastReadMessageId },
       },
-    },
-    create: {
-      messageId,
-      readerId,
-    },
-    update: {
-      readAt: new Date(),
-    },
-    select: {
-      messageId: true,
-      readAt: true,
-    },
-  });
+      data: { lastReadMessageId },
+    });
+
+    const current = await prisma.chatReadStatus.findUnique({
+      where: {
+        roomId_readerId: {
+          roomId,
+          readerId,
+        },
+      },
+      select: { lastReadMessageId: true },
+    });
+
+    return {
+      lastReadMessageId: current?.lastReadMessageId ?? lastReadMessageId,
+    };
+  }
 };
