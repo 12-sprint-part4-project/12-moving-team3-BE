@@ -12,29 +12,44 @@ const reviewDetailSelect = {
 } satisfies Prisma.ReviewSelect;
 
 const reviewRepository = {
+  /**
+   * 기사에게 달린 리뷰 목록 (페이지네이션, 최신순)
+   */
   getReviewsByMoverId: async (
     moverId: string,
+    params: { page: number; limit: number },
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
-    return dbClient.review.findMany({
-      where: {
-        deletedAt: null,
-        quote: { moverId },
-      },
-      select: {
-        id: true,
-        rating: true,
-        content: true,
-        createdAt: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
+    const where: Prisma.ReviewWhereInput = {
+      deletedAt: null,
+      quote: { moverId },
+    };
+    const skip = (params.page - 1) * params.limit;
+
+    const [items, totalCount] = await Promise.all([
+      dbClient.review.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: params.limit,
+        select: {
+          id: true,
+          rating: true,
+          content: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
         },
-      },
-    });
+      }),
+      dbClient.review.count({ where }),
+    ]);
+
+    return { items, totalCount };
   },
   /**
    * 기사(User id) 한 명의 리뷰 통계를 만든다.

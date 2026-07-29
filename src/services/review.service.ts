@@ -8,12 +8,19 @@ import { isMoveDateReached } from '../utils/date.util';
 
 /** 목록 조회 공통 페이지네이션 메타 */
 export interface ReviewPaginationMeta {
-  totalCount: number;
-  totalPages: number;
   currentPage: number;
-  limit: number;
+  pageSize: number;
+  totalCount: number;
   hasNextPage: boolean;
-  hasPrevPage: boolean;
+}
+
+export interface ReviewRatingStatistics {
+  average: number;
+  five: number;
+  four: number;
+  three: number;
+  two: number;
+  one: number;
 }
 
 export interface GetMoverReviewsInput {
@@ -50,6 +57,25 @@ export interface DeleteReviewInput {
   customerId: string;
   reviewId: number;
 }
+
+type MoverReviewListItem = {
+  id: number;
+  rating: number;
+  content: string;
+  createdAt: Date;
+  customer: {
+    id: string;
+    name: string;
+  };
+};
+
+type GetMoverReviewsResult = {
+  reviews: MoverReviewListItem[];
+  meta: {
+    pagination: ReviewPaginationMeta;
+    ratingStatistics: ReviewRatingStatistics;
+  };
+};
 
 // TODO: DTO 정의 후 반환 타입 구체화
 type ReviewListResult = {
@@ -98,10 +124,45 @@ const assertReviewWritable = (
 };
 
 export const getMoverReviews = async (
-  _input: GetMoverReviewsInput
-): Promise<ReviewListResult> => {
-  // TODO: implement
-  throw new Error('Not implemented');
+  input: GetMoverReviewsInput
+): Promise<GetMoverReviewsResult> => {
+  const { moverId, page, limit } = input;
+
+  const [listResult, stats] = await Promise.all([
+    reviewRepository.getReviewsByMoverId(moverId, { page, limit }),
+    reviewRepository.getReviewStatsByMoverId(moverId),
+  ]);
+
+  const reviews: MoverReviewListItem[] = listResult.items.map((review) => ({
+    id: review.id,
+    rating: review.rating,
+    content: review.content,
+    createdAt: review.createdAt,
+    customer: {
+      id: review.user.id,
+      name: review.user.name,
+    },
+  }));
+
+  return {
+    reviews,
+    meta: {
+      pagination: {
+        currentPage: page,
+        pageSize: limit,
+        totalCount: listResult.totalCount,
+        hasNextPage: page * limit < listResult.totalCount,
+      },
+      ratingStatistics: {
+        average: stats.averageRating ?? 0,
+        five: stats.ratingCounts[5],
+        four: stats.ratingCounts[4],
+        three: stats.ratingCounts[3],
+        two: stats.ratingCounts[2],
+        one: stats.ratingCounts[1],
+      },
+    },
+  };
 };
 
 export const getCustomerWritableQuotes = async (

@@ -118,10 +118,8 @@ const moversService = {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
-    const [reviewStats, reviews] = await Promise.all([
-      reviewRepository.getReviewStatsByMoverId(moverId),
-      reviewRepository.getReviewsByMoverId(moverId),
-    ]);
+    const reviewStats =
+      await reviewRepository.getReviewStatsByMoverId(moverId);
 
     return {
       data: {
@@ -130,7 +128,6 @@ const moversService = {
           user: mapUserProfileImage(moverDetail.user),
         },
         reviewStats,
-        reviews,
       },
     };
   },

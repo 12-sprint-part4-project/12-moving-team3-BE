@@ -48,7 +48,7 @@ export const getMoverReviews = async (
     });
 
     res.status(200).json({
-      data: { items: result.items },
+      data: { reviews: result.reviews },
       meta: result.meta,
     });
   } catch (error) {
