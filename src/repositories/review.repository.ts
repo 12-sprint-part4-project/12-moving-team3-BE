@@ -3,6 +3,12 @@ import { prisma } from '../lib/prisma';
 
 export type ReviewTransactionClient = Prisma.TransactionClient;
 
+/** 리뷰 목록 페이지네이션 파라미터 */
+export interface ReviewPaginationParams {
+  page: number;
+  limit: number;
+}
+
 const reviewDetailSelect = {
   id: true,
   quoteId: true,
@@ -17,7 +23,7 @@ const reviewRepository = {
    */
   getReviewsByMoverId: async (
     moverId: string,
-    params: { page: number; limit: number },
+    params: ReviewPaginationParams,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
@@ -58,7 +64,7 @@ const reviewRepository = {
    */
   getReviewsByCustomerId: async (
     customerId: string,
-    params: { page: number; limit: number },
+    params: ReviewPaginationParams,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
