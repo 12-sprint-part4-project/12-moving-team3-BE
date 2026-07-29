@@ -2,7 +2,9 @@ import { PostsCategory, Region } from '@prisma/client';
 import { z } from 'zod';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
+  MAX_IMAGE_FILE_SIZE,
   POST_IMAGE_KEY_PREFIX,
+  POST_IMAGE_UUID_REGEX,
 } from '../constants/image.constants';
 
 export const POST_SORT_VALUES = [
@@ -41,11 +43,15 @@ const postImageKeySchema = z
   .string()
   .min(1)
   .refine(
-    (key) =>
-      key.startsWith(POST_IMAGE_KEY_PREFIX) &&
-      key.length > POST_IMAGE_KEY_PREFIX.length &&
-      !key.slice(POST_IMAGE_KEY_PREFIX.length).includes('/'),
-    { message: 'imageKey는 posts/ 로 시작하는 유효한 경로여야 합니다.' }
+    (key) => {
+      if (!key.startsWith(POST_IMAGE_KEY_PREFIX)) {
+        return false;
+      }
+
+      const uuid = key.slice(POST_IMAGE_KEY_PREFIX.length);
+      return POST_IMAGE_UUID_REGEX.test(uuid);
+    },
+    { message: 'imageKey는 posts/{uuid} 형식이어야 합니다.' }
   );
 
 /** 게시글 생성 요청 바디 */
@@ -92,8 +98,12 @@ export const createCommentBodySchema = z.object({
 export type CreateCommentBody = z.infer<typeof createCommentBodySchema>;
 
 export const presignedUrlBodySchema = z.object({
-  filename: z.string().min(1),
   contentType: z.enum(ALLOWED_IMAGE_MIME_TYPES),
+  contentLength: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_IMAGE_FILE_SIZE),
 });
 
 export type PresignedUrlBody = z.infer<typeof presignedUrlBodySchema>;

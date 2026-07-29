@@ -63,7 +63,7 @@ export const createReply = async (
   );
 
   if (!reply) {
-    throw new AppError('POST_NOT_FOUND');
+    throw new AppError('COMMENT_NOT_FOUND');
   }
 
   return { id: reply.id };

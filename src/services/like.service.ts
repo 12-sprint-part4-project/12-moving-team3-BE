@@ -50,5 +50,9 @@ export const deleteLike = async (postId: number, userId: string) => {
     throw new AppError('LIKE_NOT_FOUND');
   }
 
-  await likeRepository.deleteLike(postId, userId);
+  const result = await likeRepository.deleteLike(postId, userId);
+
+  if (!result.deleted) {
+    throw new AppError('LIKE_NOT_FOUND');
+  }
 };

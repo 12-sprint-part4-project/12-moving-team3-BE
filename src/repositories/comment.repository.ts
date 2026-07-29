@@ -16,6 +16,17 @@ export const createComment = async (
   parentId?: number
 ) => {
   return prisma.$transaction(async (tx) => {
+    if (parentId != null) {
+      const parent = await tx.comment.findFirst({
+        where: { id: parentId, postId, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!parent) {
+        return null;
+      }
+    }
+
     const postResult = await tx.post.updateMany({
       where: { id: postId, deletedAt: null },
       data: { commentCount: { increment: 1 } },

@@ -11,57 +11,7 @@ import type {
   UpdatePostBody,
 } from '../schemas/post.schema';
 import * as postService from '../services/post.service';
-import { AppError } from '../utils/app.error';
-
-const getValidatedListQuery = (res: Response): PostListQuery => {
-  const query = res.locals.validated?.query;
-
-  if (query == null || typeof query !== 'object') {
-    throw new AppError('INVALID_QUERY_PARAM');
-  }
-
-  return query as PostListQuery;
-};
-
-const getValidatedParams = (res: Response): PostIdParams => {
-  const params = res.locals.validated?.params;
-
-  if (params == null || typeof params !== 'object') {
-    throw new AppError('INVALID_REQUEST');
-  }
-
-  return params as PostIdParams;
-};
-
-const getValidatedCreateBody = (res: Response): CreatePostBody => {
-  const body = res.locals.validated?.body;
-
-  if (body == null || typeof body !== 'object') {
-    throw new AppError('INVALID_REQUEST');
-  }
-
-  return body as CreatePostBody;
-};
-
-const getValidatedUpdateBody = (res: Response): UpdatePostBody => {
-  const body = res.locals.validated?.body;
-
-  if (body == null || typeof body !== 'object') {
-    throw new AppError('INVALID_REQUEST');
-  }
-
-  return body as UpdatePostBody;
-};
-
-const getValidatedPresignedUrlBody = (res: Response): PresignedUrlBody => {
-  const body = res.locals.validated?.body;
-
-  if (body == null || typeof body !== 'object') {
-    throw new AppError('INVALID_REQUEST');
-  }
-
-  return body as PresignedUrlBody;
-};
+import { getValidated } from '../utils/validated.util';
 
 /** GET /api/posts — 게시글 목록 조회 */
 export const getPosts = async (
@@ -71,7 +21,7 @@ export const getPosts = async (
 ) => {
   try {
     const userId = getOptionalAuthenticatedUser(res)?.userId;
-    const query = getValidatedListQuery(res);
+    const query = getValidated<PostListQuery>(res, 'query');
     const result = await postService.getPosts(query, userId);
 
     res.status(200).json({
@@ -91,7 +41,7 @@ export const getPostById = async (
 ) => {
   try {
     const userId = getOptionalAuthenticatedUser(res)?.userId;
-    const { postId } = getValidatedParams(res);
+    const { postId } = getValidated<PostIdParams>(res, 'params');
     const result = await postService.getPostById(postId, userId);
 
     res.status(200).json({ data: result });
@@ -108,7 +58,7 @@ export const createPost = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const body = getValidatedCreateBody(res);
+    const body = getValidated<CreatePostBody>(res, 'body');
     const result = await postService.createPost(userId, body);
 
     res.status(201).json({ data: result });
@@ -125,8 +75,8 @@ export const updatePost = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const { postId } = getValidatedParams(res);
-    const body = getValidatedUpdateBody(res);
+    const { postId } = getValidated<PostIdParams>(res, 'params');
+    const body = getValidated<UpdatePostBody>(res, 'body');
     const result = await postService.updatePost(postId, userId, body);
 
     res.status(200).json({ data: result });
@@ -144,8 +94,12 @@ export const getPresignedUrl = async (
   try {
     getAuthenticatedUser(res);
 
-    const { contentType } = getValidatedPresignedUrlBody(res);
-    const result = await postService.getPresignedUrl(contentType);
+    const { contentType, contentLength } =
+      getValidated<PresignedUrlBody>(res, 'body');
+    const result = await postService.getPresignedUrl(
+      contentType,
+      contentLength
+    );
 
     res.status(200).json({ data: result });
   } catch (error) {
@@ -161,7 +115,7 @@ export const deletePost = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const { postId } = getValidatedParams(res);
+    const { postId } = getValidated<PostIdParams>(res, 'params');
     await postService.deletePost(postId, userId);
 
     res.status(204).send();

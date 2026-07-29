@@ -27,16 +27,22 @@ export const createLike = async (postId: number, userId: string) => {
   });
 };
 
-/** 좋아요 삭제 + likeCount 감소 (트랜잭션) */
+/** 좋아요 삭제 + likeCount 감소 (트랜잭션). 삭제된 row가 없으면 deleted: false. */
 export const deleteLike = async (postId: number, userId: string) => {
   return prisma.$transaction(async (tx) => {
-    await tx.postLike.delete({
-      where: { postId_userId: { postId, userId } },
+    const deleteResult = await tx.postLike.deleteMany({
+      where: { postId, userId },
     });
+
+    if (deleteResult.count === 0) {
+      return { deleted: false as const };
+    }
 
     await tx.post.updateMany({
       where: { id: postId, deletedAt: null },
       data: { likeCount: { decrement: 1 } },
     });
+
+    return { deleted: true as const };
   });
 };

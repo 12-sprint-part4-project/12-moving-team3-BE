@@ -167,15 +167,17 @@ router.get(
  *         application/json:
  *           schema:
  *             type: object
- *             required: [filename, contentType]
+ *             required: [contentType, contentLength]
  *             properties:
- *               filename:
- *                 type: string
- *                 description: 업로드할 파일명 (클라이언트 표시용, key 생성에는 사용하지 않음)
  *               contentType:
  *                 type: string
  *                 enum: [image/jpeg, image/png, image/webp]
  *                 description: 허용 MIME 타입
+ *               contentLength:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5242880
+ *                 description: 업로드할 파일 크기(바이트). Presigned URL 서명에 포함되며 PUT 요청 Content-Length와 일치해야 합니다.
  *     responses:
  *       200:
  *         description: Presigned URL 발급 성공
@@ -339,11 +341,11 @@ router.get(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned URL로 발급받은 posts/ prefix imageKey 목록
+ *                 description: presigned URL로 발급받은 posts/{uuid} 형식 imageKey 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
- *                   pattern: ^posts/[^/]+$
+ *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
  *               latitude:
  *                 type: number
  *                 minimum: -90
@@ -411,11 +413,11 @@ router.post(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned URL로 발급받은 posts/ prefix imageKey 목록
+ *                 description: presigned URL로 발급받은 posts/{uuid} 형식 imageKey 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
- *                   pattern: ^posts/[^/]+$
+ *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
  *     responses:
  *       200:
  *         description: 게시글 수정 성공
