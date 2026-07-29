@@ -12,6 +12,33 @@ export interface SaveMoverProfileInput {
   file?: Express.Multer.File;
 }
 
+export const getMoverProfile = async (userId: string) => {
+  const profile =
+    await moverProfileRepository.findMoverProfileDetailByUserId(userId);
+
+  // 프로필 행이 없거나 아직 등록(service)을 완료하지 않은 경우
+  if (!profile || profile.service.length === 0) {
+    throw new AppError('PROFILE_NOT_FOUND');
+  }
+
+  return {
+    profileId: profile.id,
+    userId: profile.user.id,
+    name: profile.user.name,
+    nickname: profile.user.nickname,
+    email: profile.user.email,
+    phoneNumber: profile.user.phoneNumber,
+    profileImageUrl: toProfileImageUrl(profile.user.profileImageKey),
+    career: profile.career,
+    shortDescription: profile.shortDescription,
+    description: profile.description,
+    service: profile.service,
+    serviceRegions: profile.serviceRegions.map((item) => item.region),
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+  };
+};
+
 export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
   const existingProfile = await moverProfileRepository.findMoverProfileByUserId(
     input.userId

@@ -1,9 +1,6 @@
 import { Router } from 'express';
 import * as estimateRequestController from '../controllers/estimate-request.controller';
-import {
-  allowUserTypes,
-  requireAuth,
-} from '../middlewares/auth.middleware';
+import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   estimateRequestIdParamsSchema,

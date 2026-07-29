@@ -651,7 +651,7 @@ paths:
                   value:
                     error:
                       code: ALREADY_CONFIRMED_REQUEST
-                      message: 이미 다른 견적으로 예약이 확정된 이사 요청입니다.
+                      message: 이미 예약이 확정된 이사 요청입니다.
         '500':
           description: 서버 내부 오류
           content:

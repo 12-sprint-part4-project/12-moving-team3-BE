@@ -16,6 +16,37 @@ export const findMoverProfileByUserId = async (userId: string) => {
   });
 };
 
+/** 본인 프로필 조회용 — User·serviceRegions 포함 */
+export const findMoverProfileDetailByUserId = async (userId: string) => {
+  return prisma.moverProfile.findUnique({
+    where: { userId },
+    select: {
+      id: true,
+      service: true,
+      career: true,
+      shortDescription: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+      serviceRegions: {
+        select: {
+          region: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          nickname: true,
+          email: true,
+          phoneNumber: true,
+          profileImageKey: true,
+        },
+      },
+    },
+  });
+};
+
 export interface SaveMoverProfileInput {
   userId: string;
   nickname: string;

@@ -12,6 +12,14 @@ import {
 
 const router = Router();
 
+// 일반 유저 본인 프로필 조회 (Swagger: src/docs/customer-profile.swagger.yaml)
+router.get(
+  '/profile',
+  requireAuth,
+  allowUserTypes('CUSTOMER'),
+  customerProfileController.getCustomerProfile
+);
+
 // 일반 유저 프로필 등록 (Swagger: src/docs/customer-profile.swagger.yaml)
 router.patch(
   '/profile',
@@ -55,6 +63,18 @@ router.get(
     errorCode: 'INVALID_REQUEST',
   }),
   quoteController.getCustomerQuoteDetail
+);
+
+// 견적 확정하기 (Swagger: src/docs/customer-quote.swagger.yaml)
+router.patch(
+  '/quotes/:quoteId',
+  requireAuth,
+  allowUserTypes('CUSTOMER'),
+  validateRequest({
+    params: quoteIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  quoteController.confirmQuote
 );
 
 export default router;
