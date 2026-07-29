@@ -1,13 +1,12 @@
 import * as favoriteRepository from '../repositories/favorite.repository';
 import { findUserById } from '../repositories/user.repository';
 import { AppError } from '../utils/app.error';
+import { Prisma } from '@prisma/client';
 
 const isUniqueConstraintError = (error: unknown): boolean => {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code: string }).code === 'P2002'
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
   );
 };
 
