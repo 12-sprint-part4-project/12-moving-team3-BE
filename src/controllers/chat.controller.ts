@@ -98,6 +98,24 @@ export const markChatRoomAsRead = async (_req: Request, res: Response) => {
   res.status(200).json({ data });
 };
 
+/**
+ * POST /api/chat/rooms/:roomId/leave — 채팅방 나가기 요청을 처리한다.
+ */
+export const leaveChatRoom = async (_req: Request, res: Response) => {
+  const authUser = getAuthenticatedUser(res);
+
+  const validated = res.locals.validated as ValidatedLocals | undefined;
+  const roomId = validated?.params?.roomId;
+
+  if (roomId === undefined) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const data = await chatService.leaveChatRoom(authUser, roomId);
+
+  res.status(200).json({ data });
+};
+
 /** POST /api/chat/rooms — 채팅방 생성 요청을 처리한다. */
 export const createChatRoom = async (req: Request, res: Response) => {
   const authUser = getAuthenticatedUser(res);
