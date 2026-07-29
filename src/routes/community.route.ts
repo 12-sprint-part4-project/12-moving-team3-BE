@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as likeController from '../controllers/like.controller';
 import * as postController from '../controllers/post.controller';
 import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
@@ -477,6 +478,81 @@ router.delete(
   requireAuth,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   postController.deletePost
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/likes:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 게시글 좋아요 추가
+ *     description: 로그인한 사용자가 게시글에 좋아요를 추가합니다. 이미 좋아요한 경우 409를 반환합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       201:
+ *         description: 좋아요 추가 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   nullable: true
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *   delete:
+ *     tags: [Posts]
+ *     summary: 게시글 좋아요 취소
+ *     description: 로그인한 사용자가 게시글 좋아요를 취소합니다. 좋아요 기록이 없으면 404를 반환합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 좋아요 취소 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/likes',
+  requireAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  likeController.createLike
+);
+
+router.delete(
+  '/:postId/likes',
+  requireAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  likeController.deleteLike
 );
 
 export default router;
