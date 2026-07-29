@@ -1,6 +1,16 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
+export type ReviewTransactionClient = Prisma.TransactionClient;
+
+const reviewDetailSelect = {
+  id: true,
+  quoteId: true,
+  rating: true,
+  content: true,
+  createdAt: true,
+} satisfies Prisma.ReviewSelect;
+
 const reviewRepository = {
   getReviewsByMoverId: async (
     moverId: string,
@@ -77,6 +87,119 @@ const reviewRepository = {
       totalCount,
       averageRating,
     };
+  },
+
+  /**
+   * userId+quoteId unique 기준 리뷰 조회 (soft-delete 포함)
+   * 동시성: unique 충돌 전 사전 확인 및 삭제된 리뷰 재작성 차단용
+   */
+  findReviewByUserAndQuote: async (
+    userId: string,
+    quoteId: number,
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+
+    return dbClient.review.findUnique({
+      where: {
+        userId_quoteId: {
+          userId,
+          quoteId,
+        },
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+  },
+
+  /** 리뷰 생성 (권한·중복 검증은 service에서 처리) */
+  createReview: async (
+    data: {
+      userId: string;
+      quoteId: number;
+      rating: number;
+      content: string;
+    },
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+
+    return dbClient.review.create({
+      data: {
+        userId: data.userId,
+        quoteId: data.quoteId,
+        rating: data.rating,
+        content: data.content,
+      },
+      select: reviewDetailSelect,
+    });
+  },
+
+  /** 활성 리뷰 단건 조회 (삭제된 리뷰 제외) */
+  findActiveReviewById: async (
+    reviewId: number,
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+
+    return dbClient.review.findFirst({
+      where: {
+        id: reviewId,
+        deletedAt: null,
+      },
+      select: {
+        ...reviewDetailSelect,
+        userId: true,
+      },
+    });
+  },
+
+  /**
+   * 본인 활성 리뷰 수정
+   * id + userId + deletedAt null 조건으로 소유권·삭제 여부를 함께 보장
+   */
+  updateReview: async (
+    data: {
+      reviewId: number;
+      userId: string;
+      rating: number;
+      content: string;
+    },
+    tx?: Prisma.TransactionClient
+  ) => {
+    const dbClient = tx ?? prisma;
+    const where = {
+      id: data.reviewId,
+      userId: data.userId,
+      deletedAt: null,
+    };
+
+    const result = await dbClient.review.updateMany({
+      where,
+      data: {
+        rating: data.rating,
+        content: data.content,
+        updatedAt: new Date(),
+      },
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return dbClient.review.findFirst({
+      where,
+      select: reviewDetailSelect,
+    });
+  },
+
+  /** 리뷰 생성용 트랜잭션 래퍼 */
+  runInTransaction: async <T>(
+    handler: (tx: ReviewTransactionClient) => Promise<T>
+  ): Promise<T> => {
+    return prisma.$transaction(async (tx) => handler(tx));
   },
 };
 

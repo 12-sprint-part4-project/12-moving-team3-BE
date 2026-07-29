@@ -665,3 +665,45 @@ export const findCustomerQuoteById = async (
 
   return quote;
 };
+
+/* 리뷰에서 필요해서 추가한 함수들! */
+/** 리뷰 작성 검증용 견적 조회 결과 */
+export interface QuoteForReviewCreate {
+  id: number;
+  status: QuoteStatus;
+  estimateRequest: {
+    userId: string;
+    status: EstimateRequestStatus;
+    moveDate: Date | null;
+    confirmedQuoteId: number | null;
+  };
+}
+
+/**
+ * 리뷰 작성 검증용 견적 조회 (삭제된 견적 제외)
+ */
+export const findQuoteForReviewCreate = async (
+  quoteId: number,
+  tx?: Prisma.TransactionClient
+): Promise<QuoteForReviewCreate | null> => {
+  const dbClient = tx ?? prisma;
+
+  return dbClient.quote.findFirst({
+    where: {
+      id: quoteId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      status: true,
+      estimateRequest: {
+        select: {
+          userId: true,
+          status: true,
+          moveDate: true,
+          confirmedQuoteId: true,
+        },
+      },
+    },
+  });
+};
