@@ -1,0 +1,762 @@
+components:
+  schemas:
+    ReviewPaginationMeta:
+      type: object
+      properties:
+        currentPage:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 6
+        totalCount:
+          type: integer
+          example: 12
+        hasNextPage:
+          type: boolean
+          example: true
+
+    ReviewRatingStatistics:
+      type: object
+      description: 기사님 전체 활성 리뷰 기준 평점 통계 (페이지와 무관)
+      properties:
+        average:
+          type: number
+          format: float
+          example: 4.5
+          description: 평균 평점 (소수 1자리, 리뷰 없으면 0)
+        five:
+          type: integer
+          example: 10
+        four:
+          type: integer
+          example: 3
+        three:
+          type: integer
+          example: 1
+        two:
+          type: integer
+          example: 0
+        one:
+          type: integer
+          example: 0
+
+    ReviewBody:
+      type: object
+      required: [rating, content]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+          description: 평점 (1~5 정수)
+        content:
+          type: string
+          minLength: 10
+          maxLength: 600
+          example: 이사 당일 시간 약속 잘 지켜주시고 짐도 꼼꼼히 옮겨주셨어요.
+          description: 리뷰 내용 (10~600자, trim 적용)
+
+    ReviewDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        quoteId:
+          type: integer
+          example: 42
+        rating:
+          type: integer
+          example: 5
+        content:
+          type: string
+          example: 이사 당일 시간 약속 잘 지켜주시고 짐도 꼼꼼히 옮겨주셨어요.
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-07-20T12:00:00.000Z'
+
+    MoverReviewItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        rating:
+          type: integer
+          example: 5
+        content:
+          type: string
+          example: 친절하고 꼼꼼했어요.
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-07-20T12:00:00.000Z'
+        customer:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+            name:
+              type: string
+              example: 김고객
+
+    CustomerReviewItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        rating:
+          type: integer
+          example: 5
+        content:
+          type: string
+          example: 친절하고 꼼꼼했어요.
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-07-20T12:00:00.000Z'
+        mover:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            name:
+              type: string
+              example: 이사맨
+            profileImageUrl:
+              type: string
+              nullable: true
+              example: https://cdn.example.com/profiles/mover-12.jpg
+        quote:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+              example: 42
+            moveType:
+              type: string
+              enum: [SMALL, HOME, OFFICE]
+              nullable: true
+              example: HOME
+            moveDate:
+              type: string
+              format: date
+              nullable: true
+              example: '2026-07-15'
+              description: YYYY-MM-DD
+            price:
+              type: integer
+              nullable: true
+              example: 150000
+            isDesignated:
+              type: boolean
+              example: false
+
+    WritableQuoteItem:
+      type: object
+      properties:
+        quoteId:
+          type: integer
+          example: 42
+          description: 리뷰 등록 API path의 quoteId로 사용
+        moveType:
+          type: string
+          enum: [SMALL, HOME, OFFICE]
+          nullable: true
+          example: HOME
+        isDesignated:
+          type: boolean
+          example: true
+        moveDate:
+          type: string
+          format: date
+          nullable: true
+          example: '2026-07-15'
+        price:
+          type: integer
+          nullable: true
+          example: 180000
+        mover:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+            name:
+              type: string
+              example: 이사맨
+            profileImageUrl:
+              type: string
+              nullable: true
+              example: https://cdn.example.com/profiles/mover-12.jpg
+
+paths:
+  /api/review/mover:
+    get:
+      tags: [Review]
+      summary: 기사님 리뷰 목록 조회
+      description: |
+        로그인한 기사님(MOVER)에게 달린 활성 리뷰를 최신순으로 조회합니다.
+        meta.ratingStatistics는 전체 활성 리뷰 기준 통계이며, 현재 페이지와 무관합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 페이지 번호 (1부터)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: 페이지당 개수 (최대 6)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 6
+            default: 6
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      reviews:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MoverReviewItem'
+                  meta:
+                    type: object
+                    properties:
+                      pagination:
+                        $ref: '#/components/schemas/ReviewPaginationMeta'
+                      ratingStatistics:
+                        $ref: '#/components/schemas/ReviewRatingStatistics'
+              example:
+                data:
+                  reviews:
+                    - id: 1
+                      rating: 5
+                      content: 친절하고 꼼꼼했어요.
+                      createdAt: '2026-07-20T12:00:00.000Z'
+                      customer:
+                        id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                        name: 김고객
+                meta:
+                  pagination:
+                    currentPage: 1
+                    pageSize: 6
+                    totalCount: 1
+                    hasNextPage: false
+                  ratingStatistics:
+                    average: 5
+                    five: 1
+                    four: 0
+                    three: 0
+                    two: 0
+                    one: 0
+        '400':
+          description: 쿼리 파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_QUERY_PARAM
+                  message: 유효하지 않은 요청 파라미터입니다.
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: MOVER가 아닌 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+
+  /api/review/customer/writable:
+    get:
+      tags: [Review]
+      summary: 리뷰 작성 가능한 견적 목록 조회
+      description: |
+        로그인한 고객(CUSTOMER)이 리뷰를 작성할 수 있는 확정 견적 목록을 조회합니다.
+
+        작성 가능 조건 (리뷰 등록 API와 동일):
+        - 견적이 CONFIRMED 이고, 해당 견적 요청의 confirmedQuote 와 일치
+        - 견적 요청이 COMPLETED 이거나 이사일 당일(포함) 이후
+        - 해당 견적에 soft-delete 포함 기존 리뷰가 없음
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 6
+            default: 6
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      writableQuotes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WritableQuoteItem'
+                  meta:
+                    type: object
+                    properties:
+                      pagination:
+                        $ref: '#/components/schemas/ReviewPaginationMeta'
+              example:
+                data:
+                  writableQuotes:
+                    - quoteId: 42
+                      moveType: HOME
+                      isDesignated: true
+                      moveDate: '2026-07-15'
+                      price: 180000
+                      mover:
+                        id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                        name: 이사맨
+                        profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
+                meta:
+                  pagination:
+                    currentPage: 1
+                    pageSize: 6
+                    totalCount: 1
+                    hasNextPage: false
+        '400':
+          description: 쿼리 파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_QUERY_PARAM
+                  message: 유효하지 않은 요청 파라미터입니다.
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: CUSTOMER가 아닌 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+
+  /api/review/customer:
+    get:
+      tags: [Review]
+      summary: 고객 작성 리뷰 목록 조회
+      description: |
+        로그인한 고객(CUSTOMER)이 작성한 활성 리뷰를 최신순으로 조회합니다.
+        연결된 기사·견적 정보가 함께 포함됩니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 6
+            default: 6
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      reviews:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CustomerReviewItem'
+                  meta:
+                    type: object
+                    properties:
+                      pagination:
+                        $ref: '#/components/schemas/ReviewPaginationMeta'
+              example:
+                data:
+                  reviews:
+                    - id: 1
+                      rating: 5
+                      content: 친절하고 꼼꼼했어요.
+                      createdAt: '2026-07-20T12:00:00.000Z'
+                      mover:
+                        id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                        name: 이사맨
+                        profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
+                      quote:
+                        id: 42
+                        moveType: HOME
+                        moveDate: '2026-07-15'
+                        price: 150000
+                        isDesignated: false
+                meta:
+                  pagination:
+                    currentPage: 1
+                    pageSize: 6
+                    totalCount: 1
+                    hasNextPage: false
+        '400':
+          description: 쿼리 파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_QUERY_PARAM
+                  message: 유효하지 않은 요청 파라미터입니다.
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: CUSTOMER가 아닌 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+
+  /api/review/quotes/{quoteId}:
+    post:
+      tags: [Review]
+      summary: 리뷰 등록
+      description: |
+        확정 견적에 대해 고객이 리뷰를 작성합니다.
+        작성 가능 조건은 GET /api/review/customer/writable 과 동일합니다.
+        soft-delete된 리뷰가 있어도 같은 견적에는 재작성할 수 없습니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          description: 리뷰를 작성할 견적 ID
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewBody'
+            example:
+              rating: 5
+              content: 이사 당일 시간 약속 잘 지켜주시고 짐도 꼼꼼히 옮겨주셨어요.
+      responses:
+        '201':
+          description: 등록 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ReviewDetail'
+              example:
+                data:
+                  id: 1
+                  quoteId: 42
+                  rating: 5
+                  content: 이사 당일 시간 약속 잘 지켜주시고 짐도 꼼꼼히 옮겨주셨어요.
+                  createdAt: '2026-07-20T12:00:00.000Z'
+        '400':
+          description: 요청 본문/파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST_BODY
+                  message: 요청 본문 형식이 올바르지 않습니다.
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: CUSTOMER가 아니거나, 본인 견적이 아님
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                userTypeForbidden:
+                  summary: 유저 타입 불일치
+                  value:
+                    error:
+                      code: USER_TYPE_FORBIDDEN
+                      message: 접근 권한이 없습니다.
+                reviewForbidden:
+                  summary: 타인 견적
+                  value:
+                    error:
+                      code: REVIEW_FORBIDDEN
+                      message: 본인 견적에만 리뷰를 작성할 수 있습니다.
+        '404':
+          description: 견적 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: QUOTE_NOT_FOUND
+                  message: 존재하지 않거나 삭제된 견적서입니다.
+        '409':
+          description: 작성 불가 상태 또는 이미 작성함
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notWritable:
+                  summary: 작성 가능 조건 미충족
+                  value:
+                    error:
+                      code: REVIEW_NOT_WRITABLE
+                      message: 리뷰를 작성할 수 없는 견적입니다.
+                alreadyExists:
+                  summary: 이미 작성한 리뷰
+                  value:
+                    error:
+                      code: REVIEW_ALREADY_EXISTS
+                      message: 이미 작성한 리뷰가 있습니다.
+
+  /api/review/{reviewId}:
+    patch:
+      tags: [Review]
+      summary: 리뷰 수정
+      description: |
+        본인이 작성한 활성 리뷰의 rating·content를 수정합니다.
+        rating, content 모두 필수입니다.
+        존재하지 않거나 삭제됐거나 타인의 리뷰이면 REVIEW_NOT_FOUND(404)를 반환합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewBody'
+            example:
+              rating: 4
+              content: 전반적으로 만족스러웠지만 도착이 조금 늦었어요.
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ReviewDetail'
+              example:
+                data:
+                  id: 1
+                  quoteId: 42
+                  rating: 4
+                  content: 전반적으로 만족스러웠지만 도착이 조금 늦었어요.
+                  createdAt: '2026-07-20T12:00:00.000Z'
+        '400':
+          description: 요청 본문/파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST_BODY
+                  message: 요청 본문 형식이 올바르지 않습니다.
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: CUSTOMER가 아닌 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '404':
+          description: 리뷰 없음·삭제됨·타인 소유
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: REVIEW_NOT_FOUND
+                  message: 존재하지 않는 리뷰입니다.
+
+    delete:
+      tags: [Review]
+      summary: 리뷰 삭제 (소프트 딜리트)
+      description: |
+        본인이 작성한 활성 리뷰를 soft delete 합니다 (deletedAt 설정).
+        성공 시 본문 없이 204를 반환합니다.
+        존재하지 않거나 이미 삭제됐거나 타인의 리뷰이면 REVIEW_NOT_FOUND(404)를 반환합니다.
+        soft-delete 이후 같은 견적에 리뷰를 다시 작성할 수 없습니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '204':
+          description: 삭제 성공 (응답 본문 없음)
+        '400':
+          description: path 파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: 요청 형식이 올바르지 않습니다.
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: CUSTOMER가 아닌 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '404':
+          description: 리뷰 없음·삭제됨·타인 소유
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: REVIEW_NOT_FOUND
+                  message: 존재하지 않는 리뷰입니다.
