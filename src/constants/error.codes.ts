@@ -29,7 +29,7 @@ export const ERROR_CODES = {
   },
   UNAUTHORIZED: {
     status: 401,
-    message: '로그인이 필요합니다.',
+    message: '로그인이 필요한 기능입니다.',
   },
   ESTIMATE_REQUEST_NOT_FOUND: {
     status: 404,
@@ -45,7 +45,7 @@ export const ERROR_CODES = {
   },
   FORBIDDEN: {
     status: 403,
-    message: '해당 기능에 접근할 수 없습니다.',
+    message: '기사님은 찜 기능을 사용할 수 없습니다.',
   },
   VALIDATION_ERROR: {
     status: 400,
@@ -229,6 +229,10 @@ export const ERROR_CODES = {
   ROOM_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 채팅방입니다.',
+  },
+  MESSAGE_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 메시지입니다.',
   },
   MESSAGING_NOT_ALLOWED: {
     status: 403,

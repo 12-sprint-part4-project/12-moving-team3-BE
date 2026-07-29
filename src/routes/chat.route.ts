@@ -6,6 +6,7 @@ import {
   chatRoomIdParamsSchema,
   createChatRoomBodySchema,
   getChatMessagesQuerySchema,
+  markChatRoomAsReadBodySchema,
   sendChatMessageBodySchema,
 } from '../schemas/chat.schema';
 
@@ -281,6 +282,78 @@ router.post(
     errorCode: 'INVALID_REQUEST',
   }),
   chatController.sendChatMessage
+);
+
+/**
+ * @swagger
+ * /api/chat/rooms/{roomId}/read:
+ *   post:
+ *     tags: [Chat]
+ *     summary: 채팅방 읽음 처리
+ *     description: |
+ *       마지막으로 읽은 메시지(`lastReadMessageId`)를 기준으로 읽음 상태를 갱신합니다.
+ *       활성 참여자만 처리할 수 있으며, 해당 방·재참여(joinedAt) 이후 메시지만 유효합니다.
+ *       이미 더 앞선 메시지를 읽은 경우 현재 읽음 위치를 그대로 반환합니다(전진만 허용).
+ *       소켓 브로드캐스트는 이번 범위에 포함되지 않습니다.
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: 채팅방 ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [lastReadMessageId]
+ *             properties:
+ *               lastReadMessageId:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: 마지막으로 읽은 메시지 ID
+ *           example:
+ *             lastReadMessageId: 42
+ *     responses:
+ *       200:
+ *         description: 읽음 처리 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     lastReadMessageId:
+ *                       type: integer
+ *                       description: 반영된 마지막 읽음 메시지 ID
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/rooms/:roomId/read',
+  requireAuth,
+  validateRequest({
+    params: chatRoomIdParamsSchema,
+    body: markChatRoomAsReadBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  chatController.markChatRoomAsRead
 );
 
 /**

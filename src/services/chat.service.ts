@@ -11,6 +11,7 @@ import * as chatRepository from '../repositories/chat.repository';
 import type {
   CreateChatRoomBody,
   GetChatMessagesQuery,
+  MarkChatRoomAsReadBody,
   SendChatMessageBody,
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
@@ -88,6 +89,10 @@ interface ChatMessagesMeta {
 interface ChatMessagesResult {
   data: ChatMessagesData;
   meta: ChatMessagesMeta;
+}
+
+interface MarkChatRoomAsReadResult {
+  lastReadMessageId: number;
 }
 
 /** Date를 ISO 8601 문자열로 변환한다. */
@@ -575,5 +580,50 @@ export const sendChatMessage = async (
     attachments: message.attachments.map((attachment) => attachment.fileKey),
     createdAt: toIsoString(message.createdAt),
   };
+};
+
+/**
+ * 채팅방 읽음 상태를 갱신한다.
+ * - 활성 참여자만 처리 가능
+ * - lastReadMessageId는 해당 방·joinedAt 이후 메시지여야 함
+ * - 방-참여자당 1건만 유지하며, 전진만 허용(원자적 갱신)
+ */
+export const markChatRoomAsRead = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  body: MarkChatRoomAsReadBody
+): Promise<MarkChatRoomAsReadResult> => {
+  const room = await chatRepository.findRoomById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const participation = await chatRepository.findActiveParticipation(
+    roomId,
+    authUser.userId
+  );
+
+  if (!participation) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  const message = await chatRepository.findMessageInRoomAfterJoinedAt({
+    roomId,
+    messageId: body.lastReadMessageId,
+    joinedAt: participation.joinedAt,
+  });
+
+  if (!message) {
+    throw new AppError('MESSAGE_NOT_FOUND');
+  }
+
+  const readStatus = await chatRepository.advanceReadStatus({
+    roomId,
+    readerId: authUser.userId,
+    lastReadMessageId: body.lastReadMessageId,
+  });
+
+  return { lastReadMessageId: readStatus.lastReadMessageId };
 };
 
