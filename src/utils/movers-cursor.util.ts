@@ -1,4 +1,4 @@
-import type { MoverListSort } from '../repositories/moverProfile.repository';
+import type { MoverListSort } from '../repositories/movers.repository';
 import { AppError } from './app.error';
 
 /** 기사 목록 커서 (정렬 기준값 + id) */

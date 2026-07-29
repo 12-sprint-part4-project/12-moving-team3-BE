@@ -10,6 +10,7 @@ import {
   SENT_QUOTE_STATUSES,
   type QuoteListStatus,
 } from '../schemas/quote.schema';
+import { startOfDayKst } from '../utils/date.util';
 
 // --- [기사님(MOVER)용 API] ---
 
@@ -695,8 +696,7 @@ export const findCustomerQuoteForConfirm = async (
     },
   });
 };
-
-/**
+/*
  * 견적·이사 요청 확정 상태 업데이트
  */
 export const confirmQuoteWithEstimateRequest = async (
@@ -727,4 +727,107 @@ export const confirmQuoteWithEstimateRequest = async (
   });
 
   return true;
+};
+
+/* 리뷰에서 필요해서 추가한 함수들! */
+/** 리뷰 작성 검증용 견적 조회 결과 */
+export interface QuoteForReviewCreate {
+  id: number;
+  status: QuoteStatus;
+  estimateRequest: {
+    userId: string;
+    status: EstimateRequestStatus;
+    moveDate: Date | null;
+    confirmedQuoteId: number | null;
+  };
+}
+
+/**
+ * 리뷰 작성 검증용 견적 조회 (삭제된 견적 제외)
+ */
+export const findQuoteForReviewCreate = async (
+  quoteId: number,
+  tx?: Prisma.TransactionClient
+): Promise<QuoteForReviewCreate | null> => {
+  const dbClient = tx ?? prisma;
+
+  return dbClient.quote.findFirst({
+    where: {
+      id: quoteId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      status: true,
+      estimateRequest: {
+        select: {
+          userId: true,
+          status: true,
+          moveDate: true,
+          confirmedQuoteId: true,
+        },
+      },
+    },
+  });
+};
+
+/**
+ * 고객이 리뷰 작성 가능한 확정 견적 목록 (페이지네이션)
+ * createReview 작성 가능 조건과 동일
+ */
+export const findWritableQuotesByCustomerId = async (
+  customerId: string,
+  params: { page: number; limit: number },
+  tx?: Prisma.TransactionClient
+) => {
+  const dbClient = tx ?? prisma;
+  const todayStart = startOfDayKst(new Date());
+  const skip = (params.page - 1) * params.limit;
+
+  const where: Prisma.QuoteWhereInput = {
+    deletedAt: null,
+    status: QuoteStatus.CONFIRMED,
+    confirmedForRequest: { isNot: null },
+    estimateRequest: {
+      userId: customerId,
+      OR: [
+        { status: EstimateRequestStatus.COMPLETED },
+        { moveDate: { lte: todayStart } },
+      ],
+    },
+    // create와 동일: soft-delete 포함 리뷰가 있으면 재작성 불가
+    reviews: {
+      none: { userId: customerId },
+    },
+  };
+
+  const [items, totalCount] = await Promise.all([
+    dbClient.quote.findMany({
+      where,
+      orderBy: [{ estimateRequest: { moveDate: 'desc' } }, { id: 'desc' }],
+      skip,
+      take: params.limit,
+      select: {
+        id: true,
+        price: true,
+        isDesignated: true,
+        mover: {
+          select: {
+            id: true,
+            name: true,
+            profileImageKey: true,
+          },
+        },
+        estimateRequest: {
+          select: {
+            moveType: true,
+            moveDate: true,
+          },
+        },
+      },
+    }),
+    dbClient.quote.count({ where }),
+  ]);
+
+  return { items, totalCount };
 };
