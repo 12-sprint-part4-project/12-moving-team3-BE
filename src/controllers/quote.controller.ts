@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import type {
+  PastQuotesQuery,
   QuoteBody,
   QuoteIdParams,
   QuoteListQuery,
@@ -23,17 +24,19 @@ const getValidatedParams = <T>(res: Response): T => {
 };
 
 /**
- * validateRequest 미들웨어가 남긴 쿼리 반환
+ * validateRequest 미들웨어가 남긴 query 반환
  */
-const getValidatedListQuery = (res: Response): QuoteListQuery => {
+const getValidatedQuery = <T>(res: Response): T => {
   const query = res.locals.validated?.query;
 
   if (query == null || typeof query !== 'object') {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  return query as QuoteListQuery;
+  return query as T;
 };
+
+// --- [기사님(MOVER)용 API] ---
 
 /**
  * 견적 보내기 / 반려하기 요청 처리
@@ -92,18 +95,86 @@ export const getQuotes = async (
 ) => {
   try {
     const { userId: moverId } = getAuthenticatedUser(res);
-    const query = getValidatedListQuery(res);
+    const query = getValidatedQuery<QuoteListQuery>(res);
 
     const result = await quoteService.getQuotes({
       moverId,
       ...query,
     });
 
-    // data.items / meta 분리 응답
     res.status(200).json({
       data: { items: result.items },
       meta: result.meta,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- [일반 유저(CUSTOMER)용 API] ---
+
+/**
+ * 대기 중인 견적 리스트 조회
+ */
+export const getCustomerPendingQuotes = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId: customerId } = getAuthenticatedUser(res);
+    const data = await quoteService.getCustomerPendingQuotes(customerId);
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 받았던 견적(과거) 리스트 조회
+ */
+export const getCustomerPastQuotes = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId: customerId } = getAuthenticatedUser(res);
+    const query = getValidatedQuery<PastQuotesQuery>(res);
+
+    const result = await quoteService.getCustomerPastQuotes({
+      customerId,
+      ...query,
+    });
+
+    res.status(200).json({
+      data: { items: result.items },
+      meta: result.meta,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 고객 견적 상세 조회
+ */
+export const getCustomerQuoteDetail = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId: customerId } = getAuthenticatedUser(res);
+    const { quoteId } = getValidatedParams<QuoteIdParams>(res);
+
+    const data = await quoteService.getCustomerQuoteDetail({
+      customerId,
+      quoteId,
+    });
+
+    res.status(200).json({ data });
   } catch (error) {
     next(error);
   }

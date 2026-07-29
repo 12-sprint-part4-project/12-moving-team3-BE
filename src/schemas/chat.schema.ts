@@ -25,3 +25,11 @@ export const getChatMessagesQuerySchema = z.object({
 });
 
 export type GetChatMessagesQuery = z.infer<typeof getChatMessagesQuerySchema>;
+
+/** POST /api/chat/rooms/:roomId/messages 요청 body 스키마 (TEXT만) */
+export const sendChatMessageBodySchema = z.object({
+  messageType: z.literal('TEXT'),
+  content: z.string().trim().min(1).max(2000),
+});
+
+export type SendChatMessageBody = z.infer<typeof sendChatMessageBodySchema>;

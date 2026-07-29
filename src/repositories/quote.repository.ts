@@ -1,7 +1,7 @@
 import {
+  EstimateRequestStatus,
   Prisma,
   QuoteStatus,
-  type EstimateRequestStatus,
   type MoveType,
   type Quote,
 } from '@prisma/client';
@@ -10,6 +10,8 @@ import {
   SENT_QUOTE_STATUSES,
   type QuoteListStatus,
 } from '../schemas/quote.schema';
+
+// --- [기사님(MOVER)용 API] ---
 
 /** 비관적 락으로 조회한 견적 요청 행 */
 export interface LockedEstimateRequest {
@@ -338,3 +340,328 @@ export async function findQuotesByMoverWithCount(
 
   return { items, totalCount };
 }
+
+// --- [일반 유저(CUSTOMER)용 API] ---
+
+/** 고객 견적에 포함되는 기사님 기본 정보 */
+export interface CustomerQuoteMoverRow {
+  id: string;
+  nickname: string;
+  profileImageKey: string | null;
+  career: number | null;
+  confirmedQuoteCount: number;
+  favoriteCount: number;
+  isFavorited: boolean;
+  ratingSum: number;
+  reviewCount: number;
+}
+
+/** 고객 견적 목록용 견적 행 */
+export interface CustomerQuoteRow {
+  id: number;
+  price: number | null;
+  status: QuoteStatus;
+  isDesignated: boolean;
+  moverId: string | null;
+}
+
+/** 대기 중 견적 요청 + 견적 목록 */
+export interface CustomerPendingEstimateRequestRow {
+  id: number;
+  status: EstimateRequestStatus;
+  moveType: MoveType | null;
+  moveDate: Date | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+  quotes: CustomerQuoteRow[];
+}
+
+/** 과거 견적 요청 그룹 행 */
+export interface CustomerPastEstimateRequestRow {
+  id: number;
+  submittedAt: Date | null;
+  moveType: MoveType | null;
+  moveDate: Date | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+  quotes: CustomerQuoteRow[];
+}
+
+/** 고객 견적 상세 행 */
+export interface CustomerQuoteDetailRow {
+  id: number;
+  estimateRequestId: number;
+  price: number | null;
+  comment: string | null;
+  status: QuoteStatus;
+  isDesignated: boolean;
+  moverId: string | null;
+  estimateRequest: {
+    moveType: MoveType | null;
+    moveDate: Date | null;
+    departureAddress: string | null;
+    arrivalAddress: string | null;
+  };
+}
+
+/** 과거 견적 목록 조회 파라미터 */
+export interface FindCustomerPastEstimateRequestsParams {
+  customerId: string;
+  cursor?: number;
+  limit: number;
+  estimateRequestId?: number;
+  estimateRequestStatuses: EstimateRequestStatus[];
+  quoteStatuses: QuoteStatus[];
+}
+
+/** 고객 견적 목록용 quote select (목록에는 comment 미포함) */
+const customerQuoteListSelect = {
+  id: true,
+  price: true,
+  status: true,
+  isDesignated: true,
+  moverId: true,
+} satisfies Prisma.QuoteSelect;
+
+/**
+ * 기사님별 리뷰 합계·건수를 DB에서 집계
+ */
+const aggregateReviewStatsByMoverIds = async (
+  moverIds: string[]
+): Promise<Map<string, { sum: number; count: number }>> => {
+  const rows = await prisma.$queryRaw<
+    Array<{ moverId: string; ratingSum: number; reviewCount: number }>
+  >`
+    SELECT
+      q.mover_id AS "moverId",
+      COALESCE(SUM(r.rating), 0)::float AS "ratingSum",
+      COUNT(r.id)::int AS "reviewCount"
+    FROM reviews r
+    INNER JOIN quotes q ON q.id = r.quote_id
+    WHERE q.mover_id IN (${Prisma.join(moverIds)})
+      AND r.deleted_at IS NULL
+      AND q.deleted_at IS NULL
+    GROUP BY q.mover_id
+  `;
+
+  return new Map(
+    rows.map((row) => [
+      row.moverId,
+      { sum: Number(row.ratingSum), count: Number(row.reviewCount) },
+    ])
+  );
+};
+
+/**
+ * 기사님 카드용 통계를 moverId 목록 기준 일괄 조회
+ */
+export const findMoverCardsByIds = async (
+  moverIds: string[],
+  customerId: string
+): Promise<Map<string, CustomerQuoteMoverRow>> => {
+  const uniqueMoverIds = [...new Set(moverIds.filter(Boolean))];
+  const result = new Map<string, CustomerQuoteMoverRow>();
+
+  if (uniqueMoverIds.length === 0) {
+    return result;
+  }
+
+  // 프로필·찜 통계와 리뷰 집계를 병렬 조회
+  const [movers, reviewAgg] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: uniqueMoverIds } },
+      select: {
+        id: true,
+        nickname: true,
+        profileImageKey: true,
+        moverProfile: { select: { career: true } },
+        favoritesAsMover: {
+          where: { userId: customerId },
+          select: { id: true },
+          take: 1,
+        },
+        _count: {
+          select: {
+            favoritesAsMover: true,
+            quotesAsMover: {
+              where: { status: QuoteStatus.CONFIRMED, deletedAt: null },
+            },
+          },
+        },
+      },
+    }),
+    aggregateReviewStatsByMoverIds(uniqueMoverIds),
+  ]);
+
+  for (const mover of movers) {
+    const agg = reviewAgg.get(mover.id) ?? { sum: 0, count: 0 };
+
+    result.set(mover.id, {
+      id: mover.id,
+      nickname: mover.nickname,
+      profileImageKey: mover.profileImageKey,
+      career: mover.moverProfile?.career ?? null,
+      confirmedQuoteCount: mover._count.quotesAsMover,
+      favoriteCount: mover._count.favoritesAsMover,
+      isFavorited: mover.favoritesAsMover.length > 0,
+      ratingSum: agg.sum,
+      reviewCount: agg.count,
+    });
+  }
+
+  return result;
+};
+
+/**
+ * 고객의 대기 중(SUBMITTED) 견적 요청과 PENDING 견적 목록 조회
+ */
+export const findPendingEstimateRequestWithQuotes = async (
+  customerId: string
+): Promise<CustomerPendingEstimateRequestRow | null> => {
+  return prisma.estimateRequest.findFirst({
+    where: {
+      userId: customerId,
+      status: EstimateRequestStatus.SUBMITTED,
+    },
+    orderBy: [{ submittedAt: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
+    select: {
+      id: true,
+      status: true,
+      moveType: true,
+      moveDate: true,
+      departureAddress: true,
+      arrivalAddress: true,
+      quotes: {
+        where: {
+          deletedAt: null,
+          status: QuoteStatus.PENDING,
+        },
+        select: customerQuoteListSelect,
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+};
+
+/**
+ * 고객의 과거 견적 요청 목록 조회
+ * estimateRequestId 존재 시 해당 요청만 단건 필터링
+ */
+export const findCustomerPastEstimateRequests = async (
+  params: FindCustomerPastEstimateRequestsParams
+): Promise<{
+  items: CustomerPastEstimateRequestRow[];
+  hasNextPage: boolean;
+}> => {
+  // 특정 견적 요청 블록 내 필터 드롭다운 변경 시 단건만 조회
+  if (params.estimateRequestId != null) {
+    const item = await prisma.estimateRequest.findFirst({
+      where: {
+        id: params.estimateRequestId,
+        userId: params.customerId,
+        status: {
+          in: params.estimateRequestStatuses,
+        },
+      },
+      select: {
+        id: true,
+        submittedAt: true,
+        moveType: true,
+        moveDate: true,
+        departureAddress: true,
+        arrivalAddress: true,
+        quotes: {
+          where: {
+            deletedAt: null,
+            status: { in: params.quoteStatuses },
+          },
+          select: customerQuoteListSelect,
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    return {
+      items: item ? [item] : [],
+      hasNextPage: false,
+    };
+  }
+
+  // 커서 기반 페이지네이션 적용 (최근 견적 요청순)
+  const rows = await prisma.estimateRequest.findMany({
+    where: {
+      userId: params.customerId,
+      status: {
+        in: params.estimateRequestStatuses,
+      },
+      quotes: {
+        some: {
+          deletedAt: null,
+          status: { in: params.quoteStatuses },
+        },
+      },
+    },
+    orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+    ...(params.cursor != null
+      ? { cursor: { id: params.cursor }, skip: 1 }
+      : {}),
+    take: params.limit + 1,
+    select: {
+      id: true,
+      submittedAt: true,
+      moveType: true,
+      moveDate: true,
+      departureAddress: true,
+      arrivalAddress: true,
+      quotes: {
+        where: {
+          deletedAt: null,
+          status: { in: params.quoteStatuses },
+        },
+        select: customerQuoteListSelect,
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+
+  const hasNextPage = rows.length > params.limit;
+  const items = hasNextPage ? rows.slice(0, params.limit) : rows;
+
+  return { items, hasNextPage };
+};
+
+/**
+ * 고객 소유 견적 상세 조회
+ */
+export const findCustomerQuoteById = async (
+  quoteId: number,
+  customerId: string
+): Promise<CustomerQuoteDetailRow | null> => {
+  const quote = await prisma.quote.findFirst({
+    where: {
+      id: quoteId,
+      deletedAt: null,
+      status: { in: SENT_QUOTE_STATUSES },
+      estimateRequest: { userId: customerId },
+    },
+    select: {
+      id: true,
+      estimateRequestId: true,
+      price: true,
+      comment: true,
+      status: true,
+      isDesignated: true,
+      moverId: true,
+      estimateRequest: {
+        select: {
+          moveType: true,
+          moveDate: true,
+          departureAddress: true,
+          arrivalAddress: true,
+        },
+      },
+    },
+  });
+
+  return quote;
+};

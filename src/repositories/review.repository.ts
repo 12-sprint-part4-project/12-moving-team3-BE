@@ -60,10 +60,6 @@ const reviewRepository = {
     let ratingSum = 0;
 
     for (const review of reviews) {
-      // const score = review.rating as 1 | 2 | 3 | 4 | 5;
-      // ratingCounts[score] += 1;
-      // ratingSum += score;
-
       const score = review.rating;
       if (score in ratingCounts) {
         ratingCounts[score as keyof typeof ratingCounts] += 1;
