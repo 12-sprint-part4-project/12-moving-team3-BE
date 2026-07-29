@@ -401,6 +401,43 @@ export const findActiveParticipation = async (
   });
 };
 
+/** 유저가 해당 방에 참여한 이력이 있는지(leftAt 무관) 확인한다. */
+export const findAnyParticipation = async (
+  roomId: number,
+  userId: string,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.chatRoomParticipant.findFirst({
+    where: {
+      roomId,
+      participantId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+};
+
+/**
+ * 활성 참여 row에 leftAt을 설정한다.
+ * leftAt IS NULL인 row만 갱신하며, 영향 건수는 service에서 확인한다.
+ */
+export const leaveActiveParticipation = async (
+  roomId: number,
+  userId: string,
+  leftAt: Date,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.chatRoomParticipant.updateMany({
+    where: {
+      roomId,
+      participantId: userId,
+      leftAt: null,
+    },
+    data: { leftAt },
+  });
+};
+
 /**
  * 채팅방 메시지를 roomId+id 커서로 조회한다.
  * - joinedAt 이후 메시지만 포함
