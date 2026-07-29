@@ -1,9 +1,12 @@
 import { Router } from 'express';
+import * as commentController from '../controllers/comment.controller';
 import * as likeController from '../controllers/like.controller';
 import * as postController from '../controllers/post.controller';
 import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
+  commentIdParamsSchema,
+  createCommentBodySchema,
   createPostBodySchema,
   postIdParamsSchema,
   postListQuerySchema,
@@ -553,6 +556,182 @@ router.delete(
   requireAuth,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   likeController.deleteLike
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/comments:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 댓글 작성
+ *     description: 로그인한 사용자가 게시글에 댓글을 작성합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [content]
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *     responses:
+ *       201:
+ *         description: 댓글 작성 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/comments',
+  requireAuth,
+  validateRequest({
+    params: postIdParamsSchema,
+    body: createCommentBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  commentController.createComment
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/comments/{commentId}/replies:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 대댓글 작성
+ *     description: |
+ *       로그인한 사용자가 댓글에 대댓글을 작성합니다.
+ *       대댓글에 대한 대댓글은 불가합니다 (depth 1 제한).
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [content]
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *     responses:
+ *       201:
+ *         description: 대댓글 작성 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/comments/:commentId/replies',
+  requireAuth,
+  validateRequest({
+    params: commentIdParamsSchema,
+    body: createCommentBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  commentController.createReply
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/comments/{commentId}:
+ *   delete:
+ *     tags: [Posts]
+ *     summary: 댓글 삭제
+ *     description: |
+ *       본인 댓글을 soft delete합니다.
+ *       댓글 삭제 시 해당 댓글의 대댓글도 함께 삭제됩니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 댓글 삭제 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.delete(
+  '/:postId/comments/:commentId',
+  requireAuth,
+  validateRequest({
+    params: commentIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  commentController.deleteComment
 );
 
 export default router;

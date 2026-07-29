@@ -60,6 +60,19 @@ export const updatePostBodySchema = z
 
 export type UpdatePostBody = z.infer<typeof updatePostBodySchema>;
 
+export const commentIdParamsSchema = z.object({
+  postId: z.coerce.number().int().positive(),
+  commentId: z.coerce.number().int().positive(),
+});
+
+export type CommentIdParams = z.infer<typeof commentIdParamsSchema>;
+
+export const createCommentBodySchema = z.object({
+  content: z.string().min(1),
+});
+
+export type CreateCommentBody = z.infer<typeof createCommentBodySchema>;
+
 export const presignedUrlBodySchema = z.object({
   filename: z.string().min(1),
   contentType: z
