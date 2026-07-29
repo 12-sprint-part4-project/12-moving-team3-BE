@@ -704,17 +704,16 @@ export const confirmQuoteWithEstimateRequest = async (
   quoteId: number,
   estimateRequestId: number
 ): Promise<void> => {
-  await Promise.all([
-    tx.quote.update({
-      where: { id: quoteId },
-      data: { status: QuoteStatus.CONFIRMED },
-    }),
-    tx.estimateRequest.update({
-      where: { id: estimateRequestId },
-      data: {
-        status: EstimateRequestStatus.CONFIRMED,
-        confirmedQuoteId: quoteId,
-      },
-    }),
-  ]);
+  await tx.quote.update({
+    where: { id: quoteId },
+    data: { status: QuoteStatus.CONFIRMED },
+  });
+
+  await tx.estimateRequest.update({
+    where: { id: estimateRequestId },
+    data: {
+      status: EstimateRequestStatus.CONFIRMED,
+      confirmedQuoteId: quoteId,
+    },
+  });
 };
