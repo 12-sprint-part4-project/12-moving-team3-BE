@@ -160,6 +160,7 @@ export const deleteReview = async (
     const { userId: customerId } = getAuthenticatedUser(res);
     const { reviewId } = getValidatedParams<ReviewIdParams>(res);
 
+    //삭제 실패하면 에러 반환이고, 삭제 성공 시엔 아무런 행동도 하지 않음. (반환값 필요 x)
     await reviewService.deleteReview({ customerId, reviewId });
 
     res.status(204).send();

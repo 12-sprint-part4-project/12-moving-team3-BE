@@ -211,8 +211,16 @@ export const updateReview = async (
 };
 
 export const deleteReview = async (
-  _input: DeleteReviewInput
+  input: DeleteReviewInput
 ): Promise<void> => {
-  // TODO: implement
-  throw new Error('Not implemented');
+  const { customerId, reviewId } = input;
+
+  const deletedCount = await reviewRepository.softDeleteReview({
+    reviewId,
+    userId: customerId,
+  });
+
+  if (deletedCount === 0) {
+    throw new AppError('REVIEW_NOT_FOUND');
+  }
 };

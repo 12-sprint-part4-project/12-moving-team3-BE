@@ -195,6 +195,34 @@ const reviewRepository = {
     });
   },
 
+  /**
+   * 본인 활성 리뷰 soft delete
+   * id + userId + deletedAt null — 없으면 count 0
+   * updatedAt은 내용 수정 시각으로만 쓰므로 변경하지 않음
+   */
+  softDeleteReview: async (
+    data: {
+      reviewId: number;
+      userId: string;
+    },
+    tx?: Prisma.TransactionClient
+  ): Promise<number> => {
+    const dbClient = tx ?? prisma;
+
+    const result = await dbClient.review.updateMany({
+      where: {
+        id: data.reviewId,
+        userId: data.userId,
+        deletedAt: null,
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
+
+    return result.count;
+  },
+
   /** 리뷰 생성용 트랜잭션 래퍼 */
   runInTransaction: async <T>(
     handler: (tx: ReviewTransactionClient) => Promise<T>
