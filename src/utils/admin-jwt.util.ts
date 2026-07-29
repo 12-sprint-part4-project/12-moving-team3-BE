@@ -63,8 +63,10 @@ const isAdminAccessTokenPayload = (
   const candidate = payload as Record<string, unknown>;
 
   return (
-    // AdminUser.id는 number라서 sub도 number여야 이후 adminId로 안전하게 쓸 수 있다.
+    // AdminUser.id는 양의 정수라서 소수·NaN·Infinity·0 이하는 adminId로 쓸 수 없다.
     typeof candidate.sub === 'number' &&
+    Number.isSafeInteger(candidate.sub) &&
+    candidate.sub > 0 &&
     // Refresh Token(admin_refresh)이나 다른 용도 JWT가 Access로 오용되는 것을 막는다.
     candidate.typ === 'admin_access'
   );
@@ -84,8 +86,9 @@ export const verifyAdminAccessToken = (
   );
 
   // 서명이 맞아도 payload 형태가 다르면 관리자 Access Token으로 신뢰하지 않는다.
+  // JsonWebTokenError로 던져 미들웨어가 인증 실패(401)와 서버 오류(500)를 구분하게 한다.
   if (!isAdminAccessTokenPayload(decoded)) {
-    throw new Error('Invalid admin access token payload');
+    throw new jwt.JsonWebTokenError('Invalid admin access token payload');
   }
 
   return decoded;

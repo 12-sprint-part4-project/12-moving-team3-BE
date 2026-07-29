@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { JsonWebTokenError } from 'jsonwebtoken';
 import { AppError } from '../utils/app.error';
 import { verifyAdminAccessToken } from '../utils/admin-jwt.util';
 
@@ -25,7 +26,22 @@ export const requireAdminAuth: RequestHandler = (req, res, next) => {
     } satisfies AuthenticatedAdmin;
 
     next();
-  } catch {
-    next(new AppError('ADMIN_UNAUTHORIZED'));
+  } catch (error) {
+    // JWT 인증 실패만 401로 통일하고, 환경변수 누락 등 서버 오류는 그대로 넘겨 500 처리한다.
+    if (
+      error instanceof AppError &&
+      error.code === 'ADMIN_UNAUTHORIZED'
+    ) {
+      next(error);
+      return;
+    }
+
+    // TokenExpiredError·NotBeforeError는 JsonWebTokenError를 상속한다.
+    if (error instanceof JsonWebTokenError) {
+      next(new AppError('ADMIN_UNAUTHORIZED'));
+      return;
+    }
+
+    next(error);
   }
 };
