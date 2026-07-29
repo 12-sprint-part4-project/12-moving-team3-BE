@@ -595,48 +595,32 @@ export const findMessageInRoomAfterJoinedAt = async (
 
 /**
  * 방-참여자 단위로 마지막 읽음 위치를 전진시킨다.
- * 이미 같거나 더 앞선 값이면 갱신하지 않고 현재 값을 반환한다.
+ * DB WHERE(lastReadMessageId < 요청값)로 전진만 허용해 동시 갱신 시 후퇴를 막는다.
  */
 export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
   const { roomId, readerId, lastReadMessageId } = params;
 
+  const advanced = await prisma.chatReadStatus.updateMany({
+    where: {
+      roomId,
+      readerId,
+      lastReadMessageId: { lt: lastReadMessageId },
+    },
+    data: { lastReadMessageId },
+  });
+
+  if (advanced.count > 0) {
+    return { lastReadMessageId };
+  }
+
   try {
-    return await prisma.$transaction(async (tx) => {
-      const existing = await tx.chatReadStatus.findUnique({
-        where: {
-          roomId_readerId: {
-            roomId,
-            readerId,
-          },
-        },
-        select: { lastReadMessageId: true },
-      });
-
-      if (existing && lastReadMessageId <= existing.lastReadMessageId) {
-        return { lastReadMessageId: existing.lastReadMessageId };
-      }
-
-      if (existing) {
-        return tx.chatReadStatus.update({
-          where: {
-            roomId_readerId: {
-              roomId,
-              readerId,
-            },
-          },
-          data: { lastReadMessageId },
-          select: { lastReadMessageId: true },
-        });
-      }
-
-      return tx.chatReadStatus.create({
-        data: {
-          roomId,
-          readerId,
-          lastReadMessageId,
-        },
-        select: { lastReadMessageId: true },
-      });
+    return await prisma.chatReadStatus.create({
+      data: {
+        roomId,
+        readerId,
+        lastReadMessageId,
+      },
+      select: { lastReadMessageId: true },
     });
   } catch (error) {
     if (

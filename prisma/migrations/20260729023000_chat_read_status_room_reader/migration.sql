@@ -10,6 +10,10 @@ SET
 FROM "chat_messages" AS cm
 WHERE crs."message_id" = cm."id";
 
+-- 대응 메시지가 없는 고아 읽음 상태 정리 (NOT NULL 설정 전 필수)
+DELETE FROM "chat_read_statuses"
+WHERE "room_id" IS NULL OR "last_read_message_id" IS NULL;
+
 -- 방-참여자별 최대 messageId만 남기고 중복 제거
 DELETE FROM "chat_read_statuses" AS older
 USING "chat_read_statuses" AS newer
