@@ -13,6 +13,17 @@ export const findAdminByEmail = async (email: string) => {
   });
 };
 
+export const findAdminById = async (adminId: number) => {
+  return prisma.adminUser.findUnique({
+    where: { id: adminId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+    },
+  });
+};
+
 export interface CreateAdminRefreshTokenRecordInput {
   adminId: number;
   tokenHash: string;
