@@ -266,6 +266,7 @@ model ChatRoom {
   updatedAt         DateTime                 @updatedAt @map("updated_at")
   messages          ChatMessage[]
   participants      ChatRoomParticipant[]
+  readStatuses      ChatReadStatus[]
   designatedMover   EstimateDesignatedMover? @relation(fields: [designatedMoverId], references: [id])
   estimateRequest   EstimateRequest?         @relation(fields: [estimateRequestId], references: [id])
   quote             Quote?                   @relation(fields: [quoteId], references: [id])
@@ -319,13 +320,16 @@ model ChatAttachment {
 }
 
 model ChatReadStatus {
-  id        Int         @id @default(autoincrement())
-  messageId Int         @map("message_id")
-  readerId  String      @map("reader_id") @db.Uuid
-  readAt    DateTime    @default(now()) @map("read_at")
-  message   ChatMessage @relation(fields: [messageId], references: [id])
-  reader    User        @relation(fields: [readerId], references: [id])
+  id                Int         @id @default(autoincrement())
+  roomId            Int         @map("room_id")
+  readerId          String      @map("reader_id") @db.Uuid
+  lastReadMessageId Int         @map("last_read_message_id")
+  readAt            DateTime    @default(now()) @updatedAt @map("read_at")
+  room              ChatRoom    @relation(fields: [roomId], references: [id])
+  reader            User        @relation(fields: [readerId], references: [id])
+  lastReadMessage   ChatMessage @relation(fields: [lastReadMessageId], references: [id])
 
+  @@unique([roomId, readerId])
   @@map("chat_read_statuses")
 }
 
