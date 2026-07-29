@@ -59,3 +59,15 @@ export const updatePostBodySchema = z
   );
 
 export type UpdatePostBody = z.infer<typeof updatePostBodySchema>;
+
+export const presignedUrlBodySchema = z.object({
+  filename: z.string().min(1),
+  contentType: z
+    .string()
+    .min(1)
+    .refine((value) => value.startsWith('image/'), {
+      message: 'contentType은 image/* MIME 타입이어야 합니다.',
+    }),
+});
+
+export type PresignedUrlBody = z.infer<typeof presignedUrlBodySchema>;

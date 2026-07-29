@@ -6,6 +6,7 @@ import {
   createPostBodySchema,
   postIdParamsSchema,
   postListQuerySchema,
+  presignedUrlBodySchema,
   updatePostBodySchema,
 } from '../schemas/post.schema';
 
@@ -141,6 +142,64 @@ router.get(
     errorCode: 'INVALID_QUERY_PARAM',
   }),
   postController.getPosts
+);
+
+/**
+ * @swagger
+ * /api/posts/image/presigned-url:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 게시글 이미지 업로드 Presigned URL 발급
+ *     description: |
+ *       S3에 이미지를 직접 업로드하기 위한 Presigned URL을 발급합니다.
+ *       발급된 presignedUrl로 PUT 요청하여 이미지를 업로드하고,
+ *       imageKey를 게시글 생성/수정 시 사용합니다.
+ *       유효 시간은 5분(300초)입니다.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [filename, contentType]
+ *             properties:
+ *               filename:
+ *                 type: string
+ *                 description: 업로드할 파일명 (확장자 포함)
+ *               contentType:
+ *                 type: string
+ *                 description: image/* MIME 타입 (예: image/jpeg)
+ *     responses:
+ *       200:
+ *         description: Presigned URL 발급 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     presignedUrl:
+ *                       type: string
+ *                       description: S3 PUT 업로드용 Presigned URL
+ *                     imageKey:
+ *                       type: string
+ *                       description: 게시글 생성/수정 시 사용할 이미지 키
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/image/presigned-url',
+  requireAuth,
+  validateRequest({ body: presignedUrlBodySchema, errorCode: 'INVALID_REQUEST' }),
+  postController.getPresignedUrl
 );
 
 /**

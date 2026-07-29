@@ -7,6 +7,7 @@ import type {
   CreatePostBody,
   PostIdParams,
   PostListQuery,
+  PresignedUrlBody,
   UpdatePostBody,
 } from '../schemas/post.schema';
 import * as postService from '../services/post.service';
@@ -50,6 +51,16 @@ const getValidatedUpdateBody = (res: Response): UpdatePostBody => {
   }
 
   return body as UpdatePostBody;
+};
+
+const getValidatedPresignedUrlBody = (res: Response): PresignedUrlBody => {
+  const body = res.locals.validated?.body;
+
+  if (body == null || typeof body !== 'object') {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  return body as PresignedUrlBody;
 };
 
 /** GET /api/posts — 게시글 목록 조회 */
@@ -117,6 +128,24 @@ export const updatePost = async (
     const { postId } = getValidatedParams(res);
     const body = getValidatedUpdateBody(res);
     const result = await postService.updatePost(postId, userId, body);
+
+    res.status(200).json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** POST /api/posts/image/presigned-url — 이미지 업로드 Presigned URL 발급 */
+export const getPresignedUrl = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    getAuthenticatedUser(res);
+
+    const { filename, contentType } = getValidatedPresignedUrlBody(res);
+    const result = await postService.getPresignedUrl(filename, contentType);
 
     res.status(200).json({ data: result });
   } catch (error) {
