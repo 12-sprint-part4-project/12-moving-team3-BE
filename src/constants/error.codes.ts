@@ -29,11 +29,7 @@ export const ERROR_CODES = {
   },
   UNAUTHORIZED: {
     status: 401,
-    message: '로그인이 필요합니다.',
-  },
-  ROOM_NOT_FOUND: {
-    status: 404,
-    message: '존재하지 않는 채팅방입니다.',
+    message: '로그인이 필요한 기능입니다.',
   },
   ESTIMATE_REQUEST_NOT_FOUND: {
     status: 404,
@@ -49,11 +45,23 @@ export const ERROR_CODES = {
   },
   FORBIDDEN: {
     status: 403,
-    message: '해당 기능에 접근할 수 없습니다.',
+    message: '기사님은 찜 기능을 사용할 수 없습니다.',
+  },
+  VALIDATION_ERROR: {
+    status: 400,
+    message: '입력값이 올바르지 않습니다.',
+  },
+  ACTIVE_REQUEST_EXISTS: {
+    status: 409,
+    message: '이미 진행 중인 견적 요청이 있습니다.',
+  },
+  REQUEST_ALREADY_SUBMITTED: {
+    status: 409,
+    message: '이미 제출된 견적 요청은 수정할 수 없습니다.',
   },
   PROFILE_ALREADY_EXISTS: {
     status: 409,
-    message: '이미 등록된 프로필이 존재합니다.',
+    message: '이미 프로필 등록을 완료했습니다.',
   },
   PROFILE_NOT_FOUND: {
     status: 404,
@@ -65,7 +73,7 @@ export const ERROR_CODES = {
   },
   INVALID_QUERY_PARAM: {
     status: 400,
-    message: '유효하지 않은 정렬 또는 필터 값입니다.',
+    message: '유효하지 않은 요청 파라미터입니다.',
   },
   ALREADY_CONFIRMED_REQUEST: {
     status: 409,
@@ -215,6 +223,16 @@ export const ERROR_CODES = {
   INTERNAL_SERVER_ERROR: {
     status: 500,
     message: '서버 내부 오류가 발생했습니다.',
+  },
+
+  // 채팅
+  ROOM_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 채팅방입니다.',
+  },
+  MESSAGING_NOT_ALLOWED: {
+    status: 403,
+    message: '이 채팅방에서는 메시지를 보낼 수 없습니다.',
   },
 
   // 커뮤니티

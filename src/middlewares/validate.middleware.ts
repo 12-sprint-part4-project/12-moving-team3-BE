@@ -11,6 +11,7 @@ interface ValidateRequestOptions {
 }
 
 interface ValidatedLocals {
+  body?: unknown;
   query?: unknown;
   params?: unknown;
 }
@@ -23,6 +24,8 @@ export const validateRequest = ({
 }: ValidateRequestOptions): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
+      const validated: ValidatedLocals = {};
+
       if (body) {
         const parsedBody = body.safeParse(req.body);
 
@@ -31,9 +34,8 @@ export const validateRequest = ({
         }
 
         req.body = parsedBody.data;
+        validated.body = parsedBody.data;
       }
-
-      const validated: ValidatedLocals = {};
 
       if (query) {
         const parsedQuery = query.safeParse(req.query);
@@ -55,7 +57,7 @@ export const validateRequest = ({
         validated.params = parsedParams.data;
       }
 
-      if (query || params) {
+      if (body || query || params) {
         res.locals.validated = validated;
       }
 

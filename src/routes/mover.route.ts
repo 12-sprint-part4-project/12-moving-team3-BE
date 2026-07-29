@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import * as estimateRequestController from '../controllers/estimate-request.controller';
+import * as moverProfileController from '../controllers/mover-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
+import { upload } from '../middlewares/upload.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
+import { moverProfileBodySchema } from '../schemas/mover-profile.schema';
 import { estimateRequestListQuerySchema } from '../schemas/estimate-request.schema';
 import {
   quoteBodySchema,
@@ -12,6 +15,19 @@ import {
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+// 기사님 프로필 등록/수정 (Swagger: src/docs/mover-profile.swagger.yaml)
+router.patch(
+  '/profile',
+  requireAuth,
+  allowUserTypes('MOVER'),
+  upload.single('profileImage'),
+  validateRequest({
+    body: moverProfileBodySchema,
+    errorCode: 'INVALID_REQUEST_BODY',
+  }),
+  moverProfileController.saveMoverProfile
+);
 
 // 기사님이 받은 견적 요청 목록 조회 (Swagger 문서: src/docs/mover.swagger.yaml)
 router.get(

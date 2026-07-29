@@ -6,6 +6,7 @@ import {
   chatRoomIdParamsSchema,
   createChatRoomBodySchema,
   getChatMessagesQuerySchema,
+  sendChatMessageBodySchema,
 } from '../schemas/chat.schema';
 
 const router = Router();
@@ -182,6 +183,104 @@ router.get(
     errorCode: 'INVALID_REQUEST',
   }),
   chatController.getChatMessages
+);
+
+/**
+ * @swagger
+ * /api/chat/rooms/{roomId}/messages:
+ *   post:
+ *     tags: [Chat]
+ *     summary: 채팅 텍스트 메시지 전송
+ *     description: |
+ *       채팅방에 TEXT 메시지를 전송합니다.
+ *       활성 참여자만 발송 가능하며, 이사 완료 등으로 발송이 제한된 방에서는 거부됩니다.
+ *       전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
+ *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
+ *       IMAGE 전송·Idempotency-Key·소켓 브로드캐스트는 이번 범위에 포함되지 않습니다.
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: 채팅방 ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [messageType, content]
+ *             properties:
+ *               messageType:
+ *                 type: string
+ *                 enum: [TEXT]
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 2000
+ *           example:
+ *             messageType: TEXT
+ *             content: 안녕하세요, 이사 일정 문의드립니다.
+ *     responses:
+ *       201:
+ *         description: 메시지 전송 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     messageId:
+ *                       type: integer
+ *                     senderId:
+ *                       type: string
+ *                       format: uuid
+ *                     senderUserType:
+ *                       type: string
+ *                       enum: [CUSTOMER, MOVER]
+ *                     messageType:
+ *                       type: string
+ *                       enum: [TEXT, IMAGE]
+ *                     content:
+ *                       type: string
+ *                       description: 마스킹된 메시지 내용
+ *                     isFiltered:
+ *                       type: boolean
+ *                     attachments:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: TEXT는 빈 배열
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/rooms/:roomId/messages',
+  requireAuth,
+  validateRequest({
+    params: chatRoomIdParamsSchema,
+    body: sendChatMessageBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  chatController.sendChatMessage
 );
 
 /**

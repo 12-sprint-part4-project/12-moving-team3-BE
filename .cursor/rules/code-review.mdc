@@ -22,6 +22,15 @@ Apply these when writing or reviewing API code (from team CodeRabbit feedback).
 - Define schemas in `src/schemas/*.schema.ts`.
 - Apply via `validateRequest` on routes.
 - Prefer `z.enum(PrismaEnum)` over deprecated `z.nativeEnum` (Zod 4).
+- Controller must read validated input from `res.locals.validated` (query/params/body) — never cast raw `req.body`.
+- `imageKeys`: non-empty strings, max count enforced in schema.
+- `latitude` / `longitude`: validate geographic bounds when present.
+
+## Repository
+
+- Optional `DbClient` parameter for functions that may join a parent transaction.
+- Soft delete: use `updateMany` with `deletedAt: null` for atomicity; check affected `count` in service.
+- Permission checks: lightweight owner query (`id`, `userId` only) instead of full detail fetch.
 
 ## Cursor pagination
 
