@@ -51,18 +51,40 @@ export const createAdminAccessToken = (adminId: number): string => {
   );
 };
 
+// jwt.verify는 서명·만료만 보장하므로, 클레임 형태는 별도 가드로 좁힌다.
+const isAdminAccessTokenPayload = (
+  payload: unknown
+): payload is AdminAccessTokenPayload => {
+  // null·문자열·배열 등은 AdminAccessTokenPayload로 취급하면 안 된다.
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+
+  return (
+    // AdminUser.id는 number라서 sub도 number여야 이후 adminId로 안전하게 쓸 수 있다.
+    typeof candidate.sub === 'number' &&
+    // Refresh Token(admin_refresh)이나 다른 용도 JWT가 Access로 오용되는 것을 막는다.
+    candidate.typ === 'admin_access'
+  );
+};
+
 export const verifyAdminAccessToken = (
   accessToken: string
-): jwt.JwtPayload => {
+): AdminAccessTokenPayload => {
+  // 관리자 전용 secret으로 서명 위조와 만료 토큰을 걸러낸다.
   const decoded = jwt.verify(
     accessToken,
     getRequiredEnv('ADMIN_JWT_ACCESS_SECRET'),
     {
+      // none 등 약한 알고리즘 수용을 막아 알고리즘 혼동 공격을 방지한다.
       algorithms: ['HS256'],
     }
   );
 
-  if (typeof decoded === 'string') {
+  // 서명이 맞아도 payload 형태가 다르면 관리자 Access Token으로 신뢰하지 않는다.
+  if (!isAdminAccessTokenPayload(decoded)) {
     throw new Error('Invalid admin access token payload');
   }
 
