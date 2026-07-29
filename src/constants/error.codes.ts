@@ -254,6 +254,10 @@ export const ERROR_CODES = {
     status: 403,
     message: '이 채팅방에서는 메시지를 보낼 수 없습니다.',
   },
+  ALREADY_LEFT: {
+    status: 409,
+    message: '이미 나간 채팅방입니다.',
+  },
 
   // 커뮤니티
   POST_NOT_FOUND: {
