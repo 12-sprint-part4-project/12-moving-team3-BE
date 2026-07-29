@@ -32,6 +32,17 @@ const getValidatedQuery = <T>(res: Response): T => {
   return query as T;
 };
 
+//validateRequest 미들웨어가 남긴 body 반환 (trim 등 Zod 변환 결과)
+const getValidatedBody = <T>(res: Response): T => {
+  const body = res.locals.validated?.body;
+
+  if (body == null || typeof body !== 'object') {
+    throw new AppError('INVALID_REQUEST_BODY');
+  }
+
+  return body as T;
+};
+
 /** GET /api/review/mover — 기사님의 리뷰 목록 조회 */
 export const getMoverReviews = async (
   _req: Request,
@@ -106,14 +117,14 @@ export const getCustomerReviews = async (
 
 /** POST /api/review/quotes/:quoteId — 리뷰 등록 */
 export const createReview = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const { userId: customerId } = getAuthenticatedUser(res);
     const { quoteId } = getValidatedParams<QuoteIdParams>(res);
-    const body = req.body as ReviewBody;
+    const body = getValidatedBody<ReviewBody>(res);
 
     const review = await reviewService.createReview({
       customerId,
@@ -129,14 +140,14 @@ export const createReview = async (
 
 /** PATCH /api/review/:reviewId — 리뷰 수정 */
 export const updateReview = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const { userId: customerId } = getAuthenticatedUser(res);
     const { reviewId } = getValidatedParams<ReviewIdParams>(res);
-    const body = req.body as ReviewBody;
+    const body = getValidatedBody<ReviewBody>(res);
 
     const review = await reviewService.updateReview({
       customerId,
