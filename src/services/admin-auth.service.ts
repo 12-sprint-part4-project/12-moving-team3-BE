@@ -67,3 +67,22 @@ export const loginAdmin = async (
     },
   };
 };
+
+export interface AdminMeServiceResult {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export const getAdminMe = async (
+  adminId: number
+): Promise<AdminMeServiceResult> => {
+  const admin = await adminAuthRepository.findAdminById(adminId);
+
+  // 토큰은 유효해도 계정이 없으면 인증된 관리자로 취급하지 않는다.
+  if (!admin) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  return admin;
+};
