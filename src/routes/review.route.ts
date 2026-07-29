@@ -12,7 +12,7 @@ import * as reviewController from '../controllers/review.controller';
 
 const router = Router();
 
-//기사님의 리뷰 목록 조회
+// 기사님의 리뷰 목록 조회 (Swagger: src/docs/review.swagger.yaml)
 router.get(
   '/mover',
   requireAuth,
@@ -23,7 +23,8 @@ router.get(
   }),
   reviewController.getMoverReviews
 );
-//리뷰 작성 가능한 견적 조회
+
+// 리뷰 작성 가능한 견적 조회 (Swagger: src/docs/review.swagger.yaml)
 router.get(
   '/customer/writable',
   requireAuth,
@@ -34,6 +35,8 @@ router.get(
   }),
   reviewController.getCustomerWritableReviews
 );
+
+// 고객의 리뷰 목록 조회 (Swagger: src/docs/review.swagger.yaml)
 router.get(
   '/customer',
   requireAuth,
@@ -45,7 +48,7 @@ router.get(
   reviewController.getCustomerReviews
 );
 
-//리뷰 등록
+// 리뷰 등록 (Swagger: src/docs/review.swagger.yaml)
 router.post(
   '/quotes/:quoteId',
   requireAuth,
@@ -57,7 +60,8 @@ router.post(
   }),
   reviewController.createReview
 );
-//리뷰 수정
+
+// 리뷰 수정 (Swagger: src/docs/review.swagger.yaml)
 router.patch(
   '/:reviewId',
   requireAuth,
@@ -69,7 +73,8 @@ router.patch(
   }),
   reviewController.updateReview
 );
-//리뷰 삭제 (소프트 딜리트)
+
+// 리뷰 삭제 — soft delete (Swagger: src/docs/review.swagger.yaml)
 router.delete(
   '/:reviewId',
   requireAuth,
@@ -80,7 +85,5 @@ router.delete(
   }),
   reviewController.deleteReview
 );
-
-//리뷰 통계 정보 가져오기 (movers할 때 구현한..) <- 는 repository레이어에서만 구현.
 
 export default router;
