@@ -22,12 +22,22 @@ export interface FindMoversFilters {
   sort?: MoverListSort;
   cursor?: MoverListCursor;
   limit?: number;
+  /** 삭제되지 않은 MOVER 유저만 조회 */
+  onlyActiveMovers?: boolean;
 }
 
 export interface FindFavoriteMoversParams {
   userId: string;
   cursor?: FavoriteListCursor;
   limit?: number;
+  /** 삭제되지 않은 MOVER 유저만 조회 */
+  onlyActiveMovers?: boolean;
+}
+
+export interface FindMoverProfileByIdParams {
+  moverId: string;
+  /** 삭제되지 않은 MOVER 유저만 조회 */
+  onlyActiveMovers?: boolean;
 }
 
 export interface CreateMoverProfileInput {
@@ -78,10 +88,20 @@ const moverDetailInclude = {
   },
 } satisfies Prisma.MoverProfileInclude;
 
+/** addFavorite와 동일한 활성 기사 조건 (deletedAt null + userType MOVER) */
+const buildActiveMoverUserWhere = (): Prisma.UserWhereInput => ({
+  deletedAt: null,
+  userType: 'MOVER',
+});
+
 const buildMoverListWhere = (
   filters: FindMoversFilters
 ): Prisma.MoverProfileWhereInput => {
   const conditions: Prisma.MoverProfileWhereInput[] = [];
+
+  if (filters.onlyActiveMovers) {
+    conditions.push({ user: buildActiveMoverUserWhere() });
+  }
 
   if (filters.keyword) {
     conditions.push({
@@ -119,6 +139,34 @@ const buildMoverListWhere = (
   }
 
   return conditions.length > 0 ? { AND: conditions } : {};
+};
+
+const buildMoverDetailWhere = (
+  params: FindMoverProfileByIdParams
+): Prisma.MoverProfileWhereInput => {
+  const conditions: Prisma.MoverProfileWhereInput[] = [
+    { userId: params.moverId },
+  ];
+
+  if (params.onlyActiveMovers) {
+    conditions.push({ user: buildActiveMoverUserWhere() });
+  }
+
+  return { AND: conditions };
+};
+
+const buildFavoriteListWhere = (
+  params: FindFavoriteMoversParams
+): Prisma.FavoriteWhereInput => {
+  const conditions: Prisma.FavoriteWhereInput[] = [
+    { userId: params.userId },
+  ];
+
+  if (params.onlyActiveMovers) {
+    conditions.push({ mover: buildActiveMoverUserWhere() });
+  }
+
+  return { AND: conditions };
 };
 
 const buildMoverListOrderBy = (
@@ -222,13 +270,13 @@ const moverProfileRepository = {
   },
 
   findMoverProfileById: async (
-    moverId: string,
+    params: FindMoverProfileByIdParams,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
 
-    return dbClient.moverProfile.findUnique({
-      where: { userId: moverId },
+    return dbClient.moverProfile.findFirst({
+      where: buildMoverDetailWhere(params),
       include: moverDetailInclude,
     });
   },
@@ -239,7 +287,7 @@ const moverProfileRepository = {
   ) => {
     const dbClient = tx ?? prisma;
     const limit = params.limit ?? 10;
-    const baseWhere: Prisma.FavoriteWhereInput = { userId: params.userId };
+    const baseWhere = buildFavoriteListWhere(params);
     const where: Prisma.FavoriteWhereInput = params.cursor
       ? { AND: [baseWhere, buildFavoriteListCursorCondition(params.cursor)] }
       : baseWhere;

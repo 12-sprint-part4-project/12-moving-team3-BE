@@ -47,6 +47,7 @@ const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
       ? decodeMoverListCursor(query.cursor, sort)
       : undefined,
     limit: query.limit,
+    onlyActiveMovers: true,
   };
 };
 
@@ -108,8 +109,10 @@ const moversService = {
 
   //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMoverDetail: async (moverId: string) => {
-    const moverDetail =
-      await moverProfileRepository.findMoverProfileById(moverId);
+    const moverDetail = await moverProfileRepository.findMoverProfileById({
+      moverId,
+      onlyActiveMovers: true,
+    });
 
     if (!moverDetail) {
       throw new AppError('MOVER_NOT_FOUND');
@@ -146,6 +149,7 @@ const moversService = {
           ? decodeFavoriteListCursor(query.cursor)
           : undefined,
         limit: query.limit,
+        onlyActiveMovers: true,
       });
 
     const favoritesWithDetails = await Promise.all(
