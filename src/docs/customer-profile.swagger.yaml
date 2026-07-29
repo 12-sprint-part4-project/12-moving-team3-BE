@@ -44,8 +44,117 @@ components:
               format: date-time
               example: '2026-07-28T08:20:00.000Z'
 
+    CustomerProfileMeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - profileId
+            - userId
+            - name
+            - email
+            - phoneNumber
+            - profileImageUrl
+            - service
+            - region
+            - createdAt
+            - updatedAt
+          properties:
+            profileId:
+              type: integer
+              example: 15
+            userId:
+              type: string
+              format: uuid
+              example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            name:
+              type: string
+              example: 박소정
+            email:
+              type: string
+              format: email
+              example: sojeong@example.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+              example: null
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [HOME, SMALL]
+            region:
+              type: string
+              nullable: true
+              enum:
+                - SEOUL
+                - GYEONGGI
+                - INCHEON
+                - GANGWON
+                - CHUNGBUK
+                - CHUNGNAM
+                - SEJONG
+                - DAEJEON
+                - JEONBUK
+                - GWANGJU_JEONNAM
+                - GYEONGBUK
+                - DAEGU
+                - ULSAN
+                - GYEONGNAM
+                - BUSAN
+                - JEJU
+              example: SEOUL
+            createdAt:
+              type: string
+              format: date-time
+              example: '2026-07-20T13:30:00.000Z'
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-21T10:00:00.000Z'
+
 paths:
   /api/users/customers/profile:
+    get:
+      tags: [Customers]
+      summary: 일반 유저 본인 프로필 조회
+      description: |
+        로그인한 일반 유저(CUSTOMER)의 등록된 프로필을 조회합니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfileMeResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 일반 유저(CUSTOMER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록된 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       tags: [Customers]
       summary: 일반 유저 프로필 등록/수정
