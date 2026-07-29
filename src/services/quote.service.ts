@@ -791,11 +791,15 @@ export const confirmQuote = async (
     }
 
     // 견적·이사 요청 상태 업데이트
-    await quoteRepository.confirmQuoteWithEstimateRequest(
+    const confirmed = await quoteRepository.confirmQuoteWithEstimateRequest(
       tx,
       quoteId,
       quote.estimateRequestId
     );
+
+    if (!confirmed) {
+      throw new AppError('ALREADY_CONFIRMED_REQUEST');
+    }
 
     return { confirmedQuoteId: quoteId };
   });

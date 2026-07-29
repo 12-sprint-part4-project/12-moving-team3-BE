@@ -703,11 +703,20 @@ export const confirmQuoteWithEstimateRequest = async (
   tx: QuoteTransactionClient,
   quoteId: number,
   estimateRequestId: number
-): Promise<void> => {
-  await tx.quote.update({
-    where: { id: quoteId },
+): Promise<boolean> => {
+  const { count } = await tx.quote.updateMany({
+    where: {
+      id: quoteId,
+      estimateRequestId,
+      deletedAt: null,
+      status: QuoteStatus.PENDING,
+    },
     data: { status: QuoteStatus.CONFIRMED },
   });
+
+  if (count === 0) {
+    return false;
+  }
 
   await tx.estimateRequest.update({
     where: { id: estimateRequestId },
@@ -716,4 +725,6 @@ export const confirmQuoteWithEstimateRequest = async (
       confirmedQuoteId: quoteId,
     },
   });
+
+  return true;
 };
