@@ -369,19 +369,7 @@ export const updateReview = async (
     body: { rating, content },
   } = input;
 
-  // 1. 활성 리뷰 조회
-  const existingReview = await reviewRepository.findActiveReviewById(reviewId);
-
-  if (!existingReview) {
-    throw new AppError('REVIEW_NOT_FOUND');
-  }
-
-  // 2. 작성자 본인만 수정 가능 (명세상 404로 통일)
-  if (existingReview.userId !== customerId) {
-    throw new AppError('REVIEW_NOT_FOUND');
-  }
-
-  // 3. rating · content 필수 수정
+  // 소유권·삭제 여부는 updateReview의 where 조건으로 함께 검증됨 (실패 시 null 반환)
   const updatedReview = await reviewRepository.updateReview({
     reviewId,
     userId: customerId,
