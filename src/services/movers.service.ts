@@ -2,8 +2,8 @@ import { countMoverFavorited } from '../repositories/favorite.repository';
 import type {
   FindMoversFilters,
   MoverListSort,
-} from '../repositories/moverProfile.repository';
-import moverProfileRepository from '../repositories/moverProfile.repository';
+} from '../repositories/movers.repository';
+import moversRepository from '../repositories/movers.repository';
 import reviewRepository from '../repositories/review.repository';
 import type {
   FavoriteMoversQuery,
@@ -77,7 +77,7 @@ const moversService = {
       items: movers,
       hasNextPage,
       sort,
-    } = await moverProfileRepository.findMovers(filters);
+    } = await moversRepository.findMovers(filters);
 
     const moversWithReviews = await Promise.all(
       movers.map(async (mover) => {
@@ -109,7 +109,7 @@ const moversService = {
 
   //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
   getMoverDetail: async (moverId: string) => {
-    const moverDetail = await moverProfileRepository.findMoverProfileById({
+    const moverDetail = await moversRepository.findMoverProfileById({
       moverId,
       onlyActiveMovers: true,
     });
@@ -140,7 +140,7 @@ const moversService = {
     query: FavoriteMoversQuery;
   }) => {
     const { items: favorites, hasNextPage } =
-      await moverProfileRepository.findFavoriteMoversById({
+      await moversRepository.findFavoriteMoversById({
         userId,
         cursor: query.cursor
           ? decodeFavoriteListCursor(query.cursor)

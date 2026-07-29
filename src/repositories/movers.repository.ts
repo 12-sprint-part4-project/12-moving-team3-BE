@@ -240,7 +240,7 @@ const buildFavoriteListCursorCondition = (
   };
 };
 
-const moverProfileRepository = {
+const moversRepository = {
   findMovers: async (
     filters: FindMoversFilters,
     tx?: Prisma.TransactionClient
@@ -324,4 +324,4 @@ const moverProfileRepository = {
   },
 };
 
-export default moverProfileRepository;
+export default moversRepository;
