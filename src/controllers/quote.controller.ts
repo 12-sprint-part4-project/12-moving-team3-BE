@@ -179,3 +179,23 @@ export const getCustomerQuoteDetail = async (
     next(error);
   }
 };
+
+/**
+ * 견적 확정
+ */
+export const confirmQuote = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId: customerId } = getAuthenticatedUser(res);
+    const { quoteId } = getValidatedParams<QuoteIdParams>(res);
+
+    const data = await quoteService.confirmQuote({ customerId, quoteId });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};

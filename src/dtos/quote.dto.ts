@@ -136,3 +136,8 @@ export interface CustomerQuoteDetailDto {
   toAddress: string | null;
   mover: CustomerQuoteMoverDto;
 }
+
+/** 견적 확정 응답 */
+export interface ConfirmQuoteDto {
+  confirmedQuoteId: number;
+}
