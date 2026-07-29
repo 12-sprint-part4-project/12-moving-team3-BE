@@ -10,9 +10,7 @@ import type {
 import * as reviewService from '../services/review.service';
 import { AppError } from '../utils/app.error';
 
-/**
- * validateRequest 미들웨어가 남긴 params 반환
- */
+//validateRequest 미들웨어가 남긴 params 반환
 const getValidatedParams = <T>(res: Response): T => {
   const params = res.locals.validated?.params;
 
@@ -23,30 +21,15 @@ const getValidatedParams = <T>(res: Response): T => {
   return params as T;
 };
 
-/**
- * validateRequest 미들웨어가 남긴 리뷰 목록 query 반환
- */
-const getValidatedListQuery = (res: Response): ReviewListQuery => {
+//validateRequest 미들웨어가 남긴 query 반환
+const getValidatedQuery = <T>(res: Response): T => {
   const query = res.locals.validated?.query;
 
   if (query == null || typeof query !== 'object') {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  return query as ReviewListQuery;
-};
-
-/**
- * validateRequest 미들웨어가 남긴 작성 가능 견적 목록 query 반환
- */
-const getValidatedWritableQuery = (res: Response): ReviewWritableQuery => {
-  const query = res.locals.validated?.query;
-
-  if (query == null || typeof query !== 'object') {
-    throw new AppError('INVALID_QUERY_PARAM');
-  }
-
-  return query as ReviewWritableQuery;
+  return query as T;
 };
 
 /** GET /api/review/mover — 기사님의 리뷰 목록 조회 */
@@ -57,7 +40,7 @@ export const getMoverReviews = async (
 ) => {
   try {
     const { userId: moverId } = getAuthenticatedUser(res);
-    const query = getValidatedListQuery(res);
+    const query = getValidatedQuery<ReviewListQuery>(res);
 
     const result = await reviewService.getMoverReviews({
       moverId,
@@ -81,7 +64,7 @@ export const getCustomerWritableReviews = async (
 ) => {
   try {
     const { userId: customerId } = getAuthenticatedUser(res);
-    const query = getValidatedWritableQuery(res);
+    const query = getValidatedQuery<ReviewWritableQuery>(res);
 
     const result = await reviewService.getCustomerWritableQuotes({
       customerId,
@@ -105,7 +88,7 @@ export const getCustomerReviews = async (
 ) => {
   try {
     const { userId: customerId } = getAuthenticatedUser(res);
-    const query = getValidatedListQuery(res);
+    const query = getValidatedQuery<ReviewListQuery>(res);
 
     const result = await reviewService.getCustomerReviews({
       customerId,

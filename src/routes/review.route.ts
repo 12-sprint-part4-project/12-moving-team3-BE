@@ -81,6 +81,6 @@ router.delete(
   reviewController.deleteReview
 );
 
-//리뷰 통계 정보 가져오기 (movers할 때 구현한..)
+//리뷰 통계 정보 가져오기 (movers할 때 구현한..) <- 는 repository레이어에서만 구현.
 
 export default router;
