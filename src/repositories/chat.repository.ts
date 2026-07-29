@@ -572,3 +572,70 @@ export const createTextMessage = async (
 
   return message;
 };
+
+/**
+ * 해당 방의 메시지가 존재하는지 확인한다.
+ * joinedAt 이후 메시지만 유효로 본다.
+ */
+export const findMessageInRoomAfterJoinedAt = async (params: {
+  roomId: number;
+  messageId: number;
+  joinedAt: Date;
+}) => {
+  return prisma.chatMessage.findFirst({
+    where: {
+      id: params.messageId,
+      roomId: params.roomId,
+      createdAt: { gte: params.joinedAt },
+    },
+    select: {
+      id: true,
+    },
+  });
+};
+
+/** 유저가 해당 방에서 마지막으로 읽은 messageId를 조회한다. */
+export const findLastReadMessageIdByRoom = async (
+  roomId: number,
+  readerId: string
+) => {
+  const status = await prisma.chatReadStatus.findFirst({
+    where: {
+      readerId,
+      message: { roomId },
+    },
+    orderBy: { messageId: 'desc' },
+    select: { messageId: true },
+  });
+
+  return status?.messageId ?? null;
+};
+
+/**
+ * 읽음 상태를 저장한다.
+ * 동일 messageId+readerId가 이미 있으면 기존 row를 반환한다.
+ */
+export const upsertReadStatus = async (
+  messageId: number,
+  readerId: string
+) => {
+  return prisma.chatReadStatus.upsert({
+    where: {
+      messageId_readerId: {
+        messageId,
+        readerId,
+      },
+    },
+    create: {
+      messageId,
+      readerId,
+    },
+    update: {
+      readAt: new Date(),
+    },
+    select: {
+      messageId: true,
+      readAt: true,
+    },
+  });
+};

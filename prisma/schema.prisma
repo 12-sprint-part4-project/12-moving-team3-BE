@@ -326,6 +326,7 @@ model ChatReadStatus {
   message   ChatMessage @relation(fields: [messageId], references: [id])
   reader    User        @relation(fields: [readerId], references: [id])
 
+  @@unique([messageId, readerId])
   @@map("chat_read_statuses")
 }
 

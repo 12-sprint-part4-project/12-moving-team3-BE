@@ -230,6 +230,10 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 채팅방입니다.',
   },
+  MESSAGE_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 메시지입니다.',
+  },
   MESSAGING_NOT_ALLOWED: {
     status: 403,
     message: '이 채팅방에서는 메시지를 보낼 수 없습니다.',

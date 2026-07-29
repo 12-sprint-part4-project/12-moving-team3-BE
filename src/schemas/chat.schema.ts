@@ -33,3 +33,12 @@ export const sendChatMessageBodySchema = z.object({
 });
 
 export type SendChatMessageBody = z.infer<typeof sendChatMessageBodySchema>;
+
+/** POST /api/chat/rooms/:roomId/read 요청 body 스키마 */
+export const markChatRoomAsReadBodySchema = z.object({
+  lastReadMessageId: z.number().int().positive(),
+});
+
+export type MarkChatRoomAsReadBody = z.infer<
+  typeof markChatRoomAsReadBodySchema
+>;

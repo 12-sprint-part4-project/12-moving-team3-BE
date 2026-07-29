@@ -11,6 +11,7 @@ import * as chatRepository from '../repositories/chat.repository';
 import type {
   CreateChatRoomBody,
   GetChatMessagesQuery,
+  MarkChatRoomAsReadBody,
   SendChatMessageBody,
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
@@ -88,6 +89,10 @@ interface ChatMessagesMeta {
 interface ChatMessagesResult {
   data: ChatMessagesData;
   meta: ChatMessagesMeta;
+}
+
+interface MarkChatRoomAsReadResult {
+  lastReadMessageId: number;
 }
 
 /** Date를 ISO 8601 문자열로 변환한다. */
@@ -575,5 +580,63 @@ export const sendChatMessage = async (
     attachments: message.attachments.map((attachment) => attachment.fileKey),
     createdAt: toIsoString(message.createdAt),
   };
+};
+
+/**
+ * 채팅방 읽음 상태를 갱신한다.
+ * - 활성 참여자만 처리 가능
+ * - lastReadMessageId는 해당 방·joinedAt 이후 메시지여야 함
+ * - 이미 더 앞선 메시지를 읽은 경우 현재 값을 그대로 반환(전진만 허용)
+ * - 카카오톡 방식: 마지막 읽은 messageId만 기록하며 unread 계산에 사용
+ */
+export const markChatRoomAsRead = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  body: MarkChatRoomAsReadBody
+): Promise<MarkChatRoomAsReadResult> => {
+  const room = await chatRepository.findRoomById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const participation = await chatRepository.findActiveParticipation(
+    roomId,
+    authUser.userId
+  );
+
+  if (!participation) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  const message = await chatRepository.findMessageInRoomAfterJoinedAt({
+    roomId,
+    messageId: body.lastReadMessageId,
+    joinedAt: participation.joinedAt,
+  });
+
+  if (!message) {
+    throw new AppError('MESSAGE_NOT_FOUND');
+  }
+
+  const currentLastReadMessageId =
+    await chatRepository.findLastReadMessageIdByRoom(
+      roomId,
+      authUser.userId
+    );
+
+  if (
+    currentLastReadMessageId !== null &&
+    body.lastReadMessageId <= currentLastReadMessageId
+  ) {
+    return { lastReadMessageId: currentLastReadMessageId };
+  }
+
+  const readStatus = await chatRepository.upsertReadStatus(
+    body.lastReadMessageId,
+    authUser.userId
+  );
+
+  return { lastReadMessageId: readStatus.messageId };
 };
 
