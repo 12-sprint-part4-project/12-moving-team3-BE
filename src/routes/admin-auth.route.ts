@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as adminAuthController from '../controllers/admin-auth.controller';
+import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { adminLoginBodySchema } from '../schemas/admin-auth.schema';
 
@@ -84,5 +85,7 @@ router.post(
   }),
   adminAuthController.loginAdmin
 );
+
+router.get('/me', requireAdminAuth, adminAuthController.getAdminMe);
 
 export default router;
