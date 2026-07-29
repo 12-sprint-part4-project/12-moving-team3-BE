@@ -171,10 +171,11 @@ router.get(
  *             properties:
  *               filename:
  *                 type: string
- *                 description: 업로드할 파일명 (확장자 포함)
+ *                 description: 업로드할 파일명 (클라이언트 표시용, key 생성에는 사용하지 않음)
  *               contentType:
  *                 type: string
- *                 description: image/* MIME 타입 (예: image/jpeg)
+ *                 enum: [image/jpeg, image/png, image/webp]
+ *                 description: 허용 MIME 타입
  *     responses:
  *       200:
  *         description: Presigned URL 발급 성공

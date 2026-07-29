@@ -1,8 +1,4 @@
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { PostsCategory } from '@prisma/client';
-import { randomUUID } from 'crypto';
-import { s3Client } from '../lib/s3';
 import type {
   CreatePostBody,
   PostListQuery,
@@ -15,6 +11,7 @@ import {
 } from '../schemas/post.schema';
 import * as postRepository from '../repositories/post.repository';
 import type { PostCursor } from '../repositories/post.repository';
+import * as s3Service from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toProfileImageUrl } from '../utils/profile-image.util';
 
@@ -246,28 +243,5 @@ export const deletePost = async (postId: number, userId: string) => {
 };
 
 /** 게시글 이미지 업로드 Presigned URL 발급 */
-export const getPresignedUrl = async (
-  filename: string,
-  contentType: string
-) => {
-  const bucket = process.env.AWS_S3_BUCKET;
-
-  if (!bucket) {
-    throw new AppError('INTERNAL_SERVER_ERROR');
-  }
-
-  const ext = filename.includes('.') ? filename.split('.').pop() : '';
-  const imageKey = `posts/${randomUUID()}${ext ? `.${ext}` : ''}`;
-
-  const command = new PutObjectCommand({
-    Bucket: bucket,
-    Key: imageKey,
-    ContentType: contentType,
-  });
-
-  const presignedUrl = await getSignedUrl(s3Client, command, {
-    expiresIn: 300,
-  });
-
-  return { presignedUrl, imageKey };
-};
+export const getPresignedUrl = async (contentType: string) =>
+  s3Service.createPostImagePresignedUrl(contentType);

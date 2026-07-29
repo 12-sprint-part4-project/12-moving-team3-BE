@@ -1,5 +1,6 @@
 import { PostsCategory, Region } from '@prisma/client';
 import { z } from 'zod';
+import { ALLOWED_IMAGE_MIME_TYPES } from '../constants/image.constants';
 
 export const POST_SORT_VALUES = [
   'LATEST',
@@ -75,12 +76,7 @@ export type CreateCommentBody = z.infer<typeof createCommentBodySchema>;
 
 export const presignedUrlBodySchema = z.object({
   filename: z.string().min(1),
-  contentType: z
-    .string()
-    .min(1)
-    .refine((value) => value.startsWith('image/'), {
-      message: 'contentType은 image/* MIME 타입이어야 합니다.',
-    }),
+  contentType: z.enum(ALLOWED_IMAGE_MIME_TYPES),
 });
 
 export type PresignedUrlBody = z.infer<typeof presignedUrlBodySchema>;

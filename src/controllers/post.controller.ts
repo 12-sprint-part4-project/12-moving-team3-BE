@@ -144,8 +144,8 @@ export const getPresignedUrl = async (
   try {
     getAuthenticatedUser(res);
 
-    const { filename, contentType } = getValidatedPresignedUrlBody(res);
-    const result = await postService.getPresignedUrl(filename, contentType);
+    const { contentType } = getValidatedPresignedUrlBody(res);
+    const result = await postService.getPresignedUrl(contentType);
 
     res.status(200).json({ data: result });
   } catch (error) {
