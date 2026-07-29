@@ -24,6 +24,14 @@ export const getChatRoomList = async (_req: Request, res: Response) => {
   res.status(200).json({ data });
 };
 
+/** GET /api/chat/unread-count — 전체 미읽음 수 조회 요청을 처리한다. */
+export const getUnreadCount = async (_req: Request, res: Response) => {
+  const authUser = getAuthenticatedUser(res);
+  const data = await chatService.getUnreadCount(authUser);
+
+  res.status(200).json({ data });
+};
+
 /** GET /api/chat/rooms/:roomId — 채팅방 상세 조회 요청을 처리한다. */
 export const getChatRoomDetail = async (_req: Request, res: Response) => {
   const authUser = getAuthenticatedUser(res);

@@ -208,6 +208,23 @@ export const findRoomDetailById = async (roomId: number) => {
 };
 
 /**
+ * 유저가 활성 참여 중인 방의 roomId·joinedAt만 조회한다.
+ * 미읽음 합산 등 partner/방 메타가 필요 없는 집계에 사용한다.
+ */
+export const findActiveRoomFiltersByUserId = async (userId: string) => {
+return prisma.chatRoomParticipant.findMany({
+    where: {
+      participantId: userId,
+      leftAt: null,
+    },
+    select: {
+      roomId: true,
+      joinedAt: true,
+    },
+  });
+};
+
+/**
  * 유저가 활성 참여 중인 채팅방 목록을 조회한다.
  * - 방 노출: 요청자 leftAt IS NULL
  * - participants는 leftAt 무관하게 조회(상대가 나간 방도 partner 표시)

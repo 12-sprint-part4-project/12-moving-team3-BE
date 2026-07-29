@@ -82,6 +82,40 @@ router.get('/rooms', requireAuth, chatController.getChatRoomList);
 
 /**
  * @swagger
+ * /api/chat/unread-count:
+ *   get:
+ *     tags: [Chat]
+ *     summary: 전체 미읽음 수 조회
+ *     description: |
+ *       인증된 사용자가 활성 참여 중인 모든 채팅방의 미읽음 메시지 수를 합산해 반환합니다.
+ *       방별 정책은 목록 API와 동일합니다(마지막 읽음 이후 · 본인 발신 제외 · joinedAt 이후).
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 전체 미읽음 수 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     unreadCount:
+ *                       type: integer
+ *                       minimum: 0
+ *                       description: 활성 채팅방 미읽음 합산 값
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/unread-count', requireAuth, chatController.getUnreadCount);
+
+/**
+ * @swagger
  * /api/chat/rooms/{roomId}/messages:
  *   get:
  *     tags: [Chat]

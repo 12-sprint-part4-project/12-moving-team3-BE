@@ -52,6 +52,10 @@ interface ChatRoomListResult {
   rooms: ChatRoomListItem[];
 }
 
+interface UnreadCountResult {
+  unreadCount: number;
+}
+
 interface ChatRoomDetailResult {
   partner: ChatRoomPartner;
   requestSummary: {
@@ -411,6 +415,29 @@ export const getChatRoomList = async (
     .filter((item): item is ChatRoomListItem => item !== null);
 
   return { rooms: roomListItems };
+};
+
+/**
+ * 활성 참여 중인 모든 채팅방의 미읽음 수를 합산한다.
+ * 방별 정책은 목록 API와 동일(마지막 읽음 이후 · 본인 발신 제외 · joinedAt 이후).
+ */
+export const getUnreadCount = async (
+  authUser: AuthenticatedUser
+): Promise<UnreadCountResult> => {
+  const roomFilters = await chatRepository.findActiveRoomFiltersByUserId(
+    authUser.userId
+  );
+  const unreadCountByRoomId = await chatRepository.findUnreadCountsByRooms(
+    authUser.userId,
+    roomFilters
+  );
+
+  let unreadCount = 0;
+  for (const count of unreadCountByRoomId.values()) {
+    unreadCount += count;
+  }
+
+  return { unreadCount };
 };
 
 /**
