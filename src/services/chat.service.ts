@@ -95,6 +95,11 @@ interface MarkChatRoomAsReadResult {
   lastReadMessageId: number;
 }
 
+interface LeaveChatRoomResult {
+  roomId: number;
+  leftAt: string;
+}
+
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
 
@@ -625,5 +630,46 @@ export const markChatRoomAsRead = async (
   });
 
   return { lastReadMessageId: readStatus.lastReadMessageId };
+};
+
+/**
+ * 채팅방에서 나간다.
+ * - 활성 참여(leftAt IS NULL) row에 leftAt을 설정한다
+ * - 이미 나간 상태면 ALREADY_LEFT, 참여 이력이 없으면 FORBIDDEN
+ */
+export const leaveChatRoom = async (
+  authUser: AuthenticatedUser,
+  roomId: number
+): Promise<LeaveChatRoomResult> => {
+  const room = await chatRepository.findRoomById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const leftAt = new Date();
+  const result = await chatRepository.leaveActiveParticipation(
+    roomId,
+    authUser.userId,
+    leftAt
+  );
+
+  if (result.count === 0) {
+    const anyParticipation = await chatRepository.findAnyParticipation(
+      roomId,
+      authUser.userId
+    );
+
+    if (anyParticipation) {
+      throw new AppError('ALREADY_LEFT');
+    }
+
+    throw new AppError('FORBIDDEN');
+  }
+
+  return {
+    roomId,
+    leftAt: toIsoString(leftAt),
+  };
 };
 
