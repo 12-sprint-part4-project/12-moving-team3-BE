@@ -1,4 +1,9 @@
-import { Prisma, type ChatRoom, type ChatRoomType, type MessageType } from '@prisma/client';
+import {
+  Prisma,
+  type ChatRoom,
+  type ChatRoomType,
+  type MessageType,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export type ChatRoomRecord = ChatRoom;
@@ -208,6 +213,23 @@ export const findRoomDetailById = async (roomId: number) => {
 };
 
 /**
+ * 유저가 활성 참여 중인 방의 roomId·joinedAt만 조회한다.
+ * 미읽음 합산 등 partner/방 메타가 필요 없는 집계에 사용한다.
+ */
+export const findActiveRoomFiltersByUserId = async (userId: string) => {
+  return prisma.chatRoomParticipant.findMany({
+    where: {
+      participantId: userId,
+      leftAt: null,
+    },
+    select: {
+      roomId: true,
+      joinedAt: true,
+    },
+  });
+};
+
+/**
  * 유저가 활성 참여 중인 채팅방 목록을 조회한다.
  * - 방 노출: 요청자 leftAt IS NULL
  * - participants는 leftAt 무관하게 조회(상대가 나간 방도 partner 표시)
@@ -309,6 +331,7 @@ export const findLastMessagesByRooms = async (
 /**
  * 방별 미읽음 메시지 수를 조회한다.
  * 마지막 읽은 메시지(id) 이후 + 본인 발신 제외 + joinedAt 이후만 카운트한다.
+ * 방마다 count를 나누지 않고, 방별 조건을 OR로 묶은 뒤 groupBy 한 번으로 집계한다.
  */
 export const findUnreadCountsByRooms = async (
   userId: string,
@@ -335,26 +358,28 @@ export const findUnreadCountsByRooms = async (
     lastReadStatuses.map((status) => [status.roomId, status.lastReadMessageId])
   );
 
-  const unreadCounts = await Promise.all(
-    rooms.map(async ({ roomId, joinedAt }) => {
-      const lastReadMessageId = lastReadMessageIdByRoomId.get(roomId);
+  const roomConditions = rooms.map(({ roomId, joinedAt }) => {
+    const lastReadMessageId = lastReadMessageIdByRoomId.get(roomId);
 
-      const count = await prisma.chatMessage.count({
-        where: {
-          roomId,
-          senderId: { not: userId },
-          createdAt: { gte: joinedAt },
-          ...(lastReadMessageId !== undefined && {
-            id: { gt: lastReadMessageId },
-          }),
-        },
-      });
+    return {
+      roomId,
+      createdAt: { gte: joinedAt },
+      ...(lastReadMessageId !== undefined && {
+        id: { gt: lastReadMessageId },
+      }),
+    };
+  });
 
-      return { roomId, count };
-    })
-  );
+  const grouped = await prisma.chatMessage.groupBy({
+    by: ['roomId'],
+    where: {
+      senderId: { not: userId },
+      OR: roomConditions,
+    },
+    _count: { _all: true },
+  });
 
-  return new Map(unreadCounts.map(({ roomId, count }) => [roomId, count]));
+  return new Map(grouped.map((row) => [row.roomId, row._count._all]));
 };
 
 /** 채팅방 존재 여부를 ID로 확인한다. */
@@ -398,6 +423,43 @@ export const findActiveParticipation = async (
     select: {
       joinedAt: true,
     },
+  });
+};
+
+/** 유저가 해당 방에 참여한 이력이 있는지(leftAt 무관) 확인한다. */
+export const findAnyParticipation = async (
+  roomId: number,
+  userId: string,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.chatRoomParticipant.findFirst({
+    where: {
+      roomId,
+      participantId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+};
+
+/**
+ * 활성 참여 row에 leftAt을 설정한다.
+ * leftAt IS NULL인 row만 갱신하며, 영향 건수는 service에서 확인한다.
+ */
+export const leaveActiveParticipation = async (
+  roomId: number,
+  userId: string,
+  leftAt: Date,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.chatRoomParticipant.updateMany({
+    where: {
+      roomId,
+      participantId: userId,
+      leftAt: null,
+    },
+    data: { leftAt },
   });
 };
 
@@ -564,7 +626,10 @@ export const createTextMessage = async (
   await tx.chatRoom.updateMany({
     where: {
       id: data.roomId,
-      OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: message.createdAt } }],
+      OR: [
+        { lastMessageAt: null },
+        { lastMessageAt: { lt: message.createdAt } },
+      ],
     },
     data: { lastMessageAt: message.createdAt },
   });

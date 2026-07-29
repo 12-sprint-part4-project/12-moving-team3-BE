@@ -7,10 +7,7 @@ import type {
 } from '../utils/movers-cursor.util';
 
 export type MoverListSort =
-  | 'career_asc'
-  | 'career_desc'
-  | 'createdAt_asc'
-  | 'createdAt_desc';
+  'career_asc' | 'career_desc' | 'createdAt_asc' | 'createdAt_desc';
 
 const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'createdAt_desc';
 
@@ -158,9 +155,7 @@ const buildMoverDetailWhere = (
 const buildFavoriteListWhere = (
   params: FindFavoriteMoversParams
 ): Prisma.FavoriteWhereInput => {
-  const conditions: Prisma.FavoriteWhereInput[] = [
-    { userId: params.userId },
-  ];
+  const conditions: Prisma.FavoriteWhereInput[] = [{ userId: params.userId }];
 
   if (params.onlyActiveMovers) {
     conditions.push({ mover: buildActiveMoverUserWhere() });
@@ -250,7 +245,9 @@ const moverProfileRepository = {
     const limit = filters.limit ?? 10;
     const baseWhere = buildMoverListWhere(filters);
     const where: Prisma.MoverProfileWhereInput = filters.cursor
-      ? { AND: [baseWhere, buildMoverListCursorCondition(sort, filters.cursor)] }
+      ? {
+          AND: [baseWhere, buildMoverListCursorCondition(sort, filters.cursor)],
+        }
       : baseWhere;
 
     const rows = await dbClient.moverProfile.findMany({

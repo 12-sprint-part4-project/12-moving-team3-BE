@@ -52,6 +52,10 @@ interface ChatRoomListResult {
   rooms: ChatRoomListItem[];
 }
 
+interface UnreadCountResult {
+  unreadCount: number;
+}
+
 interface ChatRoomDetailResult {
   partner: ChatRoomPartner;
   requestSummary: {
@@ -93,6 +97,11 @@ interface ChatMessagesResult {
 
 interface MarkChatRoomAsReadResult {
   lastReadMessageId: number;
+}
+
+interface LeaveChatRoomResult {
+  roomId: number;
+  leftAt: string;
 }
 
 /** Date를 ISO 8601 문자열로 변환한다. */
@@ -409,6 +418,29 @@ export const getChatRoomList = async (
 };
 
 /**
+ * 활성 참여 중인 모든 채팅방의 미읽음 수를 합산한다.
+ * 방별 정책은 목록 API와 동일(마지막 읽음 이후 · 본인 발신 제외 · joinedAt 이후).
+ */
+export const getUnreadCount = async (
+  authUser: AuthenticatedUser
+): Promise<UnreadCountResult> => {
+  const roomFilters = await chatRepository.findActiveRoomFiltersByUserId(
+    authUser.userId
+  );
+  const unreadCountByRoomId = await chatRepository.findUnreadCountsByRooms(
+    authUser.userId,
+    roomFilters
+  );
+
+  let unreadCount = 0;
+  for (const count of unreadCountByRoomId.values()) {
+    unreadCount += count;
+  }
+
+  return { unreadCount };
+};
+
+/**
  * 채팅방 상세 정보를 조회한다.
  * - 활성 참여자(leftAt IS NULL)만 접근 가능
  * - partner는 상대방 유저 정보를 반환
@@ -627,3 +659,43 @@ export const markChatRoomAsRead = async (
   return { lastReadMessageId: readStatus.lastReadMessageId };
 };
 
+/**
+ * 채팅방에서 나간다.
+ * - 활성 참여(leftAt IS NULL) row에 leftAt을 설정한다
+ * - 이미 나간 상태면 ALREADY_LEFT, 참여 이력이 없으면 FORBIDDEN
+ */
+export const leaveChatRoom = async (
+  authUser: AuthenticatedUser,
+  roomId: number
+): Promise<LeaveChatRoomResult> => {
+  const room = await chatRepository.findRoomById(roomId);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const leftAt = new Date();
+  const result = await chatRepository.leaveActiveParticipation(
+    roomId,
+    authUser.userId,
+    leftAt
+  );
+
+  if (result.count === 0) {
+    const anyParticipation = await chatRepository.findAnyParticipation(
+      roomId,
+      authUser.userId
+    );
+
+    if (anyParticipation) {
+      throw new AppError('ALREADY_LEFT');
+    }
+
+    throw new AppError('FORBIDDEN', '채팅방 참여 권한이 없습니다.');
+  }
+
+  return {
+    roomId,
+    leftAt: toIsoString(leftAt),
+  };
+};

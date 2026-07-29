@@ -24,6 +24,14 @@ export const getChatRoomList = async (_req: Request, res: Response) => {
   res.status(200).json({ data });
 };
 
+/** GET /api/chat/unread-count — 전체 미읽음 수 조회 요청을 처리한다. */
+export const getUnreadCount = async (_req: Request, res: Response) => {
+  const authUser = getAuthenticatedUser(res);
+  const data = await chatService.getUnreadCount(authUser);
+
+  res.status(200).json({ data });
+};
+
 /** GET /api/chat/rooms/:roomId — 채팅방 상세 조회 요청을 처리한다. */
 export const getChatRoomDetail = async (_req: Request, res: Response) => {
   const authUser = getAuthenticatedUser(res);
@@ -94,6 +102,24 @@ export const markChatRoomAsRead = async (_req: Request, res: Response) => {
   }
 
   const data = await chatService.markChatRoomAsRead(authUser, roomId, body);
+
+  res.status(200).json({ data });
+};
+
+/**
+ * POST /api/chat/rooms/:roomId/leave — 채팅방 나가기 요청을 처리한다.
+ */
+export const leaveChatRoom = async (_req: Request, res: Response) => {
+  const authUser = getAuthenticatedUser(res);
+
+  const validated = res.locals.validated as ValidatedLocals | undefined;
+  const roomId = validated?.params?.roomId;
+
+  if (roomId === undefined) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const data = await chatService.leaveChatRoom(authUser, roomId);
 
   res.status(200).json({ data });
 };

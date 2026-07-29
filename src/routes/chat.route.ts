@@ -82,6 +82,40 @@ router.get('/rooms', requireAuth, chatController.getChatRoomList);
 
 /**
  * @swagger
+ * /api/chat/unread-count:
+ *   get:
+ *     tags: [Chat]
+ *     summary: 전체 미읽음 수 조회
+ *     description: |
+ *       인증된 사용자가 활성 참여 중인 모든 채팅방의 미읽음 메시지 수를 합산해 반환합니다.
+ *       방별 정책은 목록 API와 동일합니다(마지막 읽음 이후 · 본인 발신 제외 · joinedAt 이후).
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 전체 미읽음 수 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     unreadCount:
+ *                       type: integer
+ *                       minimum: 0
+ *                       description: 활성 채팅방 미읽음 합산 값
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/unread-count', requireAuth, chatController.getUnreadCount);
+
+/**
+ * @swagger
  * /api/chat/rooms/{roomId}/messages:
  *   get:
  *     tags: [Chat]
@@ -354,6 +388,74 @@ router.post(
     errorCode: 'INVALID_REQUEST',
   }),
   chatController.markChatRoomAsRead
+);
+
+/**
+ * @swagger
+ * /api/chat/rooms/{roomId}/leave:
+ *   post:
+ *     tags: [Chat]
+ *     summary: 채팅방 나가기
+ *     description: |
+ *       활성 참여 중인 채팅방에서 나갑니다. 활성 참여자 row에 `leftAt`을 설정합니다.
+ *       이미 나간 상태면 `409 ALREADY_LEFT`를 반환합니다.
+ *       나가기 이후 해당 시점 이전 메시지는 미노출되며, 상대가 새 메시지를 보내면 목록에 재노출될 수 있습니다.
+ *       Bearer Access Token 인증이 필요합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: 채팅방 ID
+ *     responses:
+ *       200:
+ *         description: 채팅방 나가기 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     roomId:
+ *                       type: integer
+ *                     leftAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         description: 이미 나간 채팅방
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error:
+ *                 code: ALREADY_LEFT
+ *                 message: 이미 나간 채팅방입니다.
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/rooms/:roomId/leave',
+  requireAuth,
+  validateRequest({
+    params: chatRoomIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  chatController.leaveChatRoom
 );
 
 /**
