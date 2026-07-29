@@ -339,9 +339,11 @@ router.get(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
+ *                 description: presigned URL로 발급받은 posts/ prefix imageKey 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
+ *                   pattern: ^posts/[^/]+$
  *               latitude:
  *                 type: number
  *                 minimum: -90
@@ -409,9 +411,11 @@ router.post(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
+ *                 description: presigned URL로 발급받은 posts/ prefix imageKey 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
+ *                   pattern: ^posts/[^/]+$
  *     responses:
  *       200:
  *         description: 게시글 수정 성공

@@ -1,6 +1,9 @@
 import { PostsCategory, Region } from '@prisma/client';
 import { z } from 'zod';
-import { ALLOWED_IMAGE_MIME_TYPES } from '../constants/image.constants';
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  POST_IMAGE_KEY_PREFIX,
+} from '../constants/image.constants';
 
 export const POST_SORT_VALUES = [
   'LATEST',
@@ -31,6 +34,17 @@ export type PostIdParams = z.infer<typeof postIdParamsSchema>;
 
 export const MAX_POST_IMAGES = 5;
 
+const postImageKeySchema = z
+  .string()
+  .min(1)
+  .refine(
+    (key) =>
+      key.startsWith(POST_IMAGE_KEY_PREFIX) &&
+      key.length > POST_IMAGE_KEY_PREFIX.length &&
+      !key.slice(POST_IMAGE_KEY_PREFIX.length).includes('/'),
+    { message: 'imageKey는 posts/ 로 시작하는 유효한 경로여야 합니다.' }
+  );
+
 /** 게시글 생성 요청 바디 */
 export const createPostBodySchema = z.object({
   category: z.enum(PostsCategory),
@@ -38,7 +52,7 @@ export const createPostBodySchema = z.object({
   title: z.string().min(1).max(100),
   content: z.string().min(1),
   imageKeys: z
-    .array(z.string().min(1))
+    .array(postImageKeySchema)
     .max(MAX_POST_IMAGES)
     .optional()
     .default([]),
@@ -52,7 +66,7 @@ export type CreatePostBody = z.infer<typeof createPostBodySchema>;
 export const updatePostBodySchema = z
   .object({
     content: z.string().min(1).optional(),
-    imageKeys: z.array(z.string().min(1)).max(MAX_POST_IMAGES).optional(),
+    imageKeys: z.array(postImageKeySchema).max(MAX_POST_IMAGES).optional(),
   })
   .refine(
     (data) => data.content !== undefined || data.imageKeys !== undefined,
