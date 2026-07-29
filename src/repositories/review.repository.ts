@@ -30,7 +30,7 @@ const reviewRepository = {
     const [items, totalCount] = await Promise.all([
       dbClient.review.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip,
         take: params.limit,
         select: {
@@ -71,7 +71,7 @@ const reviewRepository = {
     const [items, totalCount] = await Promise.all([
       dbClient.review.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip,
         take: params.limit,
         select: {

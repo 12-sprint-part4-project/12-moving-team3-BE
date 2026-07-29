@@ -742,7 +742,10 @@ export const findWritableQuotesByCustomerId = async (
   const [items, totalCount] = await Promise.all([
     dbClient.quote.findMany({
       where,
-      orderBy: { estimateRequest: { moveDate: 'desc' } },
+      orderBy: [
+        { estimateRequest: { moveDate: 'desc' } },
+        { id: 'desc' },
+      ],
       skip,
       take: params.limit,
       select: {
