@@ -60,7 +60,7 @@ export interface DeleteReviewInput {
   reviewId: number;
 }
 
-type MoverReviewListItem = {
+interface MoverReviewListItem {
   id: number;
   rating: number;
   content: string;
@@ -69,17 +69,17 @@ type MoverReviewListItem = {
     id: string;
     name: string;
   };
-};
+}
 
-type GetMoverReviewsResult = {
+interface GetMoverReviewsResult {
   reviews: MoverReviewListItem[];
   meta: {
     pagination: ReviewPaginationMeta;
     ratingStatistics: ReviewRatingStatistics;
   };
-};
+}
 
-type CustomerReviewListItem = {
+interface CustomerReviewListItem {
   id: number;
   rating: number;
   content: string;
@@ -96,16 +96,16 @@ type CustomerReviewListItem = {
     price: number | null;
     isDesignated: boolean;
   } | null;
-};
+}
 
-type GetCustomerReviewsResult = {
+interface GetCustomerReviewsResult {
   reviews: CustomerReviewListItem[];
   meta: {
     pagination: ReviewPaginationMeta;
   };
-};
+}
 
-type WritableQuoteListItem = {
+interface WritableQuoteListItem {
   quoteId: number;
   moveType: MoveType | null;
   isDesignated: boolean;
@@ -116,14 +116,14 @@ type WritableQuoteListItem = {
     name: string;
     profileImageUrl: string | null;
   } | null;
-};
+}
 
-type GetCustomerWritableQuotesResult = {
+interface GetCustomerWritableQuotesResult {
   writableQuotes: WritableQuoteListItem[];
   meta: {
     pagination: ReviewPaginationMeta;
   };
-};
+}
 
 // TODO: DTO 정의 후 반환 타입 구체화
 type ReviewListResult = {
@@ -131,13 +131,13 @@ type ReviewListResult = {
   meta: ReviewPaginationMeta;
 };
 
-type ReviewDetail = {
+interface ReviewDetail {
   id: number;
   quoteId: number;
   rating: number;
   content: string;
   createdAt: Date;
-};
+}
 
 /** Date(@db.Date) → YYYY-MM-DD */
 const formatDateOnly = (date: Date | null): string | null => {
