@@ -304,6 +304,20 @@ export const ERROR_CODES = {
     status: 400,
     message: '대댓글에는 답글을 달 수 없습니다.',
   },
+
+  // 신고
+  REPORT_ALREADY_EXISTS: {
+    status: 409,
+    message: '이미 신고한 대상입니다.',
+  },
+  REPORT_TARGET_NOT_FOUND: {
+    status: 404,
+    message: '신고 대상을 찾을 수 없습니다.',
+  },
+  REPORT_SELF_NOT_ALLOWED: {
+    status: 403,
+    message: '자기 자신 또는 본인 콘텐츠는 신고할 수 없습니다.',
+  },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;
