@@ -71,8 +71,10 @@ export const toRouteRegionLabel = (
 
   const tokens = address.trim().split(/\s+/).filter(Boolean);
   const sidoRaw = tokens[0] ?? '';
+  // 특별자치도를 도보다 먼저 제거해야 전북특별자치도 → 전북 이 된다
   const sido = sidoRaw
     .replace(/특별자치시$/, '')
+    .replace(/특별자치도$/, '')
     .replace(/특별시$/, '')
     .replace(/광역시$/, '')
     .replace(/도$/, '');
