@@ -7,12 +7,36 @@ import {
   hashAuthPassword,
 } from '../utils/auth-password.util';
 import { AppError } from '../utils/app.error';
+import { toProfileImageUrl } from '../utils/profile-image.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
-import { deleteImage, toPresignedViewUrl } from './s3.service';
+import { deleteImage } from './s3.service';
 
 export interface RegisterCustomerProfileInput {
   userId: string;
   body: CustomerProfileBody;
+}
+
+interface ResolvePasswordHashForUpdateInput {
+  userId: string;
+  currentPassword?: string;
+  newPassword?: string;
+  newPasswordConfirm?: string;
+}
+
+interface CreateCustomerProfileInput {
+  userId: string;
+  body: CustomerProfileBody;
+  previousProfileImageKey: string | null;
+}
+
+interface UpdateCustomerProfileInput {
+  userId: string;
+  body: CustomerProfileBody;
+  existingProfile: NonNullable<
+    Awaited<
+      ReturnType<typeof customerProfileRepository.findCustomerProfileByUserId>
+    >
+  >;
 }
 
 // INVALID_NEW_PASSWORD와 동일 정책 (8~20자, 영문·숫자·특수문자)
@@ -31,12 +55,9 @@ const areSameService = (
 };
 
 /** newPassword가 있을 때만 비밀번호 변경 필드를 검증하고 hash를 반환 */
-const resolvePasswordHashForUpdate = async (input: {
-  userId: string;
-  currentPassword?: string;
-  newPassword?: string;
-  newPasswordConfirm?: string;
-}): Promise<string | undefined> => {
+const resolvePasswordHashForUpdate = async (
+  input: ResolvePasswordHashForUpdateInput
+): Promise<string | undefined> => {
   if (input.newPassword === undefined) {
     return undefined;
   }
@@ -91,7 +112,7 @@ export const getCustomerProfile = async (userId: string) => {
     name: profile.user.name,
     email: profile.user.email,
     phoneNumber: profile.user.phoneNumber,
-    profileImageUrl: await toPresignedViewUrl(profile.user.profileImageKey),
+    profileImageUrl: toProfileImageUrl(profile.user.profileImageKey),
     service: profile.service,
     region: profile.region,
     createdAt: profile.createdAt,
@@ -127,11 +148,7 @@ export const registerCustomerProfile = async (
   });
 };
 
-const createCustomerProfile = async (input: {
-  userId: string;
-  body: CustomerProfileBody;
-  previousProfileImageKey: string | null;
-}) => {
+const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
   const { body } = input;
 
   if (body.region === undefined) {
@@ -186,7 +203,7 @@ const createCustomerProfile = async (input: {
       phoneNumber: profile.phoneNumber,
       region: profile.region,
       service: profile.service,
-      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+      profileImageUrl: toProfileImageUrl(profile.profileImageKey),
       updatedAt: profile.updatedAt,
     };
   } catch (error) {
@@ -208,15 +225,7 @@ const createCustomerProfile = async (input: {
   }
 };
 
-const updateCustomerProfile = async (input: {
-  userId: string;
-  body: CustomerProfileBody;
-  existingProfile: NonNullable<
-    Awaited<
-      ReturnType<typeof customerProfileRepository.findCustomerProfileByUserId>
-    >
-  >;
-}) => {
+const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
   const { body, existingProfile } = input;
   const previousProfileImageKey = existingProfile.user.profileImageKey;
 
@@ -299,7 +308,7 @@ const updateCustomerProfile = async (input: {
       phoneNumber: profile.phoneNumber,
       region: profile.region,
       service: profile.service,
-      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+      profileImageUrl: toProfileImageUrl(profile.profileImageKey),
       updatedAt: profile.updatedAt,
     };
   } catch (error) {
