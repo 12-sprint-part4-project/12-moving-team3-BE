@@ -10,19 +10,19 @@ export interface ReviewPaginationParams {
 }
 
 /** 기사 리뷰 평점 분포·평균 (목록/상세 공통) */
-export type ReviewRatingCounts = {
+export interface ReviewRatingCounts {
   1: number;
   2: number;
   3: number;
   4: number;
   5: number;
-};
+}
 
-export type ReviewStats = {
+export interface ReviewStats {
   ratingCounts: ReviewRatingCounts;
   totalCount: number;
   averageRating: number | null;
-};
+}
 
 const reviewDetailSelect = {
   id: true,
