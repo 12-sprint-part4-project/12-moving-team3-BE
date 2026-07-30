@@ -60,7 +60,8 @@ export const countMoverFavorited = async (moverId: string) => {
  * 결과에 없는 moverId는 호출측에서 0으로 처리
  */
 export const countMoverFavoritedByMoverIds = async (
-  moverIds: string[]
+  moverIds: string[],
+  tx?: Prisma.TransactionClient
 ): Promise<Map<string, number>> => {
   const uniqueMoverIds = [...new Set(moverIds.filter(Boolean))];
   const result = new Map<string, number>();
@@ -73,7 +74,8 @@ export const countMoverFavoritedByMoverIds = async (
     result.set(moverId, 0);
   }
 
-  const rows = await prisma.favorite.groupBy({
+  const dbClient = tx ?? prisma;
+  const rows = await dbClient.favorite.groupBy({
     by: ['moverId'],
     where: {
       moverId: { in: uniqueMoverIds },
@@ -96,13 +98,15 @@ export const countMoverFavoritedByMoverIds = async (
  */
 export const findFavoritedMoverIdsByUser = async (
   userId: string,
-  moverIds: string[]
+  moverIds: string[],
+  tx?: Prisma.TransactionClient
 ): Promise<Set<string>> => {
   if (moverIds.length === 0) {
     return new Set();
   }
 
-  const rows = await prisma.favorite.findMany({
+  const dbClient = tx ?? prisma;
+  const rows = await dbClient.favorite.findMany({
     where: {
       userId,
       moverId: { in: moverIds },
