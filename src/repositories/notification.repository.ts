@@ -175,7 +175,6 @@ export const findConfirmedMovesOnDate = async (
     select: {
       id: true,
       userId: true,
-      moveType: true,
       departureAddress: true,
       arrivalAddress: true,
       confirmedQuote: {
