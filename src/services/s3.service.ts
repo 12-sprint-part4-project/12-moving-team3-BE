@@ -1,51 +1,54 @@
-import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { randomUUID } from 'node:crypto';
-import type {} from 'multer';
 import { s3Client } from '../config/s3';
+import { randomUUID } from 'node:crypto';
 
-interface CreatePresignedUploadUrlInput {
-  key: string;
-  contentType: string;
-  contentLength: number;
-  expiresIn: number;
-}
-
-/** S3 PUT용 Presigned URL을 발급한다. ContentType·ContentLength를 서명에 강제 포함한다. */
 export const createPresignedUploadUrl = async (
-  input: CreatePresignedUploadUrlInput
-): Promise<string> => {
+  filename: string,
+  contentType: string,
+  prefix: string
+): Promise<{ uploadUrl: string; s3Key: string }> => {
+  const s3Key = `${prefix}/${randomUUID()}_${filename}`;
+
   const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME,
-    Key: input.key,
-    ContentType: input.contentType,
-    ContentLength: input.contentLength,
+    Key: s3Key,
+    ContentType: contentType,
   });
 
-  // S3RequestPresigner는 기본적으로 content-type을 unsignable로 두므로,
-  // signableHeaders로 명시해야 업로드 MIME/크기를 URL 서명으로 강제할 수 있다.
-  return getSignedUrl(s3Client, command, {
-    expiresIn: input.expiresIn,
-    signableHeaders: new Set(['content-type', 'content-length']),
+  // 5분간 유효한 업로드용 Presigned URL
+  const uploadUrl = await getSignedUrl(s3Client, command, {
+    expiresIn: 60 * 5,
   });
+
+  return { uploadUrl, s3Key };
 };
 
-export const uploadImage = async (
-  file: Express.Multer.File,
-  directory: string
+export const createPresignedViewUrl = async (
+  key: string,
+  expiresIn = 60 * 60
 ): Promise<string> => {
-  const key = `${directory}/${randomUUID()}`;
-
-  const command = new PutObjectCommand({
+  const command = new GetObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME,
     Key: key,
-    Body: file.buffer,
-    ContentType: file.mimetype,
   });
 
-  await s3Client.send(command);
+  return getSignedUrl(s3Client, command, { expiresIn });
+};
 
-  return key;
+/** s3Key가 있으면 조회용 Presigned URL, 없으면 null */
+export const toPresignedViewUrl = async (
+  s3Key: string | null | undefined
+): Promise<string | null> => {
+  if (!s3Key) {
+    return null;
+  }
+
+  return createPresignedViewUrl(s3Key);
 };
 
 export const deleteImage = async (key: string): Promise<void> => {

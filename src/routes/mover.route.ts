@@ -2,7 +2,6 @@ import { Router } from 'express';
 import * as estimateRequestController from '../controllers/estimate-request.controller';
 import * as moverProfileController from '../controllers/mover-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
-import { upload } from '../middlewares/upload.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { moverProfileBodySchema } from '../schemas/mover-profile.schema';
 import { estimateRequestListQuerySchema } from '../schemas/estimate-request.schema';
@@ -29,7 +28,6 @@ router.patch(
   '/profile',
   requireAuth,
   allowUserTypes('MOVER'),
-  upload.single('profileImage'),
   validateRequest({
     body: moverProfileBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',

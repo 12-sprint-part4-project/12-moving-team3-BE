@@ -2,7 +2,6 @@ import { Router } from 'express';
 import * as customerProfileController from '../controllers/customer-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
-import { upload } from '../middlewares/upload.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
 import {
@@ -25,7 +24,6 @@ router.patch(
   '/profile',
   requireAuth,
   allowUserTypes('CUSTOMER'),
-  upload.single('profileImage'),
   validateRequest({
     body: customerProfileBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',
