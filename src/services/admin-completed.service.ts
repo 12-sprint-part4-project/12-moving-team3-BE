@@ -14,24 +14,24 @@ export const getCompletedStatistics = async ({
   endDate,
 }: AdminStatisticsFilter) => {
   const dateRange = createDateRange(startDate, endDate);
-  const EstimateRequestWhere: Prisma.EstimateRequestWhereInput = {
+  const estimateRequestWhere: Prisma.EstimateRequestWhereInput = {
     ...(dateRange && { moveDate: dateRange }),
     status: { in: [EstimateRequestStatus.COMPLETED] },
   };
 
-  const QuoteWhere: Prisma.QuoteWhereInput = {
-    ...(dateRange && { createdAt: dateRange }),
+  const quoteWhere: Prisma.QuoteWhereInput = {
+    ...(dateRange && { estimateRequest: { moveDate: dateRange } }),
     status: { in: [QuoteStatus.CONFIRMED] },
   };
 
   const [totalCompletedCount, averageCompletedPrice, totalCompletedPrice] =
     await Promise.all([
       getEstimateRequestCount({
-        ...EstimateRequestWhere,
+        ...estimateRequestWhere,
         status: { in: [EstimateRequestStatus.COMPLETED] },
       }),
-      averageCompletedQuotePrice(QuoteWhere),
-      totalCompletedQuotePrice(QuoteWhere),
+      averageCompletedQuotePrice(quoteWhere),
+      totalCompletedQuotePrice(quoteWhere),
     ]);
 
   return {

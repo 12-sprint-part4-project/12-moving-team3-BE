@@ -6,9 +6,9 @@ paths:
       description: |
         기간 조건에 따른 완료 견적 요청 및 확정 견적 금액 통계를 조회합니다.
         완료 견적 요청은 COMPLETED 상태이며, 실제 이사일(moveDate)을 기준으로 집계합니다.
-        완료된 견적 금액은 CONFIRMED 상태 견적의 생성일(createdAt)을 기준으로 집계합니다.
+        완료된 견적 금액은 CONFIRMED 상태 견적 중 실제 이사일(moveDate)이 기간에 포함된 항목을 기준으로 집계합니다.
         startDate가 없으면 전체 기간을 집계하며, 이 경우 endDate는 적용되지 않습니다.
-        startDate만 입력하면 해당 일(00:00:00 ~ 23:59:59)을 집계하고,
+        startDate만 입력하면 해당 일(KST 00:00:00 ~ 다음 날 KST 00:00:00 직전)을 집계하고,
         endDate도 입력하면 두 날짜 사이를 집계합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
@@ -17,7 +17,7 @@ paths:
         - name: startDate
           in: query
           required: false
-          description: 조회 시작일
+          description: 조회 시작일 (KST 기준)
           schema:
             type: string
             format: date
@@ -25,7 +25,7 @@ paths:
         - name: endDate
           in: query
           required: false
-          description: 조회 종료일 (startDate 미입력 시 적용되지 않음)
+          description: 조회 종료일 (KST 기준, startDate 미입력 시 적용되지 않음)
           schema:
             type: string
             format: date
