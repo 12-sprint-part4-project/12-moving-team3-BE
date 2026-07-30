@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -45,6 +46,8 @@ app.use(
 );
 
 app.use(express.json());
+// Cookie Header를 req.cookies로 파싱해 Refresh Token을 안전하게 읽게 한다.
+app.use(cookieParser());
 
 // Swagger 문서 - 프로덕션 배포 시에는 노출 X
 if (process.env.NODE_ENV !== 'production') {
