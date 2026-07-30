@@ -40,9 +40,10 @@ export const getNotifications = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const data = await notificationService.getNotificationsForReceiver(userId);
+    const { items, meta } =
+      await notificationService.getNotificationsForReceiver(userId);
 
-    res.status(200).json({ data });
+    res.status(200).json({ data: { items }, meta });
   } catch (error) {
     next(error);
   }

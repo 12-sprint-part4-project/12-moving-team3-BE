@@ -17,7 +17,7 @@ paths:
                 $ref: '#/components/schemas/NotificationListResponse'
               example:
                 data:
-                  notifications:
+                  items:
                     - id: 1
                       type: NEW_QUOTE_OFFER_ARRIVED
                       content: 김코드 기사님의 소형이사 견적이 도착했어요
@@ -28,6 +28,7 @@ paths:
                       createdAt: '2026-07-20T13:15:00.000Z'
                       quoteId: 10
                       estimateRequestId: null
+                meta:
                   totalCount: 7
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -51,7 +52,7 @@ paths:
                 $ref: '#/components/schemas/NotificationListResponse'
               example:
                 data:
-                  notifications:
+                  items:
                     - id: 2
                       type: NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED
                       content: 박소정 고객님의 소형이사 지정 견적 요청이 도착했어요
@@ -62,6 +63,7 @@ paths:
                       createdAt: '2026-07-20T13:15:00.000Z'
                       quoteId: null
                       estimateRequestId: 5
+                meta:
                   totalCount: 5
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -188,16 +190,20 @@ components:
           nullable: true
     NotificationListResponse:
       type: object
-      required: [data]
+      required: [data, meta]
       properties:
         data:
           type: object
-          required: [notifications, totalCount]
+          required: [items]
           properties:
-            notifications:
+            items:
               type: array
               items:
                 $ref: '#/components/schemas/NotificationItem'
+        meta:
+          type: object
+          required: [totalCount]
+          properties:
             totalCount:
               type: integer
               example: 7

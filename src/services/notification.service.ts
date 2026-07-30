@@ -110,14 +110,15 @@ export const publishAfterCreate = async (
   notificationSse.publishUnreadCount(receiverId, unreadCount);
 };
 
-/** 고객/기사 드롭다운용 최신 최대 10개 + totalCount */
+/** 고객/기사 드롭다운용 최신 최대 10개 + meta.totalCount */
 export const getNotificationsForReceiver = async (receiverId: string) => {
   const { notifications, totalCount } =
     await notificationRepository.findLatestByReceiver(receiverId);
 
+  // totalCount는 부가 정보이므로 data가 아닌 meta로 둔다 (팀 API 규칙)
   return {
-    notifications: notifications.map(toListItem),
-    totalCount,
+    items: notifications.map(toListItem),
+    meta: { totalCount },
   };
 };
 
