@@ -4,12 +4,11 @@ paths:
       tags: [Admin Estimate Requests]
       summary: 관리자 견적 요청 통계 조회
       description: |
-        기간과 검색어 조건에 따른 활성 견적 요청 통계를 조회합니다.
+        기간 조건에 따른 활성 견적 요청 통계를 조회합니다.
         활성 견적 요청은 SUBMITTED 또는 CONFIRMED 상태입니다.
         startDate가 없으면 전체 기간을 집계하며, 이 경우 endDate는 적용되지 않습니다.
         startDate만 입력하면 해당 일(00:00:00 ~ 23:59:59)을 집계하고,
         endDate도 입력하면 두 날짜 사이를 집계합니다.
-        keyword는 견적 요청 ID, 고객 이름 또는 고객 전화번호를 대상으로 검색합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -30,13 +29,6 @@ paths:
             type: string
             format: date
             example: '2026-07-30'
-        - name: keyword
-          in: query
-          required: false
-          description: 견적 요청 ID, 고객 이름 또는 고객 전화번호 검색어
-          schema:
-            type: string
-            example: '01012345678'
       responses:
         '200':
           description: 견적 요청 통계 조회 성공

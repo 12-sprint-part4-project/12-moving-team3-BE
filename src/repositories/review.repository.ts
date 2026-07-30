@@ -9,6 +9,21 @@ export interface ReviewPaginationParams {
   limit: number;
 }
 
+/** 기사 리뷰 평점 분포·평균 (목록/상세 공통) */
+export interface ReviewRatingCounts {
+  1: number;
+  2: number;
+  3: number;
+  4: number;
+  5: number;
+}
+
+export interface ReviewStats {
+  ratingCounts: ReviewRatingCounts;
+  totalCount: number;
+  averageRating: number | null;
+}
+
 const reviewDetailSelect = {
   id: true,
   quoteId: true,
@@ -16,6 +31,69 @@ const reviewDetailSelect = {
   content: true,
   createdAt: true,
 } satisfies Prisma.ReviewSelect;
+
+const emptyReviewStats = (): ReviewStats => ({
+  ratingCounts: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+  totalCount: 0,
+  averageRating: null,
+});
+
+/** GROUP BY rating 결과 → ReviewStats (앱에서는 합산·평균만) */
+const toReviewStatsFromRatingRows = (
+  rows: Array<{ rating: number; count: number }>
+): ReviewStats => {
+  const ratingCounts: ReviewRatingCounts = {
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+    5: 0,
+  };
+  let ratingSum = 0;
+  let totalCount = 0;
+
+  for (const row of rows) {
+    const score = row.rating;
+    const count = Number(row.count);
+    if (score in ratingCounts) {
+      ratingCounts[score as keyof ReviewRatingCounts] += count;
+      ratingSum += score * count;
+      totalCount += count;
+    }
+  }
+
+  return {
+    ratingCounts,
+    totalCount,
+    averageRating:
+      totalCount === 0 ? null : Math.round((ratingSum / totalCount) * 10) / 10,
+  };
+};
+
+/**
+ * 기사 1명 리뷰 통계 — Prisma groupBy (DB COUNT)
+ * quote.moverId로 필터 가능. 관계 필드 groupBy는 Prisma 미지원이라 배치 시 기사별 호출.
+ */
+const getReviewStatsForMover = async (
+  moverId: string,
+  dbClient: Prisma.TransactionClient | typeof prisma
+): Promise<ReviewStats> => {
+  const rows = await dbClient.review.groupBy({
+    by: ['rating'],
+    where: {
+      deletedAt: null,
+      quote: { moverId },
+    },
+    _count: { _all: true },
+  });
+
+  return toReviewStatsFromRatingRows(
+    rows.map((row) => ({
+      rating: row.rating,
+      count: row._count._all,
+    }))
+  );
+};
 
 const reviewRepository = {
   /**
@@ -114,56 +192,43 @@ const reviewRepository = {
   },
 
   /**
-   * 기사(User id) 한 명의 리뷰 통계를 만든다.
-   * 반환: 평점별 개수, 총 개수, 평균 평점
+   * 여러 기사의 리뷰 통계
+   *
+   * Prisma는 관계 필드(quote.moverId)로 groupBy 할 수 없어
+   * 기사별 groupBy를 병렬 실행한다.
+   * — 쿼리 수는 L회이지만 각 쿼리는 COUNT 집계만 하므로 전량 findMany N회보다 가벼움
+   */
+  getReviewStatsByMoverIds: async (
+    moverIds: string[],
+    tx?: Prisma.TransactionClient
+  ): Promise<Map<string, ReviewStats>> => {
+    const uniqueMoverIds = [...new Set(moverIds.filter(Boolean))];
+    const result = new Map<string, ReviewStats>();
+
+    if (uniqueMoverIds.length === 0) {
+      return result;
+    }
+
+    const dbClient = tx ?? prisma;
+    const statsList = await Promise.all(
+      uniqueMoverIds.map((moverId) => getReviewStatsForMover(moverId, dbClient))
+    );
+
+    uniqueMoverIds.forEach((moverId, index) => {
+      result.set(moverId, statsList[index] ?? emptyReviewStats());
+    });
+
+    return result;
+  },
+
+  /**
+   * 기사(User id) 한 명의 리뷰 통계
    */
   getReviewStatsByMoverId: async (
     moverId: string,
     tx?: Prisma.TransactionClient
-  ) => {
-    const dbClient = tx ?? prisma;
-
-    // 1) 이 기사 견적에 달린 리뷰의 rating만 가져온다 (삭제된 리뷰 제외)
-    const reviews = await dbClient.review.findMany({
-      where: {
-        deletedAt: null,
-        quote: { moverId },
-      },
-      select: {
-        rating: true,
-      },
-    });
-
-    // 2) 1~5점 개수를 0으로 준비해 둔다
-    const ratingCounts = {
-      1: 0,
-      2: 0,
-      3: 0,
-      4: 0,
-      5: 0,
-    };
-
-    // 3) 리뷰를 하나씩 보며 개수와 합계를 구한다
-    let ratingSum = 0;
-
-    for (const review of reviews) {
-      const score = review.rating;
-      if (score in ratingCounts) {
-        ratingCounts[score as keyof typeof ratingCounts] += 1;
-        ratingSum += score;
-      }
-    }
-
-    // 4) 총 개수 · 평균 (리뷰 없으면 평균은 null)
-    const totalCount = reviews.length;
-    const averageRating =
-      totalCount === 0 ? null : Math.round((ratingSum / totalCount) * 10) / 10; // 소수 1자리
-
-    return {
-      ratingCounts,
-      totalCount,
-      averageRating,
-    };
+  ): Promise<ReviewStats> => {
+    return getReviewStatsForMover(moverId, tx ?? prisma);
   },
 
   /**

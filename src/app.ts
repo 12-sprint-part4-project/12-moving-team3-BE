@@ -21,6 +21,8 @@ import reviewRouter from './routes/review.route';
 import reportRouter from './routes/report.route';
 import presignedUrlRouter from './routes/presigned-url.route';
 import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
+import notificationRouter from './routes/notification.route';
+import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
 
 const app = express();
 
@@ -82,6 +84,7 @@ app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/review', reviewRouter);
 app.use('/api/reports', reportRouter);
+app.use('/api/notifications', notificationRouter);
 app.use('/api', presignedUrlRouter);
 
 app.use(errorHandler);
@@ -91,4 +94,6 @@ app.listen(3000, () => {
   if (process.env.NODE_ENV !== 'production') {
     console.log(`Swagger docs: ${SWAGGER_BASE_URL}/api-docs`);
   }
+  // 이사 전날 리마인더 배치 (매일 09:00 Asia/Seoul)
+  startMoveDayReminderCron();
 });

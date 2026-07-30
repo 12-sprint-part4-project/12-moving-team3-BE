@@ -7,7 +7,21 @@ import type {
 } from '../schemas/movers.schema';
 import moversService from '../services/movers.service';
 import { AppError } from '../utils/app.error';
-import { getAuthenticatedUser } from '../middlewares/auth.middleware';
+import {
+  getAuthenticatedUser,
+  getOptionalAuthenticatedUser,
+} from '../middlewares/auth.middleware';
+
+/** optionalAuth 후: CUSTOMER일 때만 userId (찜 여부 조회용) */
+const getOptionalCustomerId = (res: Response): string | undefined => {
+  const user = getOptionalAuthenticatedUser(res);
+
+  if (user?.userType !== 'CUSTOMER') {
+    return undefined;
+  }
+
+  return user.userId;
+};
 
 /** res.locals.validated에서 query/params를 꺼내오는 공통 헬퍼 */
 const getValidatedData = <T>(res: Response, key: 'query' | 'params'): T => {
@@ -36,7 +50,8 @@ export const getMovers = async (
 ) => {
   try {
     const query = getValidatedListQuery(res);
-    const response = await moversService.getMovers(query);
+    const customerId = getOptionalCustomerId(res);
+    const response = await moversService.getMovers({ query, customerId });
 
     res.status(200).json({
       data: response.data,
@@ -54,7 +69,11 @@ export const getMoverDetail = async (
 ) => {
   try {
     const { id } = getValidatedDetailParams(res);
-    const moverDetail = await moversService.getMoverDetail(id);
+    const customerId = getOptionalCustomerId(res);
+    const moverDetail = await moversService.getMoverDetail({
+      moverId: id,
+      customerId,
+    });
 
     res.status(200).json({
       data: moverDetail.data,

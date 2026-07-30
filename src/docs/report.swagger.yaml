@@ -15,7 +15,8 @@ components:
           example: '42'
           description: |
             신고 대상 ID.
-            USER는 UUID, 그 외는 양의 정수 문자열.
+            USER는 UUID.
+            그 외(REVIEW, ARTICLE 등)는 1 이상 2147483647(Postgres Int 상한) 이하의 양의 정수 문자열.
         category:
           type: string
           enum: [INAPPROPRIATE_PROFILE, ABUSIVE_LANGUAGE]

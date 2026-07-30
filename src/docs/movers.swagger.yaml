@@ -7,6 +7,8 @@ paths:
         기사 프로필 목록을 조회합니다.
         keyword, region, moveType, sort, order, cursor, limit 쿼리로 필터·정렬·무한 스크롤 조회할 수 있습니다.
         회원/비회원 모두 접근 가능합니다.
+        Authorization Bearer가 있고 CUSTOMER이면 각 항목의 isFavorited에 찜 여부를 반영합니다.
+        비회원·기사·미찜은 모두 isFavorited: false 입니다.
       parameters:
         - name: keyword
           in: query
@@ -78,10 +80,13 @@ paths:
                 type: object
                 properties:
                   data:
-                    type: array
-                    items:
-                      type: object
-                      description: MoverProfile + review 통계
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          description: MoverProfile + review 통계 + isFavorited
                   meta:
                     type: object
                     properties:
@@ -93,32 +98,34 @@ paths:
                         type: boolean
               example:
                 data:
-                  - id: 12
-                    userId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    service: [HOME, SMALL]
-                    career: 5
-                    description: 안전하고 꼼꼼한 이사 도와드립니다.
-                    shortDescription: 경력 5년 이사 전문가
-                    createdAt: '2026-01-10T08:00:00.000Z'
-                    updatedAt: '2026-07-20T12:30:00.000Z'
-                    user:
-                      id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                      nickname: 빠른이사맨
-                      profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
-                    serviceRegions:
-                      - id: 1
-                        region: SEOUL
-                      - id: 2
-                        region: GYEONGGI
-                    review:
-                      ratingCounts:
-                        1: 0
-                        2: 1
-                        3: 2
-                        4: 5
-                        5: 12
-                      totalCount: 20
-                      averageRating: 4.4
+                  items:
+                    - id: 12
+                      userId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                      service: [HOME, SMALL]
+                      career: 5
+                      description: 안전하고 꼼꼼한 이사 도와드립니다.
+                      shortDescription: 경력 5년 이사 전문가
+                      createdAt: '2026-01-10T08:00:00.000Z'
+                      updatedAt: '2026-07-20T12:30:00.000Z'
+                      user:
+                        id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                        nickname: 빠른이사맨
+                        profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
+                      serviceRegions:
+                        - id: 1
+                          region: SEOUL
+                        - id: 2
+                          region: GYEONGGI
+                      review:
+                        ratingCounts:
+                          1: 0
+                          2: 1
+                          3: 2
+                          4: 5
+                          5: 12
+                        totalCount: 20
+                        averageRating: 4.4
+                      isFavorited: false
                 meta:
                   nextCursor: eyJzb3J0IjoiY3JlYXRlZEF0X2Rlc2MiLCJ2YWx1ZSI6IjIwMjYtMDEtMTBUMDg6MDA6MDAuMDAwWiIsImlkIjoxMn0
                   hasNextPage: true
@@ -178,10 +185,13 @@ paths:
                 type: object
                 properties:
                   data:
-                    type: array
-                    items:
-                      type: object
-                      description: Favorite + mover + reviewStats + favoritedCount
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          description: Favorite + mover + reviewStats + favoritedCount
                   meta:
                     type: object
                     properties:
@@ -193,29 +203,30 @@ paths:
                         type: boolean
               example:
                 data:
-                  - id: 3
-                    userId: c0ffeeee-0000-4000-8000-000000000001
-                    moverId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    createdAt: '2026-07-15T10:00:00.000Z'
-                    mover:
-                      id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                      name: 김기사
-                      profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
-                      moverProfile:
-                        career: 5
-                        serviceRegions:
-                          - id: 1
-                            region: SEOUL
-                    reviewStats:
-                      ratingCounts:
-                        1: 0
-                        2: 1
-                        3: 2
-                        4: 5
-                        5: 12
-                      totalCount: 20
-                      averageRating: 4.4
-                    favoritedCount: 128
+                  items:
+                    - id: 3
+                      userId: c0ffeeee-0000-4000-8000-000000000001
+                      moverId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                      createdAt: '2026-07-15T10:00:00.000Z'
+                      mover:
+                        id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                        name: 김기사
+                        profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
+                        moverProfile:
+                          career: 5
+                          serviceRegions:
+                            - id: 1
+                              region: SEOUL
+                      reviewStats:
+                        ratingCounts:
+                          1: 0
+                          2: 1
+                          3: 2
+                          4: 5
+                          5: 12
+                        totalCount: 20
+                        averageRating: 4.4
+                      favoritedCount: 128
                 meta:
                   nextCursor: null
                   hasNextPage: false
@@ -266,8 +277,10 @@ paths:
       summary: 기사님 상세 조회
       description: |
         기사님의 User id(UUID)로 상세 정보를 조회합니다.
-        프로필, 리뷰 통계, 리뷰 목록을 함께 반환합니다.
+        프로필과 리뷰 통계를 함께 반환합니다.
         회원/비회원 모두 접근 가능합니다.
+        Authorization Bearer가 있고 CUSTOMER이면 isFavorited에 찜 여부를 반영합니다.
+        비회원·기사·미찜은 모두 isFavorited: false 입니다.
       parameters:
         - name: id
           in: path
@@ -300,10 +313,11 @@ paths:
                           averageRating:
                             type: number
                             nullable: true
-                      reviews:
-                        type: array
-                        items:
-                          type: object
+                      isFavorited:
+                        type: boolean
+                        description: |
+                          로그인한 CUSTOMER가 해당 기사를 찜했는지 여부.
+                          비회원·기사이거나 미찜이면 false.
               example:
                 data:
                   moverDetail:
@@ -332,14 +346,7 @@ paths:
                       5: 12
                     totalCount: 20
                     averageRating: 4.4
-                  reviews:
-                    - id: 101
-                      rating: 5
-                      content: 정말 친절하고 꼼꼼하셨어요.
-                      createdAt: '2026-06-01T09:00:00.000Z'
-                      user:
-                        id: c0ffeeee-0000-4000-8000-000000000001
-                        name: 박고객
+                  isFavorited: false
         '400':
           description: 잘못된 ID (UUID 형식 아님)
           content:

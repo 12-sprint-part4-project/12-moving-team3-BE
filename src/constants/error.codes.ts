@@ -204,6 +204,15 @@ export const ERROR_CODES = {
     status: 404,
     message: '찜하지 않은 기사님입니다.',
   },
+  /** 고객이 본인 userId를 moverId로 찜 요청한 경우 */
+  CANNOT_FAVORITE_SELF: {
+    status: 403,
+    message: '자기 자신은 찜할 수 없습니다.',
+  },
+  NOTIFICATION_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 알림입니다.',
+  },
   REVIEW_ALREADY_EXISTS: {
     status: 409,
     message: '이미 작성한 리뷰가 있습니다.',

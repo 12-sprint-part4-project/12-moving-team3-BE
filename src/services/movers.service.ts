@@ -1,4 +1,8 @@
-import { countMoverFavorited } from '../repositories/favorite.repository';
+import {
+  countMoverFavoritedByMoverIds,
+  findFavoriteByUserAndMover,
+  findFavoritedMoverIdsByUser,
+} from '../repositories/favorite.repository';
 import type {
   FindMoversFilters,
   MoverListSort,
@@ -70,8 +74,18 @@ const mapUserProfileImage = <T extends { profileImageKey: string | null }>(
 };
 
 const moversService = {
-  //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
-  getMovers: async (query: MoversListQuery) => {
+  /**
+   * 기사 목록
+   * - 항상 isFavorited(boolean) 포함
+   * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 전부
+   */
+  getMovers: async ({
+    query,
+    customerId,
+  }: {
+    query: MoversListQuery;
+    customerId?: string;
+  }) => {
     const filters = toFindMoversFilters(query);
     const {
       items: movers,
@@ -79,19 +93,22 @@ const moversService = {
       sort,
     } = await moversRepository.findMovers(filters);
 
-    const moversWithReviews = await Promise.all(
-      movers.map(async (mover) => {
-        const reviewStats = await reviewRepository.getReviewStatsByMoverId(
-          mover.user.id
-        );
+    const moverIds = movers.map((mover) => mover.user.id);
 
-        return {
-          ...mover,
-          user: mapUserProfileImage(mover.user),
-          review: reviewStats,
-        };
-      })
-    );
+    // 찜 여부·리뷰 통계를 병렬 배치 조회
+    const [favoritedMoverIds, reviewStatsByMoverId] = await Promise.all([
+      customerId
+        ? findFavoritedMoverIdsByUser(customerId, moverIds)
+        : Promise.resolve(new Set<string>()),
+      reviewRepository.getReviewStatsByMoverIds(moverIds),
+    ]);
+
+    const moversWithReviews = movers.map((mover) => ({
+      ...mover,
+      user: mapUserProfileImage(mover.user),
+      review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
+      isFavorited: favoritedMoverIds.has(mover.user.id),
+    }));
 
     const lastMover = movers.length > 0 ? movers[movers.length - 1] : undefined;
 
@@ -107,8 +124,17 @@ const moversService = {
     };
   },
 
-  //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
-  getMoverDetail: async (moverId: string) => {
+  /**
+   * 기사 상세
+   * - 항상 isFavorited(boolean) 포함 (비회원·비고객은 false)
+   */
+  getMoverDetail: async ({
+    moverId,
+    customerId,
+  }: {
+    moverId: string;
+    customerId?: string;
+  }) => {
     const moverDetail = await moversRepository.findMoverProfileById({
       moverId,
       onlyActiveMovers: true,
@@ -118,8 +144,12 @@ const moversService = {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
-    const reviewStats =
-      await reviewRepository.getReviewStatsByMoverId(moverId);
+    const [reviewStats, favorite] = await Promise.all([
+      reviewRepository.getReviewStatsByMoverId(moverId),
+      customerId
+        ? findFavoriteByUserAndMover(customerId, moverId)
+        : Promise.resolve(null),
+    ]);
 
     return {
       data: {
@@ -128,6 +158,7 @@ const moversService = {
           user: mapUserProfileImage(moverDetail.user),
         },
         reviewStats,
+        isFavorited: favorite != null,
       },
     };
   },
@@ -149,34 +180,37 @@ const moversService = {
         onlyActiveMovers: true,
       });
 
-    const favoritesWithDetails = await Promise.all(
-      favorites.map(async (favorite) => {
-        if (!favorite.moverId) {
-          return {
-            ...favorite,
-            mover: favorite.mover
-              ? mapUserProfileImage(favorite.mover)
-              : favorite.mover,
-            reviewStats: EMPTY_REVIEW_STATS,
-            favoritedCount: 0,
-          };
-        }
+    const moverIds = favorites
+      .map((favorite) => favorite.moverId)
+      .filter((moverId): moverId is string => moverId != null);
 
-        const [reviewStats, favoritedCount] = await Promise.all([
-          reviewRepository.getReviewStatsByMoverId(favorite.moverId),
-          countMoverFavorited(favorite.moverId),
-        ]);
+    const [reviewStatsByMoverId, favoritedCountByMoverId] = await Promise.all([
+      reviewRepository.getReviewStatsByMoverIds(moverIds),
+      countMoverFavoritedByMoverIds(moverIds),
+    ]);
 
+    const favoritesWithDetails = favorites.map((favorite) => {
+      if (!favorite.moverId) {
         return {
           ...favorite,
           mover: favorite.mover
             ? mapUserProfileImage(favorite.mover)
             : favorite.mover,
-          reviewStats,
-          favoritedCount,
+          reviewStats: EMPTY_REVIEW_STATS,
+          favoritedCount: 0,
         };
-      })
-    );
+      }
+
+      return {
+        ...favorite,
+        mover: favorite.mover
+          ? mapUserProfileImage(favorite.mover)
+          : favorite.mover,
+        reviewStats:
+          reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
+        favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
+      };
+    });
 
     const lastFavorite =
       favorites.length > 0 ? favorites[favorites.length - 1] : undefined;

@@ -21,6 +21,7 @@ import {
 } from '../schemas/estimate-request.schema';
 import { AppError } from '../utils/app.error';
 import { inferRegionLabelFromAddress } from '../utils/region.util';
+import * as notificationService from './notification.service';
 
 export interface GetReceivedEstimateRequestsInput {
   moverId: string;
@@ -574,6 +575,20 @@ export const submitEstimateRequest = async (
   if (!updated) {
     await getOwnedDraftOrThrow(estimateRequestId, userId);
     throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+  }
+
+  // 지정 기사 알림 — 제출과 분리(알림 실패해도 제출은 유지)
+  try {
+    await notificationService.notifyDesignatedMoversOnEstimateSubmit({
+      estimateRequestId: updated.id,
+      customerId: userId,
+      moveType: updated.moveType,
+    });
+  } catch (error) {
+    console.error(
+      `[submitEstimateRequest] designated mover notification failed id=${updated.id}`,
+      error
+    );
   }
 
   return {
