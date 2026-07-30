@@ -31,15 +31,24 @@ paths:
                   code: UNAUTHORIZED
                   message: 로그인이 필요한 기능입니다.
         '403':
-          description: CUSTOMER가 아닌 사용자
+          description: CUSTOMER가 아니거나, 자기 자신을 찜하려는 경우
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error:
-                  code: USER_TYPE_FORBIDDEN
-                  message: 접근 권한이 없습니다.
+              examples:
+                userTypeForbidden:
+                  summary: CUSTOMER가 아님
+                  value:
+                    error:
+                      code: USER_TYPE_FORBIDDEN
+                      message: 접근 권한이 없습니다.
+                cannotFavoriteSelf:
+                  summary: 자기 자신 찜
+                  value:
+                    error:
+                      code: CANNOT_FAVORITE_SELF
+                      message: 자기 자신은 찜할 수 없습니다.
         '404':
           description: 기사님 없음
           content:

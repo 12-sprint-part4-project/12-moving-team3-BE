@@ -16,8 +16,9 @@ interface AddFavoriteInput {
 }
 
 export const addFavorite = async ({ userId, moverId }: AddFavoriteInput) => {
+  // 본인 userId를 기사 id로 넘긴 경우 (CUSTOMER만 이 API에 도달)
   if (userId === moverId) {
-    throw new AppError('FORBIDDEN'); //TODO: 더 세분화된 에러코드로 변경
+    throw new AppError('CANNOT_FAVORITE_SELF');
   }
 
   const mover = await findUserById(moverId);
