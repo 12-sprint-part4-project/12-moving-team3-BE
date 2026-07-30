@@ -281,6 +281,57 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        AdminRefreshResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['accessToken'],
+              properties: {
+                accessToken: {
+                  type: 'string',
+                  description: '재발급된 관리자 Access Token (JWT)',
+                },
+              },
+            },
+          },
+        },
+        AdminLogoutResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['message'],
+              properties: {
+                message: {
+                  type: 'string',
+                  example: '로그아웃되었습니다.',
+                },
+              },
+            },
+          },
+        },
+        AdminMeResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['id', 'email', 'name'],
+              properties: {
+                id: { type: 'integer', example: 1 },
+                email: {
+                  type: 'string',
+                  format: 'email',
+                  example: 'admin@example.com',
+                },
+                name: { type: 'string', example: '관리자' },
+              },
+            },
+          },
+        },
       },
       responses: {
         BadRequest: {
