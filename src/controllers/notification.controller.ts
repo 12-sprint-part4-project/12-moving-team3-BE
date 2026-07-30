@@ -78,18 +78,26 @@ export const openNotificationStream = (
   res: Response,
   next: NextFunction
 ) => {
+  let user: AuthenticatedUser;
+
+  // 인증 실패만 UNAUTHORIZED 로 좁히고, subscribe 예외는 서버 오류로 전파한다
   try {
     const { accessToken } = getValidatedQuery<NotificationStreamQuery>(res);
     const payload = verifyAccessToken(accessToken);
 
-    const user: AuthenticatedUser = {
+    user = {
       userId: payload.sub,
       userType: payload.userType,
     };
     res.locals.user = user;
-
-    notificationSse.subscribe(user.userId, res);
   } catch {
     next(new AppError('UNAUTHORIZED'));
+    return;
+  }
+
+  try {
+    notificationSse.subscribe(user.userId, res);
+  } catch (error) {
+    next(error);
   }
 };
