@@ -5,12 +5,10 @@ import {
   UserReportStatus,
 } from '@prisma/client';
 import { createDateRange } from '../utils/admin-date-range.util';
-import {
-  getEstimateRequestCount,
-  getPendingReportCount,
-  getQuoteCount,
-  getUserCount,
-} from '../repositories/admin-dashboard.repository';
+import { getUserCount } from '../repositories/admin-user.repository';
+import { getEstimateRequestCount } from '../repositories/admin-estimate-request.repository';
+import { getQuoteCount } from '../repositories/admin-quote.repository';
+import { getPendingReportCount } from '../repositories/admin-report.repository';
 
 export const getStatistics = async ({
   startDate,

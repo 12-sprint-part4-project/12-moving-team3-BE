@@ -18,6 +18,7 @@ import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
 import reviewRouter from './routes/review.route';
 import reportRouter from './routes/report.route';
+import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin/dashboard', adminDashboardRouter);
+app.use('/api/admin/estimate-request', adminEstimateRequestRouter);
 app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/users/customers', customerRouter);
