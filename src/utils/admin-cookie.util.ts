@@ -1,13 +1,13 @@
-import type { Response } from 'express';
+import type { CookieOptions, Response } from 'express';
 
 export const ADMIN_REFRESH_TOKEN_COOKIE_NAME = 'adminRefreshToken';
 
-const adminRefreshTokenCookieOptions = {
+export const ADMIN_REFRESH_TOKEN_COOKIE_OPTIONS = {
   httpOnly: true, // XSS로 스크립트에서 토큰 읽기 방지
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  sameSite: 'lax',
   path: '/api/admin/auth', // 관리자 인증 경로에만 자동 전송
-};
+} satisfies CookieOptions;
 
 export const setAdminRefreshTokenCookie = (
   res: Response,
@@ -15,7 +15,7 @@ export const setAdminRefreshTokenCookie = (
   maxAgeMs: number
 ): void => {
   res.cookie(ADMIN_REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
-    ...adminRefreshTokenCookieOptions,
+    ...ADMIN_REFRESH_TOKEN_COOKIE_OPTIONS,
     maxAge: maxAgeMs,
   });
 };
@@ -24,6 +24,6 @@ export const setAdminRefreshTokenCookie = (
 export const clearAdminRefreshTokenCookie = (res: Response): void => {
   res.clearCookie(
     ADMIN_REFRESH_TOKEN_COOKIE_NAME,
-    adminRefreshTokenCookieOptions
+    ADMIN_REFRESH_TOKEN_COOKIE_OPTIONS
   );
 };

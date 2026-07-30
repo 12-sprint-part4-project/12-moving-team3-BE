@@ -192,11 +192,17 @@ export const refreshAdminToken = async (
   const nextTokenHash = hashAdminRefreshToken(nextRefreshToken);
 
   await prisma.$transaction(async (tx) => {
-    // 검증된 레코드 id만 삭제해 동일 관리자의 다른 세션 토큰은 유지한다.
-    await adminAuthRepository.deleteAdminRefreshTokenById(
+    // 검증된 레코드만 삭제해 동일 관리자의 다른 세션 토큰은 유지한다.
+    const { count } = await adminAuthRepository.deleteAdminRefreshTokenById(
       refreshTokenRecord.id,
+      admin.id,
       tx
     );
+
+    // 동시 Rotation 등으로 이미 삭제된 토큰이면 재발급하지 않는다.
+    if (count === 0) {
+      throw new AppError('ADMIN_UNAUTHORIZED');
+    }
 
     await adminAuthRepository.createAdminRefreshTokenRecord(
       {

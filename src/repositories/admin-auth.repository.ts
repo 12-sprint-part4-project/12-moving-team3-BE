@@ -59,10 +59,12 @@ export const findAdminRefreshTokenByHash = async (tokenHash: string) => {
 /** Rotation 시 검증된 레코드 한 건만 폐기한다. adminId 전체 삭제는 하지 않는다. */
 export const deleteAdminRefreshTokenById = async (
   id: number,
+  adminId: number,
   db: DbClient = prisma
 ) => {
-  return db.adminRefreshToken.delete({
-    where: { id },
+  // delete 대신 deleteMany — 대상 없으면 P2025 없이 count 0을 반환한다.
+  return db.adminRefreshToken.deleteMany({
+    where: { id, adminId },
   });
 };
 
