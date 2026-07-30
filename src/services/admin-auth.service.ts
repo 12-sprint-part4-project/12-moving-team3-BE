@@ -1,10 +1,13 @@
 import type { DeviceType } from '@prisma/client';
+import { JsonWebTokenError } from 'jsonwebtoken';
 import * as adminAuthRepository from '../repositories/admin-auth.repository';
 import { AppError } from '../utils/app.error';
 import {
   createAdminAccessToken,
   createAdminRefreshToken,
   getAdminRefreshTokenExpiry,
+  verifyAdminRefreshToken,
+  type AdminRefreshTokenPayload,
 } from '../utils/admin-jwt.util';
 import {
   ADMIN_PASSWORD_DUMMY_HASH,
@@ -85,4 +88,82 @@ export const getAdminMe = async (
   }
 
   return admin;
+};
+
+export interface AdminRefreshTokenRecord {
+  id: number;
+  adminId: number;
+  tokenHash: string;
+  expiresAt: Date;
+}
+
+export interface ValidateAdminRefreshTokenResult {
+  admin: {
+    id: number;
+    email: string;
+    name: string;
+  };
+  refreshTokenRecord: AdminRefreshTokenRecord;
+  payload: AdminRefreshTokenPayload;
+}
+
+/**
+ * 쿠키 Refresh Token의 JWT·DB 유효성만 검증한다.
+ * Access/Refresh 재발급·Rotation·쿠키 갱신은 호출측(이후 커밋) 책임이다.
+ */
+export const validateAdminRefreshToken = async (
+  refreshToken: string | undefined
+): Promise<ValidateAdminRefreshTokenResult> => {
+  // 쿠키 누락과 JWT/DB 실패를 같은 401로 통일해 원인 추측을 어렵게 한다.
+  if (!refreshToken) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  let payload: AdminRefreshTokenPayload;
+
+  try {
+    // 서명·만료·typ·sub·jti를 Access 검증과 분리된 Refresh 전용 경로로 확인한다.
+    payload = verifyAdminRefreshToken(refreshToken);
+  } catch (error) {
+    // 환경변수 누락 등 서버 오류는 그대로 넘겨 500 처리한다.
+    if (error instanceof JsonWebTokenError) {
+      throw new AppError('ADMIN_UNAUTHORIZED');
+    }
+
+    throw error;
+  }
+
+  const tokenHash = hashAdminRefreshToken(refreshToken);
+  const refreshTokenRecord =
+    await adminAuthRepository.findAdminRefreshTokenByHash(tokenHash);
+
+  // 폐기·위조·미저장 토큰은 JWT만 맞아도 세션으로 인정하지 않는다.
+  if (!refreshTokenRecord) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  // JWT exp와 별도로 DB expiresAt을 검사해 서버측 만료 정책을 강제한다.
+  if (refreshTokenRecord.expiresAt.getTime() <= Date.now()) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  // 다른 관리자 토큰을 훔쳐 붙이는 식의 클레임·레코드 불일치를 막는다.
+  if (payload.sub !== refreshTokenRecord.adminId) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  const admin = await adminAuthRepository.findAdminById(
+    refreshTokenRecord.adminId
+  );
+
+  // 토큰은 남아 있어도 삭제된 계정으로는 재발급하지 않는다.
+  if (!admin) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  return {
+    admin,
+    refreshTokenRecord,
+    payload,
+  };
 };

@@ -38,3 +38,16 @@ export const createAdminRefreshTokenRecord = async (
     data,
   });
 };
+
+/** 원문 대신 해시로 조회해 DB에 평문 Refresh Token을 두지 않는다. */
+export const findAdminRefreshTokenByHash = async (tokenHash: string) => {
+  return prisma.adminRefreshToken.findUnique({
+    where: { tokenHash },
+    select: {
+      id: true,
+      adminId: true,
+      tokenHash: true,
+      expiresAt: true,
+    },
+  });
+};
