@@ -6,7 +6,7 @@ import * as adminReviewController from '../controllers/admin-review.controller';
 
 const router = Router();
 
-// 리뷰 관리 통계 조회
+// 리뷰 관리 통계 조회 (Swagger: src/docs/admin-review.swagger.yaml)
 router.get(
   '/statistics',
   requireAdminAuth,

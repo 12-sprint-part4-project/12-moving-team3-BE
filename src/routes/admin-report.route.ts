@@ -6,7 +6,7 @@ import * as adminReportController from '../controllers/admin-report.controller';
 
 const router = Router();
 
-// 신고 관리 통계 조회
+// 신고 관리 통계 조회 (Swagger: src/docs/admin-report.swagger.yaml)
 router.get(
   '/statistics',
   requireAdminAuth,
