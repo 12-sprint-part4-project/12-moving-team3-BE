@@ -47,9 +47,11 @@ components:
               example: 경기
         isDesignated:
           type: boolean
-        createdAt:
+        submittedAt:
           type: string
           format: date-time
+          nullable: true
+          description: 견적 요청 제출 시각 (요청일)
     EstimateRequestListResponse:
       type: object
       properties:
@@ -398,7 +400,7 @@ paths:
           description: 정렬 조건 (기본값 MOVE_DATE_ASC)
           schema:
             type: string
-            enum: [MOVE_DATE_ASC, CREATED_AT_ASC]
+            enum: [MOVE_DATE_ASC, SUBMITTED_AT_ASC]
             default: MOVE_DATE_ASC
         - name: cursor
           in: query

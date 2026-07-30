@@ -77,7 +77,7 @@ export interface EstimateRequestListRow {
   moveDate: Date | null;
   departureAddress: string | null;
   arrivalAddress: string | null;
-  createdAt: Date;
+  submittedAt: Date | null;
   user: { id: string; name: string };
   designatedMovers: { id: number }[];
 }
@@ -161,7 +161,7 @@ const buildCursorCondition = (
   cursor: EstimateRequestCursor
 ): Prisma.EstimateRequestWhereInput => {
   const cursorDate = new Date(cursor.value);
-  const sortField = sort === 'MOVE_DATE_ASC' ? 'moveDate' : 'createdAt';
+  const sortField = sort === 'MOVE_DATE_ASC' ? 'moveDate' : 'submittedAt';
 
   return {
     OR: [
@@ -177,7 +177,7 @@ const listSelect = {
   moveDate: true,
   departureAddress: true,
   arrivalAddress: true,
-  createdAt: true,
+  submittedAt: true,
   user: { select: { id: true, name: true } },
 } as const;
 
@@ -198,7 +198,7 @@ export const findEstimateRequests = async (
   const orderBy: Prisma.EstimateRequestOrderByWithRelationInput[] =
     params.sort === 'MOVE_DATE_ASC'
       ? [{ moveDate: 'asc' }, { id: 'asc' }]
-      : [{ createdAt: 'asc' }, { id: 'asc' }];
+      : [{ submittedAt: 'asc' }, { id: 'asc' }];
 
   const rows = await db.estimateRequest.findMany({
     where,
