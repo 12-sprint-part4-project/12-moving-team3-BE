@@ -41,7 +41,7 @@ export interface EstimateRequestListItem {
   departure: { address: string | null; regionLabel: string | null };
   arrival: { address: string | null; regionLabel: string | null };
   isDesignated: boolean;
-  createdAt: Date;
+  submittedAt: Date | null;
 }
 
 export interface EstimateRequestFilterCounts {
@@ -127,7 +127,7 @@ const toEstimateRequestListItem = (
     regionLabel: inferRegionLabelFromAddress(row.arrivalAddress),
   },
   isDesignated: row.designatedMovers.length > 0,
-  createdAt: row.createdAt,
+  submittedAt: row.submittedAt,
 });
 
 /**
@@ -191,7 +191,7 @@ export const getReceivedEstimateRequests = async (
   );
   const lastRow = rows.length > 0 ? rows[rows.length - 1] : undefined;
   const lastSortValue =
-    input.sort === 'MOVE_DATE_ASC' ? lastRow?.moveDate : lastRow?.createdAt;
+    input.sort === 'MOVE_DATE_ASC' ? lastRow?.moveDate : lastRow?.submittedAt;
 
   const nextCursor =
     hasNextPage && lastRow && lastSortValue

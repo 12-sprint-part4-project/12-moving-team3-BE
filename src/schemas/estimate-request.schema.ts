@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const ESTIMATE_REQUEST_SORT_VALUES = [
   'MOVE_DATE_ASC',
-  'CREATED_AT_ASC',
+  'SUBMITTED_AT_ASC',
 ] as const;
 
 export type EstimateRequestSort = (typeof ESTIMATE_REQUEST_SORT_VALUES)[number];
