@@ -7,14 +7,20 @@ import {
   moverDetailParamsSchema,
   moversListQuerySchema,
 } from '../schemas/movers.schema';
-import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import {
+  allowUserTypes,
+  optionalAuth,
+  requireAuth,
+} from '../middlewares/auth.middleware';
 
 const router = Router();
 
 // 기사님 목록 조회 (회원/비회원 모두 접근 가능)
+// 로그인 CUSTOMER면 각 항목에 isFavorited 반영 (비회원·기사는 false)
 // (Swagger 문서: src/docs/movers.swagger.yaml)
 router.get(
   '/',
+  optionalAuth,
   validateRequest({
     query: moversListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -36,9 +42,11 @@ router.get(
 );
 
 // 기사님 상세 조회 (회원/비회원 모두 접근 가능)
+// 로그인 CUSTOMER면 isFavorited 반영 (비회원·기사는 false)
 // (Swagger 문서: src/docs/movers.swagger.yaml)
 router.get(
   '/:id',
+  optionalAuth,
   validateRequest({
     params: moverDetailParamsSchema,
     errorCode: 'INVALID_QUERY_PARAM',
