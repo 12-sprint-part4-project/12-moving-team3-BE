@@ -1,12 +1,80 @@
+import * as authRepository from '../repositories/auth.repository';
 import * as customerProfileRepository from '../repositories/customer-profile.repository';
 import type { CustomerProfileBody } from '../schemas/customer-profile.schema';
+import {
+  AUTH_PASSWORD_DUMMY_HASH,
+  compareAuthPassword,
+  hashAuthPassword,
+} from '../utils/auth-password.util';
 import { AppError } from '../utils/app.error';
-import { toPresignedViewUrl } from './s3.service';
+import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
+import { deleteImage, toPresignedViewUrl } from './s3.service';
 
 export interface RegisterCustomerProfileInput {
   userId: string;
   body: CustomerProfileBody;
 }
+
+// INVALID_NEW_PASSWORD와 동일 정책 (8~20자, 영문·숫자·특수문자)
+const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
+
+const areSameService = (
+  current: readonly string[],
+  next: readonly string[]
+): boolean => {
+  if (current.length !== next.length) {
+    return false;
+  }
+
+  const currentSet = new Set(current);
+  return next.every((item) => currentSet.has(item));
+};
+
+/** newPassword가 있을 때만 비밀번호 변경 필드를 검증하고 hash를 반환 */
+const resolvePasswordHashForUpdate = async (input: {
+  userId: string;
+  currentPassword?: string;
+  newPassword?: string;
+  newPasswordConfirm?: string;
+}): Promise<string | undefined> => {
+  if (input.newPassword === undefined) {
+    return undefined;
+  }
+
+  if (!input.currentPassword) {
+    throw new AppError('CURRENT_PASSWORD_REQUIRED');
+  }
+
+  if (!input.newPasswordConfirm) {
+    throw new AppError('NEW_PASSWORD_CONFIRM_REQUIRED');
+  }
+
+  if (!PASSWORD_REGEX.test(input.newPassword)) {
+    throw new AppError('INVALID_NEW_PASSWORD');
+  }
+
+  if (input.newPassword !== input.newPasswordConfirm) {
+    throw new AppError('NEW_PASSWORD_MISMATCH');
+  }
+
+  if (input.currentPassword === input.newPassword) {
+    throw new AppError('SAME_AS_CURRENT_PASSWORD');
+  }
+
+  const localAuth =
+    await customerProfileRepository.findLocalPasswordHashByUserId(input.userId);
+
+  const isPasswordMatched = await compareAuthPassword(
+    input.currentPassword,
+    localAuth?.passwordHash ?? AUTH_PASSWORD_DUMMY_HASH
+  );
+
+  if (!localAuth?.passwordHash || !isPasswordMatched) {
+    throw new AppError('CURRENT_PASSWORD_MISMATCH');
+  }
+
+  return hashAuthPassword(input.newPassword);
+};
 
 export const getCustomerProfile = async (userId: string) => {
   const profile =
@@ -23,9 +91,7 @@ export const getCustomerProfile = async (userId: string) => {
     name: profile.user.name,
     email: profile.user.email,
     phoneNumber: profile.user.phoneNumber,
-    profileImageUrl: await toPresignedViewUrl(
-      profile.user.profileImageKey
-    ),
+    profileImageUrl: await toPresignedViewUrl(profile.user.profileImageKey),
     service: profile.service,
     region: profile.region,
     createdAt: profile.createdAt,
@@ -43,21 +109,214 @@ export const registerCustomerProfile = async (
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
-  if (existingProfile.service.length > 0) {
-    throw new AppError('PROFILE_ALREADY_EXISTS');
+  const isRegister = existingProfile.service.length === 0;
+  const { body } = input;
+
+  if (isRegister) {
+    return createCustomerProfile({
+      userId: input.userId,
+      body,
+      previousProfileImageKey: existingProfile.user.profileImageKey,
+    });
   }
 
-  const profile = await customerProfileRepository.registerCustomerProfile({
+  return updateCustomerProfile({
     userId: input.userId,
-    region: input.body.region,
-    service: input.body.service,
-    profileImageKey: input.body.s3Key ?? null,
+    body,
+    existingProfile,
+  });
+};
+
+const createCustomerProfile = async (input: {
+  userId: string;
+  body: CustomerProfileBody;
+  previousProfileImageKey: string | null;
+}) => {
+  const { body } = input;
+
+  if (body.region === undefined) {
+    throw new AppError('REGION_REQUIRED');
+  }
+
+  if (body.service === undefined) {
+    throw new AppError('SERVICE_TYPE_REQUIRED');
+  }
+
+  if (body.phoneNumber !== undefined) {
+    const existingPhoneUser = await authRepository.findUserByPhoneNumber(
+      body.phoneNumber
+    );
+
+    if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
+      throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
+    }
+  }
+
+  const nextProfileImageKey = body.s3Key ?? null;
+
+  try {
+    const profile = await customerProfileRepository.registerCustomerProfile({
+      userId: input.userId,
+      region: body.region,
+      service: body.service,
+      profileImageKey: nextProfileImageKey,
+      ...(body.name !== undefined ? { name: body.name } : {}),
+      ...(body.phoneNumber !== undefined
+        ? { phoneNumber: body.phoneNumber }
+        : {}),
+    });
+
+    if (
+      nextProfileImageKey &&
+      input.previousProfileImageKey &&
+      input.previousProfileImageKey !== nextProfileImageKey
+    ) {
+      try {
+        await deleteImage(input.previousProfileImageKey);
+      } catch {
+        // 정리 실패 시에도 프로필 저장 결과는 유지한다.
+      }
+    }
+
+    return {
+      profileId: profile.profileId,
+      userId: profile.userId,
+      name: profile.name,
+      email: profile.email,
+      phoneNumber: profile.phoneNumber,
+      region: profile.region,
+      service: profile.service,
+      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+      updatedAt: profile.updatedAt,
+    };
+  } catch (error) {
+    if (nextProfileImageKey) {
+      try {
+        await deleteImage(nextProfileImageKey);
+      } catch {
+        // DB 반영 실패 후 업로드 정리마저 실패하면 orphan 가능성을 남긴다.
+      }
+    }
+
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
+};
+
+const updateCustomerProfile = async (input: {
+  userId: string;
+  body: CustomerProfileBody;
+  existingProfile: NonNullable<
+    Awaited<
+      ReturnType<typeof customerProfileRepository.findCustomerProfileByUserId>
+    >
+  >;
+}) => {
+  const { body, existingProfile } = input;
+  const previousProfileImageKey = existingProfile.user.profileImageKey;
+
+  const hasNameChange =
+    body.name !== undefined && body.name !== existingProfile.user.name;
+  const hasPhoneChange =
+    body.phoneNumber !== undefined &&
+    body.phoneNumber !== existingProfile.user.phoneNumber;
+  const hasRegionChange =
+    body.region !== undefined && body.region !== existingProfile.region;
+  const hasServiceChange =
+    body.service !== undefined &&
+    !areSameService(existingProfile.service, body.service);
+  const hasImageChange =
+    body.s3Key !== undefined && body.s3Key !== previousProfileImageKey;
+  const hasPasswordChange = body.newPassword !== undefined;
+
+  if (
+    !hasNameChange &&
+    !hasPhoneChange &&
+    !hasRegionChange &&
+    !hasServiceChange &&
+    !hasImageChange &&
+    !hasPasswordChange
+  ) {
+    throw new AppError('NO_CHANGE');
+  }
+
+  if (hasPhoneChange && body.phoneNumber) {
+    const existingPhoneUser = await authRepository.findUserByPhoneNumber(
+      body.phoneNumber
+    );
+
+    if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
+      throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
+    }
+  }
+
+  const nextPasswordHash = await resolvePasswordHashForUpdate({
+    userId: input.userId,
+    currentPassword: body.currentPassword,
+    newPassword: body.newPassword,
+    newPasswordConfirm: body.newPasswordConfirm,
   });
 
-  return {
-    region: profile.region,
-    service: profile.service,
-    profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
-    updatedAt: profile.updatedAt,
-  };
+  const nextProfileImageKey = hasImageChange ? body.s3Key : undefined;
+
+  try {
+    const profile = await customerProfileRepository.registerCustomerProfile({
+      userId: input.userId,
+      ...(hasRegionChange ? { region: body.region } : {}),
+      ...(hasServiceChange ? { service: body.service } : {}),
+      ...(hasNameChange ? { name: body.name } : {}),
+      ...(hasPhoneChange ? { phoneNumber: body.phoneNumber } : {}),
+      ...(nextProfileImageKey !== undefined
+        ? { profileImageKey: nextProfileImageKey }
+        : {}),
+      ...(nextPasswordHash !== undefined
+        ? { passwordHash: nextPasswordHash }
+        : {}),
+    });
+
+    if (
+      nextProfileImageKey &&
+      previousProfileImageKey &&
+      previousProfileImageKey !== nextProfileImageKey
+    ) {
+      try {
+        await deleteImage(previousProfileImageKey);
+      } catch {
+        // 정리 실패 시에도 프로필 저장 결과는 유지한다.
+      }
+    }
+
+    return {
+      profileId: profile.profileId,
+      userId: profile.userId,
+      name: profile.name,
+      email: profile.email,
+      phoneNumber: profile.phoneNumber,
+      region: profile.region,
+      service: profile.service,
+      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+      updatedAt: profile.updatedAt,
+    };
+  } catch (error) {
+    if (nextProfileImageKey) {
+      try {
+        await deleteImage(nextProfileImageKey);
+      } catch {
+        // DB 반영 실패 후 업로드 정리마저 실패하면 orphan 가능성을 남긴다.
+      }
+    }
+
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
 };

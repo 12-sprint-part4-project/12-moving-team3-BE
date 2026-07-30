@@ -112,6 +112,10 @@ export const ERROR_CODES = {
     status: 400,
     message: '변경된 정보가 없습니다.',
   },
+  NAME_REQUIRED: {
+    status: 400,
+    message: '이름을 입력해 주세요.',
+  },
   INVALID_NAME: {
     status: 400,
     message: '이름은 2자 이상 20자 이하로 입력해 주세요.',
