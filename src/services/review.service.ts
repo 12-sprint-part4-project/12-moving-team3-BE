@@ -326,19 +326,19 @@ export const createReview = async (
       // 견적의 고객이 유저가 맞는지 & 견적이 작성 가능한 상태인지(견적 확정&이사완료)
       assertReviewWritable(quote, customerId);
 
-      // 3. 기존 리뷰가 존재하는지(soft-delete 포함) — unique 충돌 전 사전 차단
-      //TODO: 만약 리뷰가 삭제된 이후에, 리뷰를 추가할 수 있다면, DB의 리뷰테이블 unique 조건을 없애야 함. (@@unique([userId, quoteId]))
-      //위 조건을 없앤다면, delete상태가 아닌 리뷰가 존재하는지 확인하는 로직으로 바뀌어야 할 것. (delete상태인 리뷰는 존재해도 됨)
-      const existingReview = await reviewRepository.findReviewByUserAndQuote(
-        customerId,
-        quoteId,
-        tx
-      );
-      if (existingReview) {
+      // 3. 활성 리뷰만 중복으로 본다 — soft-delete된 이전 리뷰가 있어도 재작성 허용
+      // DB: reviews_user_id_quote_id_active_unique (WHERE deleted_at IS NULL)
+      const activeReview =
+        await reviewRepository.findActiveReviewByUserAndQuote(
+          customerId,
+          quoteId,
+          tx
+        );
+      if (activeReview) {
         throw new AppError('REVIEW_ALREADY_EXISTS');
       }
 
-      // 4. 리뷰 생성 (동시 요청은 unique(userId, quoteId) + P2002로 여기서도 방어함.)
+      // 4. 리뷰 생성 (동시 생성 race는 partial unique + P2002로 방어)
       return reviewRepository.createReview(
         {
           userId: customerId,

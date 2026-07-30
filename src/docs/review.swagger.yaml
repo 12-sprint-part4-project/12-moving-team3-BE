@@ -316,7 +316,8 @@ paths:
         작성 가능 조건 (리뷰 등록 API와 동일):
         - 견적이 CONFIRMED 이고, 해당 견적 요청의 confirmedQuote 와 일치
         - 견적 요청이 COMPLETED 이거나 이사일 당일(포함) 이후
-        - 해당 견적에 soft-delete 포함 기존 리뷰가 없음
+        - 해당 견적에 활성 리뷰(deletedAt null)가 없음
+          (soft-delete된 리뷰만 있으면 재작성 가능하므로 목록에 포함)
       security:
         - bearerAuth: []
       parameters:
@@ -510,7 +511,8 @@ paths:
       description: |
         확정 견적에 대해 고객이 리뷰를 작성합니다.
         작성 가능 조건은 GET /api/review/customer/writable 과 동일합니다.
-        soft-delete된 리뷰가 있어도 같은 견적에는 재작성할 수 없습니다.
+        활성 리뷰가 없을 때만 작성할 수 있으며, soft-delete 이후에는 같은 견적에 재작성할 수 있습니다.
+        이미 활성 리뷰가 있으면 REVIEW_ALREADY_EXISTS(409)를 반환합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -707,7 +709,7 @@ paths:
         본인이 작성한 활성 리뷰를 soft delete 합니다 (deletedAt 설정).
         성공 시 본문 없이 204를 반환합니다.
         존재하지 않거나 이미 삭제됐거나 타인의 리뷰이면 REVIEW_NOT_FOUND(404)를 반환합니다.
-        soft-delete 이후 같은 견적에 리뷰를 다시 작성할 수 없습니다.
+        soft-delete 이후 같은 견적에 리뷰를 다시 작성할 수 있습니다 (새 row 생성).
       security:
         - bearerAuth: []
       parameters:
