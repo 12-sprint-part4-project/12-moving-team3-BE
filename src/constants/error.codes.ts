@@ -209,6 +209,10 @@ export const ERROR_CODES = {
     status: 403,
     message: '자기 자신은 찜할 수 없습니다.',
   },
+  NOTIFICATION_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 알림입니다.',
+  },
   REVIEW_ALREADY_EXISTS: {
     status: 409,
     message: '이미 작성한 리뷰가 있습니다.',
