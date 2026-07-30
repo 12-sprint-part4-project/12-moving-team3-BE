@@ -1,0 +1,119 @@
+paths:
+  /api/admin/completed-estimate-requests/statistics:
+    get:
+      tags: [Admin Completed Estimate Requests]
+      summary: 관리자 완료 견적 요청 통계 조회
+      description: |
+        기간 조건에 따른 완료 견적 요청 및 확정 견적 금액 통계를 조회합니다.
+        완료 견적 요청은 COMPLETED 상태이며, 실제 이사일(moveDate)을 기준으로 집계합니다.
+        완료된 견적 금액은 CONFIRMED 상태 견적의 생성일(createdAt)을 기준으로 집계합니다.
+        startDate가 없으면 전체 기간을 집계하며, 이 경우 endDate는 적용되지 않습니다.
+        startDate만 입력하면 해당 일(00:00:00 ~ 23:59:59)을 집계하고,
+        endDate도 입력하면 두 날짜 사이를 집계합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          description: 조회 시작일
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 조회 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+      responses:
+        '200':
+          description: 완료 견적 요청 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - totalCompletedCount
+                      - averageCompletedPrice
+                      - totalCompletedPrice
+                    properties:
+                      totalCompletedCount:
+                        type: integer
+                        description: COMPLETED 상태 견적 요청 수
+                        example: 30
+                      averageCompletedPrice:
+                        type: object
+                        required: [_avg]
+                        description: CONFIRMED 상태 견적의 평균 금액 집계 결과
+                        properties:
+                          _avg:
+                            type: object
+                            required: [price]
+                            properties:
+                              price:
+                                type: integer
+                                nullable: true
+                                description: 완료된 견적 평균 금액
+                                example: 250000
+                      totalCompletedPrice:
+                        type: object
+                        required: [_sum]
+                        description: CONFIRMED 상태 견적의 총 금액 집계 결과
+                        properties:
+                          _sum:
+                            type: object
+                            required: [price]
+                            properties:
+                              price:
+                                type: integer
+                                nullable: true
+                                description: 총 완료 견적 금액
+                                example: 7500000
+              example:
+                data:
+                  totalCompletedCount: 30
+                  averageCompletedPrice:
+                    _avg:
+                      price: 250000
+                  totalCompletedPrice:
+                    _sum:
+                      price: 7500000
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
