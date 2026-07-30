@@ -225,13 +225,14 @@ router.get(
  * /api/chat/rooms/{roomId}/messages:
  *   post:
  *     tags: [Chat]
- *     summary: 채팅 텍스트 메시지 전송
+ *     summary: 채팅 메시지 전송 (TEXT/IMAGE)
  *     description: |
- *       채팅방에 TEXT 메시지를 전송합니다.
+ *       채팅방에 TEXT 또는 IMAGE 메시지를 전송합니다.
  *       활성 참여자만 발송 가능하며, 이사 완료 등으로 발송이 제한된 방에서는 거부됩니다.
- *       전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
+ *       TEXT: 전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
+ *       IMAGE: 사전 `GET /api/presigned-upload-url?prefix=chat-attachments`로 업로드한 s3Key를 최대 5개까지 첨부합니다.
  *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
- *       IMAGE 전송·Idempotency-Key·소켓 브로드캐스트는 이번 범위에 포함되지 않습니다.
+ *       Idempotency-Key·소켓 브로드캐스트는 이번 범위에 포함되지 않습니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
@@ -248,19 +249,40 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [messageType, content]
- *             properties:
- *               messageType:
- *                 type: string
- *                 enum: [TEXT]
- *               content:
- *                 type: string
- *                 minLength: 1
- *                 maxLength: 2000
- *           example:
- *             messageType: TEXT
- *             content: 안녕하세요, 이사 일정 문의드립니다.
+ *             oneOf:
+ *               - type: object
+ *                 required: [messageType, content]
+ *                 properties:
+ *                   messageType:
+ *                     type: string
+ *                     enum: [TEXT]
+ *                   content:
+ *                     type: string
+ *                     minLength: 1
+ *                     maxLength: 2000
+ *               - type: object
+ *                 required: [messageType, attachments]
+ *                 properties:
+ *                   messageType:
+ *                     type: string
+ *                     enum: [IMAGE]
+ *                   attachments:
+ *                     type: array
+ *                     minItems: 1
+ *                     maxItems: 5
+ *                     items:
+ *                       type: string
+ *                     description: 공통 presign 응답의 s3Key 목록 (chat-attachments/{uuid}_{filename})
+ *           examples:
+ *             text:
+ *               value:
+ *                 messageType: TEXT
+ *                 content: 안녕하세요, 이사 일정 문의드립니다.
+ *             image:
+ *               value:
+ *                 messageType: IMAGE
+ *                 attachments:
+ *                   - chat-attachments/11111111-1111-1111-1111-111111111111_photo.jpg
  *     responses:
  *       201:
  *         description: 메시지 전송 성공
@@ -285,14 +307,14 @@ router.get(
  *                       enum: [TEXT, IMAGE]
  *                     content:
  *                       type: string
- *                       description: 마스킹된 메시지 내용
+ *                       description: TEXT는 마스킹된 내용, IMAGE는 빈 문자열
  *                     isFiltered:
  *                       type: boolean
  *                     attachments:
  *                       type: array
  *                       items:
  *                         type: string
- *                       description: TEXT는 빈 배열
+ *                       description: TEXT는 빈 배열, IMAGE는 조회용 Presigned GET URL 목록
  *                     createdAt:
  *                       type: string
  *                       format: date-time
@@ -304,6 +326,16 @@ router.get(
  *         $ref: '#/components/responses/Forbidden'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       413:
+ *         description: 이미지 용량 초과 (5MB)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               error:
+ *                 code: IMAGE_SIZE_EXCEEDED
+ *                 message: 이미지 용량은 5MB 이하만 업로드할 수 있습니다.
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */

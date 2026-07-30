@@ -69,19 +69,19 @@ export const getChatMessages = async (_req: Request, res: Response) => {
 };
 
 /**
- * POST /api/chat/rooms/:roomId/messages — TEXT 메시지 전송 요청을 처리한다.
+ * POST /api/chat/rooms/:roomId/messages — TEXT/IMAGE 메시지 전송 요청을 처리한다.
  */
-export const sendChatMessage = async (req: Request, res: Response) => {
+export const sendChatMessage = async (_req: Request, res: Response) => {
   const authUser = getAuthenticatedUser(res);
 
   const validated = res.locals.validated as ValidatedLocals | undefined;
   const roomId = validated?.params?.roomId;
+  const body = validated?.body as SendChatMessageBody | undefined;
 
-  if (roomId === undefined) {
+  if (roomId === undefined || body === undefined) {
     throw new AppError('INVALID_REQUEST');
   }
 
-  const body = req.body as SendChatMessageBody;
   const data = await chatService.sendChatMessage(authUser, roomId, body);
 
   res.status(201).json({ data });

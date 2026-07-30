@@ -1,11 +1,17 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3Client } from '../config/s3';
 import { randomUUID } from 'node:crypto';
+import { s3Client } from '../config/s3';
+
+interface S3ObjectMetadata {
+  contentLength: number;
+  contentType: string | undefined;
+}
 
 export const createPresignedUploadUrl = async (
   filename: string,
@@ -58,4 +64,59 @@ export const deleteImage = async (key: string): Promise<void> => {
   });
 
   await s3Client.send(command);
+};
+
+/** S3 객체 메타데이터(크기·MIME)를 조회한다. 객체가 없으면 null. */
+export const getObjectMetadata = async (
+  key: string
+): Promise<S3ObjectMetadata | null> => {
+  try {
+    const result = await s3Client.send(
+      new HeadObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: key,
+      })
+    );
+
+    if (result.ContentLength === undefined) {
+      return null;
+    }
+
+    return {
+      contentLength: result.ContentLength,
+      contentType: result.ContentType,
+    };
+  } catch (error) {
+    if (isS3ObjectNotFoundError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
+/** S3 객체가 없음을 나타내는 에러인지 판별한다. */
+const isS3ObjectNotFoundError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  if (
+    'name' in error &&
+    (error.name === 'NotFound' || error.name === 'NoSuchKey')
+  ) {
+    return true;
+  }
+
+  if (
+    '$metadata' in error &&
+    typeof error.$metadata === 'object' &&
+    error.$metadata !== null &&
+    'httpStatusCode' in error.$metadata &&
+    error.$metadata.httpStatusCode === 404
+  ) {
+    return true;
+  }
+
+  return false;
 };

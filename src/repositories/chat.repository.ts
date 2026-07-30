@@ -39,6 +39,17 @@ interface CreateTextMessageData {
   rawContent?: string;
 }
 
+interface CreateImageMessageAttachment {
+  fileKey: string;
+  fileSize: number;
+}
+
+interface CreateImageMessageData {
+  roomId: number;
+  senderId: string;
+  attachments: CreateImageMessageAttachment[];
+}
+
 interface FindMessageInRoomAfterJoinedAtParams {
   roomId: number;
   messageId: number;
@@ -601,6 +612,65 @@ export const createTextMessage = async (
             },
           },
         }),
+    },
+    select: {
+      id: true,
+      senderId: true,
+      content: true,
+      messageType: true,
+      isFiltered: true,
+      createdAt: true,
+      sender: {
+        select: {
+          userType: true,
+        },
+      },
+      attachments: {
+        orderBy: { id: 'asc' },
+        select: {
+          fileKey: true,
+        },
+      },
+    },
+  });
+
+  await tx.chatRoom.updateMany({
+    where: {
+      id: data.roomId,
+      OR: [
+        { lastMessageAt: null },
+        { lastMessageAt: { lt: message.createdAt } },
+      ],
+    },
+    data: { lastMessageAt: message.createdAt },
+  });
+
+  await rejoinLeftParticipants(tx, data.roomId, data.senderId);
+
+  return message;
+};
+
+/**
+ * IMAGE 메시지를 저장하고 lastMessageAt을 갱신한다.
+ * attachments는 S3 fileKey·fileSize로 함께 생성하며, 나간 상대는 재참여시킨다.
+ */
+export const createImageMessage = async (
+  tx: ChatTransactionClient,
+  data: CreateImageMessageData
+) => {
+  const message = await tx.chatMessage.create({
+    data: {
+      roomId: data.roomId,
+      senderId: data.senderId,
+      content: '',
+      messageType: 'IMAGE',
+      isFiltered: false,
+      attachments: {
+        create: data.attachments.map((attachment) => ({
+          fileKey: attachment.fileKey,
+          fileSize: attachment.fileSize,
+        })),
+      },
     },
     select: {
       id: true,
