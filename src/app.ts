@@ -25,6 +25,7 @@ import adminReviewRouter from './routes/admin-review.route';
 import adminReportRouter from './routes/admin-report.route';
 import notificationRouter from './routes/notification.route';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
+import adminCompletedRouter from './routes/admin-completed.route';
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin/dashboard', adminDashboardRouter);
 app.use('/api/admin/estimate-request', adminEstimateRequestRouter);
+app.use('/api/admin/completed', adminCompletedRouter);
 app.use('/api/admin/reviews', adminReviewRouter);
 app.use('/api/admin/reports', adminReportRouter);
 app.use('/api/movers', moversRouter);
