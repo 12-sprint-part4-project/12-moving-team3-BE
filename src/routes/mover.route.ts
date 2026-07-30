@@ -1,12 +1,10 @@
 import { Router } from 'express';
 import * as estimateRequestController from '../controllers/estimate-request.controller';
 import * as moverProfileController from '../controllers/mover-profile.controller';
-import * as presignedUrlController from '../controllers/presigned-url.controller';
 import * as quoteController from '../controllers/quote.controller';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { moverProfileBodySchema } from '../schemas/mover-profile.schema';
 import { estimateRequestListQuerySchema } from '../schemas/estimate-request.schema';
-import { presignedUploadUrlQuerySchema } from '../schemas/presigned-url.schema';
 import {
   quoteBodySchema,
   quoteIdParamsSchema,
@@ -23,18 +21,6 @@ router.get(
   requireAuth,
   allowUserTypes('MOVER'),
   moverProfileController.getMoverProfile
-);
-
-// Presigned 업로드 URL 발급 (so.md 1번 API)
-router.get(
-  '/profile/presigned-upload-url',
-  requireAuth,
-  allowUserTypes('MOVER'),
-  validateRequest({
-    query: presignedUploadUrlQuerySchema,
-    errorCode: 'INVALID_QUERY_PARAM',
-  }),
-  presignedUrlController.getPresignedUploadUrl
 );
 
 // 기사님 프로필 등록/수정 (Swagger: src/docs/mover-profile.swagger.yaml)

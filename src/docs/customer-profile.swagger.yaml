@@ -161,7 +161,7 @@ paths:
       description: |
         일반 유저(CUSTOMER)가 프로필 정보를 등록하거나 수정합니다.
         - Content-Type: `application/json`
-        - `s3Key`는 선택값입니다. Presigned URL로 S3 업로드 후 받은 key를 전달합니다.
+        - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
         - `s3Key`를 보내지 않으면 프로필 이미지는 null로 저장됩니다.
       security:
         - bearerAuth: []
@@ -248,64 +248,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: 이미 프로필 등록 완료
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/users/customers/profile/presigned-upload-url:
-    get:
-      tags: [Customers]
-      summary: 프로필 이미지 업로드용 Presigned URL 발급
-      description: |
-        S3에 직접 업로드할 수 있는 Presigned PUT URL을 발급합니다. (유효 시간 5분)
-        쿼리: `filename`, `contentType`
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: filename
-          required: true
-          schema:
-            type: string
-          example: profile.jpg
-        - in: query
-          name: contentType
-          required: true
-          schema:
-            type: string
-          example: image/jpeg
-      responses:
-        '200':
-          description: Presigned URL 발급 성공
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      uploadUrl:
-                        type: string
-                        description: S3 PUT 업로드 URL
-                      s3Key:
-                        type: string
-                        description: 프로필 등록 시 body.s3Key로 전달할 값
-        '400':
-          description: 쿼리 파라미터 오류
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: 로그인 필요
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: 일반 유저(CUSTOMER)만 접근 가능
           content:
             application/json:
               schema:
