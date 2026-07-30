@@ -139,13 +139,20 @@ const buildWhere = (
     conditions.push({ moveType: { in: params.moveTypes } });
   }
 
-  if (params.designated) {
-    conditions.push({
-      designatedMovers: { some: { moverId: params.moverId } },
-    });
-  }
+  const designatedCondition: Prisma.EstimateRequestWhereInput = {
+    designatedMovers: { some: { moverId: params.moverId } },
+  };
 
-  if (params.serviceArea) {
+  if (params.designated && params.serviceArea) {
+    conditions.push({
+      OR: [
+        designatedCondition,
+        buildServiceAreaCondition(params.serviceRegions),
+      ],
+    });
+  } else if (params.designated) {
+    conditions.push(designatedCondition);
+  } else if (params.serviceArea) {
     conditions.push(buildServiceAreaCondition(params.serviceRegions));
   }
 
@@ -269,7 +276,10 @@ export const countDesignatedEstimateRequests = async (
   params: Omit<EstimateRequestFilterParams, 'designated'>,
   db: DbClient = prisma
 ): Promise<number> => {
-  const where = buildWhere({ ...params, designated: true }, new Date());
+  const where = buildWhere(
+    { ...params, designated: true, serviceArea: undefined },
+    new Date()
+  );
   return db.estimateRequest.count({ where });
 };
 
@@ -280,7 +290,10 @@ export const countServiceAreaEstimateRequests = async (
   params: Omit<EstimateRequestFilterParams, 'serviceArea'>,
   db: DbClient = prisma
 ): Promise<number> => {
-  const where = buildWhere({ ...params, serviceArea: true }, new Date());
+  const where = buildWhere(
+    { ...params, serviceArea: true, designated: undefined },
+    new Date()
+  );
   return db.estimateRequest.count({ where });
 };
 

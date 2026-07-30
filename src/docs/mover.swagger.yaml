@@ -385,13 +385,17 @@ paths:
         - name: designated
           in: query
           required: false
-          description: true 인 경우 기사님에게 직접 지정된 견적 요청만 조회
+          description: |
+            true 인 경우 기사님에게 직접 지정된 견적 요청을 조회.
+            serviceArea=true 와 함께 전달되면 OR 조건(지정 견적 ∪ 서비스 가능 지역)으로 필터한다.
           schema:
             type: boolean
         - name: serviceArea
           in: query
           required: false
-          description: true 인 경우 기사님의 서비스 가능 지역과 매칭되는 요청만 조회
+          description: |
+            true 인 경우 기사님의 서비스 가능 지역과 매칭되는 요청을 조회.
+            designated=true 와 함께 전달되면 OR 조건(지정 견적 ∪ 서비스 가능 지역)으로 필터한다.
           schema:
             type: boolean
         - name: sort
