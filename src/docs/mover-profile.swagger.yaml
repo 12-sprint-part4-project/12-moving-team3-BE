@@ -59,7 +59,7 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
               example: null
             updatedAt:
               type: string
@@ -112,7 +112,7 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
               example: null
             career:
               type: integer
@@ -202,15 +202,15 @@ paths:
       summary: 기사님 프로필 등록/수정
       description: |
         기사님(MOVER)이 프로필 정보를 등록하거나 수정합니다.
-        - Content-Type: `multipart/form-data`
-        - `profileImage`는 선택값입니다.
-        - `profileImage`를 보내지 않으면 프로필 이미지는 null로 저장됩니다.
+        - Content-Type: `application/json`
+        - `s3Key`는 선택값입니다. Presigned URL로 S3 업로드 후 받은 key를 전달합니다.
+        - `s3Key`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
               required:
@@ -271,10 +271,10 @@ paths:
                       - BUSAN
                       - JEJU
                   example: [SEOUL, GYEONGGI]
-                profileImage:
+                s3Key:
                   type: string
-                  format: binary
-                  description: 프로필 이미지 파일 (jpeg/png/webp, 최대 5MB)
+                  description: Presigned 업로드 후 받은 S3 key. 미전송 시 기존 이미지 유지
+                  example: uploads/1710000000000_profile.jpg
             examples:
               default:
                 summary: 기사님 프로필 등록/수정 예시
@@ -285,6 +285,7 @@ paths:
                   description: 포장부터 정리까지 책임지고 진행합니다.
                   service: [HOME, SMALL]
                   serviceRegions: [SEOUL, GYEONGGI]
+                  s3Key: uploads/1710000000000_profile.jpg
       responses:
         '200':
           description: 프로필 등록/수정 성공
@@ -318,6 +319,64 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: 닉네임 중복
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/movers/profile/presigned-upload-url:
+    get:
+      tags: [Movers]
+      summary: 프로필 이미지 업로드용 Presigned URL 발급
+      description: |
+        S3에 직접 업로드할 수 있는 Presigned PUT URL을 발급합니다. (유효 시간 5분)
+        쿼리: `filename`, `contentType`
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: filename
+          required: true
+          schema:
+            type: string
+          example: profile.jpg
+        - in: query
+          name: contentType
+          required: true
+          schema:
+            type: string
+          example: image/jpeg
+      responses:
+        '200':
+          description: Presigned URL 발급 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      uploadUrl:
+                        type: string
+                        description: S3 PUT 업로드 URL
+                      s3Key:
+                        type: string
+                        description: 프로필 저장 시 body.s3Key로 전달할 값
+        '400':
+          description: 쿼리 파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 기사님(MOVER)만 접근 가능
           content:
             application/json:
               schema:

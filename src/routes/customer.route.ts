@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import * as customerProfileController from '../controllers/customer-profile.controller';
+import * as presignedUrlController from '../controllers/presigned-url.controller';
 import * as quoteController from '../controllers/quote.controller';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
-import { upload } from '../middlewares/upload.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
+import { presignedUploadUrlQuerySchema } from '../schemas/presigned-url.schema';
 import {
   pastQuotesQuerySchema,
   quoteIdParamsSchema,
@@ -20,12 +21,23 @@ router.get(
   customerProfileController.getCustomerProfile
 );
 
+// Presigned 업로드 URL 발급 (so.md 1번 API)
+router.get(
+  '/profile/presigned-upload-url',
+  requireAuth,
+  allowUserTypes('CUSTOMER'),
+  validateRequest({
+    query: presignedUploadUrlQuerySchema,
+    errorCode: 'INVALID_QUERY_PARAM',
+  }),
+  presignedUrlController.getPresignedUploadUrl
+);
+
 // 일반 유저 프로필 등록 (Swagger: src/docs/customer-profile.swagger.yaml)
 router.patch(
   '/profile',
   requireAuth,
   allowUserTypes('CUSTOMER'),
-  upload.single('profileImage'),
   validateRequest({
     body: customerProfileBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',

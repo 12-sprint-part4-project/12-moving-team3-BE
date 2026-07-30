@@ -6,7 +6,6 @@ import type {
 } from '@prisma/client';
 import {
   CHAT_ATTACHMENT_MAX_SIZE,
-  CHAT_ATTACHMENT_PRESIGN_EXPIRES_IN,
   generateChatAttachmentKey,
 } from '../constants/chat-attachment.constants';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
@@ -714,7 +713,7 @@ interface PresignChatAttachmentResult {
 
 /**
  * 채팅 첨부 이미지 업로드용 Presigned URL을 발급한다.
- * fileSize는 PUT 서명(ContentLength)에 포함되며, 5MB 초과 시 거부한다.
+ * 5MB 초과 시 거부한다.
  */
 export const presignChatAttachment = async (
   body: PresignChatAttachmentBody
@@ -723,13 +722,14 @@ export const presignChatAttachment = async (
     throw new AppError('IMAGE_SIZE_EXCEEDED');
   }
 
-  const fileKey = generateChatAttachmentKey(body.contentType);
-  const uploadUrl = await createPresignedUploadUrl({
-    key: fileKey,
-    contentType: body.contentType,
-    contentLength: body.fileSize,
-    expiresIn: CHAT_ATTACHMENT_PRESIGN_EXPIRES_IN,
-  });
+  const filename =
+    generateChatAttachmentKey(body.contentType).split('/').pop() ??
+    'attachment';
 
-  return { uploadUrl, fileKey };
+  const { uploadUrl, s3Key } = await createPresignedUploadUrl(
+    filename,
+    body.contentType
+  );
+
+  return { uploadUrl, fileKey: s3Key };
 };
