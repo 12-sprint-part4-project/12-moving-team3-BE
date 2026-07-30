@@ -5,19 +5,11 @@ import { EstimateRequestStatus, Prisma } from '@prisma/client';
 export const getEstimateRequestStatistics = async ({
   startDate,
   endDate,
-  keyword,
 }: AdminStatisticsFilter) => {
   const dateRange = createDateRange(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
     ...(dateRange && { submittedAt: dateRange }),
-    ...(keyword && {
-      OR: [
-        { id: Number(keyword) || undefined },
-        { user: { name: { contains: keyword, mode: 'insensitive' } } },
-        { user: { phoneNumber: { contains: keyword, mode: 'insensitive' } } },
-      ],
-    }),
   };
 
   const [

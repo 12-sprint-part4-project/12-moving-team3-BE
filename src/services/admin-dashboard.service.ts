@@ -1,4 +1,4 @@
-import type { AdminDashboardStatisticsQuery } from '../schemas/admin-dashboard.schema';
+import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import {
   EstimateRequestStatus,
   QuoteStatus,
@@ -13,7 +13,7 @@ import { getPendingReportCount } from '../repositories/admin-report.repository';
 export const getStatistics = async ({
   startDate,
   endDate,
-}: AdminDashboardStatisticsQuery) => {
+}: AdminStatisticsFilter) => {
   const dateRange = createDateRange(startDate, endDate);
 
   const [

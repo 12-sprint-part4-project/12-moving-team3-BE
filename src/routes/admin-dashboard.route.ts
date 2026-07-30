@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { validateRequest } from '../middlewares/validate.middleware';
-import { adminDashboardStatisticsQuerySchema } from '../schemas/admin-dashboard.schema';
 import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
+import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 import * as adminDashboardController from '../controllers/admin-dashboard.controller';
 
 const router = Router();
@@ -11,7 +11,7 @@ router.get(
   '/statistics',
   requireAdminAuth,
   validateRequest({
-    query: adminDashboardStatisticsQuerySchema,
+    query: adminStatisticsFilterSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminDashboardController.getStatistics

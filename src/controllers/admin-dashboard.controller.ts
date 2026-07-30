@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import * as adminDashboardService from '../services/admin-dashboard.service';
 
 export const getStatistics = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {

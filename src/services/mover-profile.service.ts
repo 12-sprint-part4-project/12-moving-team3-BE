@@ -1,15 +1,12 @@
-import type {} from 'multer';
 import * as moverProfileRepository from '../repositories/mover-profile.repository';
 import type { MoverProfileBody } from '../schemas/mover-profile.schema';
-import { deleteImage, uploadImage } from './s3.service';
-import { toProfileImageUrl } from '../utils/profile-image.util';
+import { deleteImage, toPresignedViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 
 export interface SaveMoverProfileInput {
   userId: string;
   body: MoverProfileBody;
-  file?: Express.Multer.File;
 }
 
 export const getMoverProfile = async (userId: string) => {
@@ -28,7 +25,9 @@ export const getMoverProfile = async (userId: string) => {
     nickname: profile.user.nickname,
     email: profile.user.email,
     phoneNumber: profile.user.phoneNumber,
-    profileImageUrl: toProfileImageUrl(profile.user.profileImageKey),
+    profileImageUrl: await toPresignedViewUrl(
+      profile.user.profileImageKey
+    ),
     career: profile.career,
     shortDescription: profile.shortDescription,
     description: profile.description,
@@ -49,11 +48,7 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
   }
 
   const previousProfileImageKey = existingProfile.user.profileImageKey;
-  let uploadedProfileImageKey: string | undefined;
-
-  if (input.file) {
-    uploadedProfileImageKey = await uploadImage(input.file, 'profile-images');
-  }
+  const nextProfileImageKey = input.body.s3Key;
 
   try {
     const profile = await moverProfileRepository.saveMoverProfile({
@@ -64,13 +59,13 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       description: input.body.description,
       service: input.body.service,
       serviceRegions: input.body.serviceRegions,
-      profileImageKey: uploadedProfileImageKey,
+      profileImageKey: nextProfileImageKey,
     });
 
     if (
-      uploadedProfileImageKey &&
+      nextProfileImageKey &&
       previousProfileImageKey &&
-      previousProfileImageKey !== uploadedProfileImageKey
+      previousProfileImageKey !== nextProfileImageKey
     ) {
       try {
         await deleteImage(previousProfileImageKey);
@@ -86,13 +81,13 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       description: profile.description,
       service: profile.service,
       serviceRegions: profile.serviceRegions,
-      profileImageUrl: toProfileImageUrl(profile.profileImageKey),
+      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
       updatedAt: profile.updatedAt,
     };
   } catch (error) {
-    if (uploadedProfileImageKey) {
+    if (nextProfileImageKey) {
       try {
-        await deleteImage(uploadedProfileImageKey);
+        await deleteImage(nextProfileImageKey);
       } catch {
         // DB 반영 실패 후 업로드 정리마저 실패하면 orphan 가능성을 남긴다.
       }

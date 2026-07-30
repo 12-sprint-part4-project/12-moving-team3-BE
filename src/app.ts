@@ -19,6 +19,7 @@ import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
 import reviewRouter from './routes/review.route';
 import reportRouter from './routes/report.route';
+import presignedUrlRouter from './routes/presigned-url.route';
 import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
 
 const app = express();
@@ -81,6 +82,7 @@ app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/review', reviewRouter);
 app.use('/api/reports', reportRouter);
+app.use('/api', presignedUrlRouter);
 
 app.use(errorHandler);
 

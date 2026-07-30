@@ -21,7 +21,7 @@ export const getMoverProfile = async (
 };
 
 export const saveMoverProfile = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
@@ -32,7 +32,6 @@ export const saveMoverProfile = async (
     const profile = await moverProfileService.saveMoverProfile({
       userId,
       body,
-      file: req.file,
     });
 
     res.status(200).json({
