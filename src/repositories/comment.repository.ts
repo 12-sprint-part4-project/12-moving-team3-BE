@@ -49,15 +49,12 @@ export const createComment = async (
  */
 export const softDeleteComment = async (commentId: number, postId: number) => {
   return prisma.$transaction(async (tx) => {
-    const replies = await tx.comment.findMany({
-      where: { parentId: commentId, deletedAt: null },
-      select: { id: true },
-    });
-
-    const idsToDelete = [commentId, ...replies.map((r) => r.id)];
-
     const deleteResult = await tx.comment.updateMany({
-      where: { id: { in: idsToDelete }, deletedAt: null },
+      where: {
+        postId,
+        deletedAt: null,
+        OR: [{ id: commentId }, { parentId: commentId }],
+      },
       data: { deletedAt: new Date() },
     });
 
