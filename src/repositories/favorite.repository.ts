@@ -54,3 +54,30 @@ export const countMoverFavorited = async (moverId: string) => {
     where: { moverId },
   });
 };
+
+/**
+ * 고객이 moverIds 중 찜한 기사 id 집합
+ * 목록 N+1 방지용 — moverIds가 비면 빈 Set
+ */
+export const findFavoritedMoverIdsByUser = async (
+  userId: string,
+  moverIds: string[]
+): Promise<Set<string>> => {
+  if (moverIds.length === 0) {
+    return new Set();
+  }
+
+  const rows = await prisma.favorite.findMany({
+    where: {
+      userId,
+      moverId: { in: moverIds },
+    },
+    select: { moverId: true },
+  });
+
+  return new Set(
+    rows
+      .map((row) => row.moverId)
+      .filter((moverId): moverId is string => moverId != null)
+  );
+};

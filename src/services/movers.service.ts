@@ -1,4 +1,8 @@
-import { countMoverFavorited } from '../repositories/favorite.repository';
+import {
+  countMoverFavorited,
+  findFavoriteByUserAndMover,
+  findFavoritedMoverIdsByUser,
+} from '../repositories/favorite.repository';
 import type {
   FindMoversFilters,
   MoverListSort,
@@ -70,14 +74,29 @@ const mapUserProfileImage = <T extends { profileImageKey: string | null }>(
 };
 
 const moversService = {
-  //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
-  getMovers: async (query: MoversListQuery) => {
+  /**
+   * 기사 목록
+   * - 항상 isFavorited(boolean) 포함
+   * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 전부
+   */
+  getMovers: async ({
+    query,
+    customerId,
+  }: {
+    query: MoversListQuery;
+    customerId?: string;
+  }) => {
     const filters = toFindMoversFilters(query);
     const {
       items: movers,
       hasNextPage,
       sort,
     } = await moversRepository.findMovers(filters);
+
+    const moverIds = movers.map((mover) => mover.user.id);
+    const favoritedMoverIds = customerId
+      ? await findFavoritedMoverIdsByUser(customerId, moverIds)
+      : new Set<string>();
 
     const moversWithReviews = await Promise.all(
       movers.map(async (mover) => {
@@ -89,6 +108,7 @@ const moversService = {
           ...mover,
           user: mapUserProfileImage(mover.user),
           review: reviewStats,
+          isFavorited: favoritedMoverIds.has(mover.user.id),
         };
       })
     );
@@ -107,8 +127,17 @@ const moversService = {
     };
   },
 
-  //TODO: 로그인한 사용자에겐 찜 유무 필드 추가
-  getMoverDetail: async (moverId: string) => {
+  /**
+   * 기사 상세
+   * - 항상 isFavorited(boolean) 포함 (비회원·비고객은 false)
+   */
+  getMoverDetail: async ({
+    moverId,
+    customerId,
+  }: {
+    moverId: string;
+    customerId?: string;
+  }) => {
     const moverDetail = await moversRepository.findMoverProfileById({
       moverId,
       onlyActiveMovers: true,
@@ -118,8 +147,12 @@ const moversService = {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
-    const reviewStats =
-      await reviewRepository.getReviewStatsByMoverId(moverId);
+    const [reviewStats, favorite] = await Promise.all([
+      reviewRepository.getReviewStatsByMoverId(moverId),
+      customerId
+        ? findFavoriteByUserAndMover(customerId, moverId)
+        : Promise.resolve(null),
+    ]);
 
     return {
       data: {
@@ -128,6 +161,7 @@ const moversService = {
           user: mapUserProfileImage(moverDetail.user),
         },
         reviewStats,
+        isFavorited: favorite != null,
       },
     };
   },
