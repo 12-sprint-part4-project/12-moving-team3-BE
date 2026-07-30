@@ -12,9 +12,10 @@ import { s3Client } from '../config/s3';
  */
 export const createPresignedUploadUrl = async (
   filename: string,
-  contentType: string
+  contentType: string,
+  prefix: string
 ): Promise<{ uploadUrl: string; s3Key: string }> => {
-  const s3Key = `uploads/${Date.now()}_${filename}`;
+  const s3Key = `${prefix}/${Date.now()}_${filename}`;
 
   const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME,

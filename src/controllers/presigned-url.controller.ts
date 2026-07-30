@@ -14,7 +14,8 @@ export const getPresignedUploadUrl = async (
     const query = res.locals.validated.query as PresignedUploadUrlQuery;
     const data = await s3Service.createPresignedUploadUrl(
       query.filename,
-      query.contentType
+      query.contentType,
+      query.prefix
     );
 
     res.status(200).json({ data });
