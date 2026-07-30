@@ -65,7 +65,10 @@ export const startMoveDayReminderCron = (): void => {
   cron.schedule(
     '0 9 * * *',
     () => {
-      void runMoveDayReminderJob();
+      // void 로 버리면 findConfirmedMovesOnDate 실패 시 unhandled rejection 이 된다
+      runMoveDayReminderJob().catch((error) => {
+        console.error('[move-day-reminder] job failed', error);
+      });
     },
     { timezone: 'Asia/Seoul' }
   );
