@@ -1,0 +1,104 @@
+paths:
+  /api/admin/dashboard/statistics:
+    get:
+      tags: [Admin Dashboard]
+      summary: 관리자 대시보드 통계 조회
+      description: |
+        기간별 유저·견적 요청·견적·완료 건수·대기 신고 수를 조회합니다.
+        startDate가 없으면 전체 기간을 집계합니다.
+        startDate만 있으면 해당 일(00:00:00 ~ 23:59:59), endDate까지 있으면 기간으로 집계합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          description: 조회 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 조회 종료일 (미입력 시 startDate와 동일일)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+      responses:
+        '200':
+          description: 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - userCount
+                      - estimateRequestCount
+                      - quoteCount
+                      - completedEstimateRequestCount
+                      - pendingReportCount
+                    properties:
+                      userCount:
+                        type: integer
+                        description: 기간 내 가입 유저 수 (삭제되지 않은 계정)
+                        example: 120
+                      estimateRequestCount:
+                        type: integer
+                        description: 기간 내 제출된 견적 요청 수 (DRAFT 제외)
+                        example: 45
+                      quoteCount:
+                        type: integer
+                        description: 기간 내 생성된 견적 수 (REJECTED·삭제 제외)
+                        example: 80
+                      completedEstimateRequestCount:
+                        type: integer
+                        description: 기간 내 이사 완료된 견적 요청 수
+                        example: 30
+                      pendingReportCount:
+                        type: integer
+                        description: 기간 내 대기 중인 신고 수
+                        example: 3
+              example:
+                data:
+                  userCount: 120
+                  estimateRequestCount: 45
+                  quoteCount: 80
+                  completedEstimateRequestCount: 30
+                  pendingReportCount: 3
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않거나, 관리자 계정이 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

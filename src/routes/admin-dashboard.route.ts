@@ -6,8 +6,9 @@ import { adminDashboardController } from '../controllers/admin-dashboard.control
 
 const router = Router();
 
+// 관리자 대시보드 통계 조회 (Swagger: src/docs/admin-dashboard.swagger.yaml)
 router.get(
-  '/dashboard/statistics',
+  '/statistics',
   requireAdminAuth,
   validateRequest({
     query: adminDashboardStatisticsQuerySchema,
