@@ -167,26 +167,23 @@ const reviewRepository = {
   },
 
   /**
-   * userId+quoteId unique 기준 리뷰 조회 (soft-delete 포함)
-   * 동시성: unique 충돌 전 사전 확인 및 삭제된 리뷰 재작성 차단용
+   * 유저·견적에 대한 "활성" 리뷰 조회 (deletedAt IS NULL만)
    */
-  findReviewByUserAndQuote: async (
+  findActiveReviewByUserAndQuote: async (
     userId: string,
     quoteId: number,
     tx?: Prisma.TransactionClient
   ) => {
     const dbClient = tx ?? prisma;
 
-    return dbClient.review.findUnique({
+    return dbClient.review.findFirst({
       where: {
-        userId_quoteId: {
-          userId,
-          quoteId,
-        },
+        userId,
+        quoteId,
+        deletedAt: null,
       },
       select: {
         id: true,
-        deletedAt: true,
       },
     });
   },

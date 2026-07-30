@@ -212,7 +212,8 @@ model Review {
   quote         Quote          @relation(fields: [quoteId], references: [id])
   user          User           @relation(fields: [userId], references: [id])
 
-  @@unique([userId, quoteId])
+  // 활성 리뷰(deleted_at IS NULL)만 userId+quoteId 유일 — soft-delete 후 재작성 허용
+  @@unique([userId, quoteId], map: "reviews_user_id_quote_id_active_unique", where: raw("(deleted_at IS NULL)"))
   @@map("reviews")
 }
 
@@ -221,6 +222,8 @@ model Notification {
   receiverId        String           @map("receiver_id") @db.Uuid
   type              NotificationType
   content           String           @db.VarChar(500)
+  // FE 강조 렌더용 변수(이름·이사유형 등). content는 템플릿 치환 스냅샷
+  payload           Json             @map("payload")
   isRead            Boolean          @default(false) @map("is_read")
   createdAt         DateTime         @default(now()) @map("created_at")
   commentId         Int?             @map("comment_id")
@@ -235,6 +238,8 @@ model Notification {
   review            Review?          @relation(fields: [reviewId], references: [id])
   userReport        UserReport?      @relation(fields: [userReportId], references: [id])
 
+  @@index([receiverId, createdAt])
+  @@index([receiverId, isRead])
   @@map("notifications")
 }
 
