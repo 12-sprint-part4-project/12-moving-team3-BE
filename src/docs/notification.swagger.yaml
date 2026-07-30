@@ -76,15 +76,13 @@ paths:
       summary: 알림 SSE 스트림
       description: |
         Server-Sent Events로 실시간 알림을 수신합니다.
-        EventSource는 Authorization 헤더를 보낼 수 없어 `accessToken` 쿼리로 JWT를 전달합니다.
+        인증은 다른 API와 동일하게 `Authorization: Bearer <accessToken>` 을 사용합니다.
+        (URL 쿼리로 토큰을 넘기지 않습니다 — 로그·히스토리 노출 방지)
+        브라우저 네이티브 EventSource는 Authorization 헤더를 보낼 수 없으므로,
+        FE는 fetch 기반 SSE 클라이언트(예: @microsoft/fetch-event-source)를 사용합니다.
         이벤트: `notification`, `unread-count` / 주석 하트비트(약 20초).
-      parameters:
-        - name: accessToken
-          in: query
-          required: true
-          description: Access Token (JWT)
-          schema:
-            type: string
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: text/event-stream 연결

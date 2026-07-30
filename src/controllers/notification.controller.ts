@@ -1,29 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
-import type {
-  NotificationIdParams,
-  NotificationStreamQuery,
-} from '../schemas/notification.schema';
+import type { NotificationIdParams } from '../schemas/notification.schema';
 import * as notificationService from '../services/notification.service';
 import * as notificationSse from '../services/notification-sse.service';
-import {
-  getAuthenticatedUser,
-  type AuthenticatedUser,
-} from '../middlewares/auth.middleware';
+import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import { AppError } from '../utils/app.error';
-import { verifyAccessToken } from '../utils/auth-jwt.util';
 
 const getValidatedParams = <T>(res: Response): T => {
   const value = res.locals.validated?.params;
-
-  if (value == null || typeof value !== 'object') {
-    throw new AppError('INVALID_QUERY_PARAM');
-  }
-
-  return value as T;
-};
-
-const getValidatedQuery = <T>(res: Response): T => {
-  const value = res.locals.validated?.query;
 
   if (value == null || typeof value !== 'object') {
     throw new AppError('INVALID_QUERY_PARAM');
@@ -71,33 +54,18 @@ export const markAsRead = async (
 };
 
 /**
- * GET /api/notifications/stream?accessToken=
- * EventSource는 Authorization 헤더를 못 보내므로 query JWT 사용.
+ * GET /api/notifications/stream
+ * Authorization: Bearer (requireAuth). URL에 access token을 넣지 않는다.
+ * 네이티브 EventSource는 헤더를 못 보내므로 FE는 fetch 기반 SSE 클라이언트를 쓴다.
  */
 export const openNotificationStream = (
   _req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  let user: AuthenticatedUser;
-
-  // 인증 실패만 UNAUTHORIZED 로 좁히고, subscribe 예외는 서버 오류로 전파한다
   try {
-    const { accessToken } = getValidatedQuery<NotificationStreamQuery>(res);
-    const payload = verifyAccessToken(accessToken);
-
-    user = {
-      userId: payload.sub,
-      userType: payload.userType,
-    };
-    res.locals.user = user;
-  } catch {
-    next(new AppError('UNAUTHORIZED'));
-    return;
-  }
-
-  try {
-    notificationSse.subscribe(user.userId, res);
+    const { userId } = getAuthenticatedUser(res);
+    notificationSse.subscribe(userId, res);
   } catch (error) {
     next(error);
   }
