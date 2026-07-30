@@ -95,7 +95,7 @@ const moversService = {
 
     const moverIds = movers.map((mover) => mover.user.id);
 
-    // 찜 여부·리뷰 통계를 병렬 배치 조회 (기사당 리뷰 findMany N회 제거)
+    // 찜 여부·리뷰 통계를 병렬 배치 조회
     const [favoritedMoverIds, reviewStatsByMoverId] = await Promise.all([
       customerId
         ? findFavoritedMoverIdsByUser(customerId, moverIds)
@@ -106,8 +106,7 @@ const moversService = {
     const moversWithReviews = movers.map((mover) => ({
       ...mover,
       user: mapUserProfileImage(mover.user),
-      review:
-        reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
+      review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
       isFavorited: favoritedMoverIds.has(mover.user.id),
     }));
 
