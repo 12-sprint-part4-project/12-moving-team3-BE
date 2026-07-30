@@ -1,7 +1,9 @@
-import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { randomUUID } from 'node:crypto';
-import type {} from 'multer';
 import { s3Client } from '../config/s3';
 
 interface CreatePresignedUploadUrlInput {
@@ -30,22 +32,17 @@ export const createPresignedUploadUrl = async (
   });
 };
 
-export const uploadImage = async (
-  file: Express.Multer.File,
-  directory: string
+/** S3 GET용 Presigned URL을 발급한다. (조회용) */
+export const createPresignedViewUrl = async (
+  key: string,
+  expiresIn = 60 * 60
 ): Promise<string> => {
-  const key = `${directory}/${randomUUID()}`;
-
-  const command = new PutObjectCommand({
+  const command = new GetObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME,
     Key: key,
-    Body: file.buffer,
-    ContentType: file.mimetype,
   });
 
-  await s3Client.send(command);
-
-  return key;
+  return getSignedUrl(s3Client, command, { expiresIn });
 };
 
 export const deleteImage = async (key: string): Promise<void> => {
