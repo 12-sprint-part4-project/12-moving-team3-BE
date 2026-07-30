@@ -66,7 +66,8 @@ export const findLatestByReceiver = async (
   const [notifications, totalCount] = await Promise.all([
     db.notification.findMany({
       where: { receiverId },
-      orderBy: { createdAt: 'desc' },
+      // createdAt이 같으면 id로 안정 정렬 (목록 순서가 흔들리지 않게)
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: LIST_LIMIT,
       select: notificationSelect,
     }),
