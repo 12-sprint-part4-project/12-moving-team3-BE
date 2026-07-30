@@ -1,5 +1,5 @@
 import {
-  countMoverFavorited,
+  countMoverFavoritedByMoverIds,
   findFavoriteByUserAndMover,
   findFavoritedMoverIdsByUser,
 } from '../repositories/favorite.repository';
@@ -185,36 +185,33 @@ const moversService = {
       .map((favorite) => favorite.moverId)
       .filter((moverId): moverId is string => moverId != null);
 
-    // 리뷰 통계는 1쿼리 배치 / 찜 수(count)는 2번 최적화에서 배치화 예정
-    const reviewStatsByMoverId =
-      await reviewRepository.getReviewStatsByMoverIds(moverIds);
+    const [reviewStatsByMoverId, favoritedCountByMoverId] = await Promise.all([
+      reviewRepository.getReviewStatsByMoverIds(moverIds),
+      countMoverFavoritedByMoverIds(moverIds),
+    ]);
 
-    const favoritesWithDetails = await Promise.all(
-      favorites.map(async (favorite) => {
-        if (!favorite.moverId) {
-          return {
-            ...favorite,
-            mover: favorite.mover
-              ? mapUserProfileImage(favorite.mover)
-              : favorite.mover,
-            reviewStats: EMPTY_REVIEW_STATS,
-            favoritedCount: 0,
-          };
-        }
-
-        const favoritedCount = await countMoverFavorited(favorite.moverId);
-
+    const favoritesWithDetails = favorites.map((favorite) => {
+      if (!favorite.moverId) {
         return {
           ...favorite,
           mover: favorite.mover
             ? mapUserProfileImage(favorite.mover)
             : favorite.mover,
-          reviewStats:
-            reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
-          favoritedCount,
+          reviewStats: EMPTY_REVIEW_STATS,
+          favoritedCount: 0,
         };
-      })
-    );
+      }
+
+      return {
+        ...favorite,
+        mover: favorite.mover
+          ? mapUserProfileImage(favorite.mover)
+          : favorite.mover,
+        reviewStats:
+          reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
+        favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
+      };
+    });
 
     const lastFavorite =
       favorites.length > 0 ? favorites[favorites.length - 1] : undefined;
