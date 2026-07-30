@@ -5,17 +5,14 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client } from '../config/s3';
+import { randomUUID } from 'node:crypto';
 
-/**
- * S3 PUT용 Presigned URL을 발급한다.
- * (so.md: GET /presigned-upload-url)
- */
 export const createPresignedUploadUrl = async (
   filename: string,
   contentType: string,
   prefix: string
 ): Promise<{ uploadUrl: string; s3Key: string }> => {
-  const s3Key = `${prefix}/${Date.now()}_${filename}`;
+  const s3Key = `${prefix}/${randomUUID()}_${filename}`;
 
   const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -31,10 +28,6 @@ export const createPresignedUploadUrl = async (
   return { uploadUrl, s3Key };
 };
 
-/**
- * S3 GET용 Presigned URL을 발급한다. (조회용)
- * (so.md: 사진 목록 조회)
- */
 export const createPresignedViewUrl = async (
   key: string,
   expiresIn = 60 * 60

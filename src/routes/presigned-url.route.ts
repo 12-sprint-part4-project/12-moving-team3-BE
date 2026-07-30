@@ -6,7 +6,6 @@ import { presignedUploadUrlQuerySchema } from '../schemas/presigned-url.schema';
 
 const router = Router();
 
-// S3 업로드용 Presigned URL 발급 (so.md 1번 API)
 router.get(
   '/presigned-upload-url',
   requireAuth,

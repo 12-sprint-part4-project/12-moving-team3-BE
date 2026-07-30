@@ -3,7 +3,6 @@ import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import type { PresignedUploadUrlQuery } from '../schemas/presigned-url.schema';
 import * as s3Service from '../services/s3.service';
 
-/** GET .../presigned-upload-url (so.md 1번 API) */
 export const getPresignedUploadUrl = async (
   _req: Request,
   res: Response,
