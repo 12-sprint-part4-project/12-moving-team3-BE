@@ -1,12 +1,12 @@
 import { getEstimateRequestCount } from '../repositories/admin-estimate-request.repository';
-import type { AdminEstimateRequestStatisticsQuery } from '../schemas/admin-estimate-request.schema';
+import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
 import { EstimateRequestStatus, Prisma } from '@prisma/client';
 export const getEstimateRequestStatistics = async ({
   startDate,
   endDate,
   keyword,
-}: AdminEstimateRequestStatisticsQuery) => {
+}: AdminStatisticsFilter) => {
   const dateRange = createDateRange(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
