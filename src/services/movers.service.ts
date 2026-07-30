@@ -1,5 +1,5 @@
 import {
-  countMoverFavorited,
+  countMoverFavoritedByMoverIds,
   findFavoriteByUserAndMover,
   findFavoritedMoverIdsByUser,
 } from '../repositories/favorite.repository';
@@ -94,24 +94,21 @@ const moversService = {
     } = await moversRepository.findMovers(filters);
 
     const moverIds = movers.map((mover) => mover.user.id);
-    const favoritedMoverIds = customerId
-      ? await findFavoritedMoverIdsByUser(customerId, moverIds)
-      : new Set<string>();
 
-    const moversWithReviews = await Promise.all(
-      movers.map(async (mover) => {
-        const reviewStats = await reviewRepository.getReviewStatsByMoverId(
-          mover.user.id
-        );
+    // 찜 여부·리뷰 통계를 병렬 배치 조회
+    const [favoritedMoverIds, reviewStatsByMoverId] = await Promise.all([
+      customerId
+        ? findFavoritedMoverIdsByUser(customerId, moverIds)
+        : Promise.resolve(new Set<string>()),
+      reviewRepository.getReviewStatsByMoverIds(moverIds),
+    ]);
 
-        return {
-          ...mover,
-          user: mapUserProfileImage(mover.user),
-          review: reviewStats,
-          isFavorited: favoritedMoverIds.has(mover.user.id),
-        };
-      })
-    );
+    const moversWithReviews = movers.map((mover) => ({
+      ...mover,
+      user: mapUserProfileImage(mover.user),
+      review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
+      isFavorited: favoritedMoverIds.has(mover.user.id),
+    }));
 
     const lastMover = movers.length > 0 ? movers[movers.length - 1] : undefined;
 
@@ -183,34 +180,37 @@ const moversService = {
         onlyActiveMovers: true,
       });
 
-    const favoritesWithDetails = await Promise.all(
-      favorites.map(async (favorite) => {
-        if (!favorite.moverId) {
-          return {
-            ...favorite,
-            mover: favorite.mover
-              ? mapUserProfileImage(favorite.mover)
-              : favorite.mover,
-            reviewStats: EMPTY_REVIEW_STATS,
-            favoritedCount: 0,
-          };
-        }
+    const moverIds = favorites
+      .map((favorite) => favorite.moverId)
+      .filter((moverId): moverId is string => moverId != null);
 
-        const [reviewStats, favoritedCount] = await Promise.all([
-          reviewRepository.getReviewStatsByMoverId(favorite.moverId),
-          countMoverFavorited(favorite.moverId),
-        ]);
+    const [reviewStatsByMoverId, favoritedCountByMoverId] = await Promise.all([
+      reviewRepository.getReviewStatsByMoverIds(moverIds),
+      countMoverFavoritedByMoverIds(moverIds),
+    ]);
 
+    const favoritesWithDetails = favorites.map((favorite) => {
+      if (!favorite.moverId) {
         return {
           ...favorite,
           mover: favorite.mover
             ? mapUserProfileImage(favorite.mover)
             : favorite.mover,
-          reviewStats,
-          favoritedCount,
+          reviewStats: EMPTY_REVIEW_STATS,
+          favoritedCount: 0,
         };
-      })
-    );
+      }
+
+      return {
+        ...favorite,
+        mover: favorite.mover
+          ? mapUserProfileImage(favorite.mover)
+          : favorite.mover,
+        reviewStats:
+          reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
+        favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
+      };
+    });
 
     const lastFavorite =
       favorites.length > 0 ? favorites[favorites.length - 1] : undefined;
