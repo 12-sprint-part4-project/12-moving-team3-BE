@@ -1,0 +1,102 @@
+paths:
+  /api/admin/estimate-request/statistics:
+    get:
+      tags: [Admin Estimate Requests]
+      summary: 관리자 견적 요청 통계 조회
+      description: |
+        기간과 검색어 조건에 따른 활성 견적 요청 통계를 조회합니다.
+        활성 견적 요청은 SUBMITTED 또는 CONFIRMED 상태입니다.
+        startDate가 없으면 전체 기간을 집계하며, 이 경우 endDate는 적용되지 않습니다.
+        startDate만 입력하면 해당 일(00:00:00 ~ 23:59:59)을 집계하고,
+        endDate도 입력하면 두 날짜 사이를 집계합니다.
+        keyword는 견적 요청 ID, 고객 이름 또는 고객 전화번호를 대상으로 검색합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          description: 조회 시작일
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 조회 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+        - name: keyword
+          in: query
+          required: false
+          description: 견적 요청 ID, 고객 이름 또는 고객 전화번호 검색어
+          schema:
+            type: string
+            example: '01012345678'
+      responses:
+        '200':
+          description: 견적 요청 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - totalActiveEstimateRequestCount
+                      - submittedEstimateRequestCount
+                      - confirmedEstimateRequestCount
+                    properties:
+                      totalActiveEstimateRequestCount:
+                        type: integer
+                        description: SUBMITTED와 CONFIRMED 상태 견적 요청의 합계
+                        example: 45
+                      submittedEstimateRequestCount:
+                        type: integer
+                        description: SUBMITTED 상태 견적 요청 수
+                        example: 30
+                      confirmedEstimateRequestCount:
+                        type: integer
+                        description: CONFIRMED 상태 견적 요청 수
+                        example: 15
+              example:
+                data:
+                  totalActiveEstimateRequestCount: 45
+                  submittedEstimateRequestCount: 30
+                  confirmedEstimateRequestCount: 15
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

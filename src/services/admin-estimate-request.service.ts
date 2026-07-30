@@ -40,4 +40,10 @@ export const getEstimateRequestStatistics = async ({
       status: { in: [EstimateRequestStatus.CONFIRMED] },
     }),
   ]);
+
+  return {
+    totalActiveEstimateRequestCount,
+    submittedEstimateRequestCount,
+    confirmedEstimateRequestCount,
+  };
 };
