@@ -774,6 +774,7 @@ export const findQuoteForReviewCreate = async (
 /**
  * 고객이 리뷰 작성 가능한 확정 견적 목록 (페이지네이션)
  * createReview 작성 가능 조건과 동일
+ * — 활성 리뷰가 없는 견적만 (soft-delete 후 재작성 대상 포함)
  */
 export const findWritableQuotesByCustomerId = async (
   customerId: string,
@@ -795,9 +796,10 @@ export const findWritableQuotesByCustomerId = async (
         { moveDate: { lte: todayStart } },
       ],
     },
-    // create와 동일: soft-delete 포함 리뷰가 있으면 재작성 불가
+    // create와 동일: 활성 리뷰(deletedAt null)가 없을 때만 작성 가능
+    // soft-delete된 리뷰만 있는 견적은 재작성 대상으로 다시 노출한다
     reviews: {
-      none: { userId: customerId },
+      none: { userId: customerId, deletedAt: null },
     },
   };
 
