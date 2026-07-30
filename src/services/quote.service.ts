@@ -212,11 +212,6 @@ const createProposal = async ({
   isDesignatedTarget,
   existingQuote,
 }: CreateProposalParams): Promise<Quote> => {
-  // 지정 견적 요청인데 대상이 아닌 경우
-  if (isDesignatedRequest && !isDesignatedTarget) {
-    throw new AppError('NOT_DESIGNATED_TARGET');
-  }
-
   assertNoExistingQuote(existingQuote);
 
   // 동적 마감 인원(지정 3 / 일반 5) 검증

@@ -587,7 +587,6 @@ paths:
           description: |
             접근 거부
             - USER_TYPE_FORBIDDEN: MOVER가 아닌 계정으로 접근
-            - NOT_DESIGNATED_TARGET: 지정 견적 대상이 아님
           content:
             application/json:
               schema:
@@ -599,12 +598,6 @@ paths:
                     error:
                       code: USER_TYPE_FORBIDDEN
                       message: 접근 권한이 없습니다.
-                notDesignatedTarget:
-                  summary: 지정 견적 대상이 아님
-                  value:
-                    error:
-                      code: NOT_DESIGNATED_TARGET
-                      message: 지정 견적 대상 기사님이 아닙니다.
         '404':
           description: 견적 요청을 찾을 수 없음
           content:
