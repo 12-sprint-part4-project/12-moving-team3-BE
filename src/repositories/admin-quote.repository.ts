@@ -8,21 +8,25 @@ export const getQuoteCount = async (where: Prisma.QuoteWhereInput) => {
 export const averageCompletedQuotePrice = async (
   where: Prisma.QuoteWhereInput
 ) => {
-  return prisma.quote.aggregate({
+  const result = await prisma.quote.aggregate({
     where,
     _avg: {
       price: true,
     },
   });
+
+  return result._avg.price ?? 0;
 };
 
 export const totalCompletedQuotePrice = async (
   where: Prisma.QuoteWhereInput
 ) => {
-  return prisma.quote.aggregate({
+  const result = await prisma.quote.aggregate({
     where,
     _sum: {
       price: true,
     },
   });
+
+  return result._sum.price ?? 0;
 };

@@ -21,6 +21,8 @@ import reviewRouter from './routes/review.route';
 import reportRouter from './routes/report.route';
 import presignedUrlRouter from './routes/presigned-url.route';
 import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
+import adminReviewRouter from './routes/admin-review.route';
+import adminReportRouter from './routes/admin-report.route';
 import notificationRouter from './routes/notification.route';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
 
@@ -76,6 +78,8 @@ app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin/dashboard', adminDashboardRouter);
 app.use('/api/admin/estimate-request', adminEstimateRequestRouter);
+app.use('/api/admin/reviews', adminReviewRouter);
+app.use('/api/admin/reports', adminReportRouter);
 app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/users/customers', customerRouter);

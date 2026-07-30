@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import * as adminCompletedController from '../controllers/admin-completed.controller';
 import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
-import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 import { validateRequest } from '../middlewares/validate.middleware';
+import * as adminReportController from '../controllers/admin-report.controller';
+import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 
 const router = Router();
 
-// 완료 견적 요청 통계 조회 (Swagger: src/docs/admin-completed.swagger.yaml)
+// 신고 관리 통계 조회
 router.get(
   '/statistics',
   requireAdminAuth,
@@ -14,7 +14,7 @@ router.get(
     query: adminStatisticsFilterSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
-  adminCompletedController.getCompletedStatistics
+  adminReportController.getReportStatistics
 );
 
 export default router;
