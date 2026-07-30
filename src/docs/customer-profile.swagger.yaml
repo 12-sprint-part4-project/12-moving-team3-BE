@@ -37,7 +37,7 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
               example: null
             updatedAt:
               type: string
@@ -83,7 +83,7 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 공개 프로필 이미지 URL. CDN/S3 공개 base URL이 없으면 null
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
               example: null
             service:
               type: array
@@ -160,15 +160,15 @@ paths:
       summary: 일반 유저 프로필 등록/수정
       description: |
         일반 유저(CUSTOMER)가 프로필 정보를 등록하거나 수정합니다.
-        - Content-Type: `multipart/form-data`
-        - `profileImage`는 선택값입니다.
-        - `profileImage`를 보내지 않으면 프로필 이미지는 null로 저장됩니다.
+        - Content-Type: `application/json`
+        - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
+        - `s3Key`를 보내지 않으면 프로필 이미지는 null로 저장됩니다.
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
               required:
@@ -204,16 +204,17 @@ paths:
                     type: string
                     enum: [SMALL, HOME, OFFICE]
                   example: [HOME, SMALL]
-                profileImage:
+                s3Key:
                   type: string
-                  format: binary
-                  description: 프로필 이미지 파일 (jpeg/png/webp, 최대 5MB)
+                  description: Presigned 업로드 후 받은 S3 key
+                  example: uploads/1710000000000_profile.jpg
             examples:
               default:
                 summary: 일반 유저 프로필 등록 예시
                 value:
                   region: SEOUL
                   service: [HOME, SMALL]
+                  s3Key: uploads/1710000000000_profile.jpg
       responses:
         '200':
           description: 프로필 등록 성공

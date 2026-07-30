@@ -21,7 +21,7 @@ export const getCustomerProfile = async (
 };
 
 export const registerCustomerProfile = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
@@ -32,7 +32,6 @@ export const registerCustomerProfile = async (
     const profile = await customerProfileService.registerCustomerProfile({
       userId,
       body,
-      file: req.file,
     });
 
     res.status(200).json({

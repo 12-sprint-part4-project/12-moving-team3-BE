@@ -77,7 +77,7 @@ export interface EstimateRequestListRow {
   moveDate: Date | null;
   departureAddress: string | null;
   arrivalAddress: string | null;
-  createdAt: Date;
+  submittedAt: Date | null;
   user: { id: string; name: string };
   designatedMovers: { id: number }[];
 }
@@ -139,13 +139,20 @@ const buildWhere = (
     conditions.push({ moveType: { in: params.moveTypes } });
   }
 
-  if (params.designated) {
-    conditions.push({
-      designatedMovers: { some: { moverId: params.moverId } },
-    });
-  }
+  const designatedCondition: Prisma.EstimateRequestWhereInput = {
+    designatedMovers: { some: { moverId: params.moverId } },
+  };
 
-  if (params.serviceArea) {
+  if (params.designated && params.serviceArea) {
+    conditions.push({
+      OR: [
+        designatedCondition,
+        buildServiceAreaCondition(params.serviceRegions),
+      ],
+    });
+  } else if (params.designated) {
+    conditions.push(designatedCondition);
+  } else if (params.serviceArea) {
     conditions.push(buildServiceAreaCondition(params.serviceRegions));
   }
 
@@ -161,7 +168,7 @@ const buildCursorCondition = (
   cursor: EstimateRequestCursor
 ): Prisma.EstimateRequestWhereInput => {
   const cursorDate = new Date(cursor.value);
-  const sortField = sort === 'MOVE_DATE_ASC' ? 'moveDate' : 'createdAt';
+  const sortField = sort === 'MOVE_DATE_ASC' ? 'moveDate' : 'submittedAt';
 
   return {
     OR: [
@@ -177,7 +184,7 @@ const listSelect = {
   moveDate: true,
   departureAddress: true,
   arrivalAddress: true,
-  createdAt: true,
+  submittedAt: true,
   user: { select: { id: true, name: true } },
 } as const;
 
@@ -198,7 +205,7 @@ export const findEstimateRequests = async (
   const orderBy: Prisma.EstimateRequestOrderByWithRelationInput[] =
     params.sort === 'MOVE_DATE_ASC'
       ? [{ moveDate: 'asc' }, { id: 'asc' }]
-      : [{ createdAt: 'asc' }, { id: 'asc' }];
+      : [{ submittedAt: 'asc' }, { id: 'asc' }];
 
   const rows = await db.estimateRequest.findMany({
     where,
@@ -269,7 +276,10 @@ export const countDesignatedEstimateRequests = async (
   params: Omit<EstimateRequestFilterParams, 'designated'>,
   db: DbClient = prisma
 ): Promise<number> => {
-  const where = buildWhere({ ...params, designated: true }, new Date());
+  const where = buildWhere(
+    { ...params, designated: true, serviceArea: undefined },
+    new Date()
+  );
   return db.estimateRequest.count({ where });
 };
 
@@ -280,7 +290,10 @@ export const countServiceAreaEstimateRequests = async (
   params: Omit<EstimateRequestFilterParams, 'serviceArea'>,
   db: DbClient = prisma
 ): Promise<number> => {
-  const where = buildWhere({ ...params, serviceArea: true }, new Date());
+  const where = buildWhere(
+    { ...params, serviceArea: true, designated: undefined },
+    new Date()
+  );
   return db.estimateRequest.count({ where });
 };
 

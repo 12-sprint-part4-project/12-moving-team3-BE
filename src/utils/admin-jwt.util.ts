@@ -94,6 +94,52 @@ export const verifyAdminAccessToken = (
   return decoded;
 };
 
+// jwt.verify는 서명·만료만 보장하므로, Refresh 클레임 형태는 별도 가드로 좁힌다.
+const isAdminRefreshTokenPayload = (
+  payload: unknown
+): payload is AdminRefreshTokenPayload => {
+  // null·문자열·배열 등은 AdminRefreshTokenPayload로 취급하면 안 된다.
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+
+  return (
+    // AdminUser.id는 양의 정수라서 소수·NaN·Infinity·0 이하는 adminId로 쓸 수 없다.
+    typeof candidate.sub === 'number' &&
+    Number.isSafeInteger(candidate.sub) &&
+    candidate.sub > 0 &&
+    // Access Token(admin_access)이나 다른 용도 JWT가 Refresh로 오용되는 것을 막는다.
+    candidate.typ === 'admin_refresh' &&
+    // jti는 토큰 단위 폐기·재사용 탐지에 쓰이므로 없으면 Refresh로 신뢰하지 않는다.
+    typeof candidate.jti === 'string' &&
+    candidate.jti.length > 0
+  );
+};
+
+export const verifyAdminRefreshToken = (
+  refreshToken: string
+): AdminRefreshTokenPayload => {
+  // Access와 다른 Refresh 전용 secret으로 서명 위조와 만료 토큰을 걸러낸다.
+  const decoded = jwt.verify(
+    refreshToken,
+    getRequiredEnv('ADMIN_JWT_REFRESH_SECRET'),
+    {
+      // none 등 약한 알고리즘 수용을 막아 알고리즘 혼동 공격을 방지한다.
+      algorithms: ['HS256'],
+    }
+  );
+
+  // 서명이 맞아도 payload 형태가 다르면 관리자 Refresh Token으로 신뢰하지 않는다.
+  // JsonWebTokenError로 던져 호출측이 인증 실패(401)와 서버 오류(500)를 구분하게 한다.
+  if (!isAdminRefreshTokenPayload(decoded)) {
+    throw new jwt.JsonWebTokenError('Invalid admin refresh token payload');
+  }
+
+  return decoded;
+};
+
 // 일반 유저 JWT secret과 분리
 export const createAdminRefreshToken = (adminId: number): string => {
   const payload: AdminRefreshTokenPayload = {

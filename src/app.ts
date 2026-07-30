@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -17,6 +18,7 @@ import testRouter from './routes/test.route';
 import communityRouter from './routes/community.route';
 import reviewRouter from './routes/review.route';
 import reportRouter from './routes/report.route';
+import presignedUrlRouter from './routes/presigned-url.route';
 
 const app = express();
 
@@ -43,6 +45,8 @@ app.use(
 );
 
 app.use(express.json());
+// Cookie Header를 req.cookies로 파싱해 Refresh Token을 안전하게 읽게 한다.
+app.use(cookieParser());
 
 // Swagger 문서 - 프로덕션 배포 시에는 노출 X
 if (process.env.NODE_ENV !== 'production') {
@@ -74,6 +78,7 @@ app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/review', reviewRouter);
 app.use('/api/reports', reportRouter);
+app.use('/api', presignedUrlRouter);
 
 app.use(errorHandler);
 

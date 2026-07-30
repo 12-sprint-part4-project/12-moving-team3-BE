@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES } from '../constants/chat-attachment.constants';
 
 /** POST /api/chat/rooms 요청 body 스키마 */
 export const createChatRoomBodySchema = z.object({
@@ -42,14 +41,4 @@ export const markChatRoomAsReadBodySchema = z.object({
 
 export type MarkChatRoomAsReadBody = z.infer<
   typeof markChatRoomAsReadBodySchema
->;
-
-/** POST /api/chat/attachments/presign 요청 body 스키마 */
-export const presignChatAttachmentBodySchema = z.object({
-  contentType: z.enum(CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES),
-  fileSize: z.number().int().positive(),
-});
-
-export type PresignChatAttachmentBody = z.infer<
-  typeof presignChatAttachmentBodySchema
 >;

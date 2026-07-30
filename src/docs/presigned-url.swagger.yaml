@@ -1,0 +1,61 @@
+paths:
+  /api/presigned-upload-url:
+    get:
+      tags: [Uploads]
+      summary: S3 업로드용 Presigned URL 발급
+      description: |
+        이미지 종류와 관계없이 S3에 직접 업로드할 수 있는 Presigned PUT URL을 발급합니다.
+        유효 시간 5분. 업로드 완료 후 반환된 `s3Key`를 각 도메인 API(프로필, 게시글 등)에 전달합니다.
+        `prefix`로 저장 폴더를 구분합니다. (`profile-images` | `posts` | `chat-attachments`)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: filename
+          required: true
+          schema:
+            type: string
+          example: profile.jpg
+        - in: query
+          name: contentType
+          required: true
+          schema:
+            type: string
+          example: image/jpeg
+        - in: query
+          name: prefix
+          required: true
+          schema:
+            type: string
+            enum: [profile-images, posts, chat-attachments]
+          example: profile-images
+      responses:
+        '200':
+          description: Presigned URL 발급 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      uploadUrl:
+                        type: string
+                        description: S3 PUT 업로드 URL
+                      s3Key:
+                        type: string
+                        description: 업로드 완료 후 도메인 API에 전달할 S3 key
+                        example: profile-images/1710000000000_profile.jpg
+        '400':
+          description: 쿼리 파라미터 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

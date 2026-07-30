@@ -7,6 +7,7 @@ paths:
         관리자 이메일/비밀번호로 로그인합니다.
         device는 Body로 받지 않고 User-Agent를 서버에서 판별합니다.
         Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(adminRefreshToken)로 전달합니다.
+        Refresh Token은 응답 Body에 포함되지 않습니다.
         Swagger UI 응답 패널에는 Set-Cookie가 잘 안 보일 수 있으므로,
         브라우저 Network 탭 Response Headers와 Application > Cookies(path=/api/admin/auth)에서 확인하세요.
       parameters:
@@ -37,6 +38,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminLoginResponse'
+              example:
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  admin:
+                    id: 1
+                    email: admin@example.com
+                    name: 관리자
         '400':
           description: 요청 body 유효성 검사 실패
           content:
@@ -68,6 +76,106 @@ paths:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
 
+  /api/admin/auth/refresh:
+    post:
+      tags: [Admin Auth]
+      summary: 관리자 Access Token 재발급
+      description: |
+        httpOnly Cookie(adminRefreshToken)로 새 Access Token과 Refresh Token을 재발급합니다.
+        요청 Body는 사용하지 않으며, Access Token(Bearer) 인증도 필요하지 않습니다.
+        Refresh Token Rotation을 사용하므로 재발급 성공 시 기존 Refresh Token은 폐기되고
+        새 Refresh Token이 Set-Cookie로 교체됩니다.
+        응답 Body에는 accessToken만 포함되며, Refresh Token은 Body에 포함되지 않습니다.
+        Swagger UI에서 Cookie를 보내려면 withCredentials가 켜져 있어야 합니다.
+        Set-Cookie 확인은 Network 탭 Response Headers와 Application > Cookies(path=/api/admin/auth)를 사용하세요.
+      parameters:
+        - name: adminRefreshToken
+          in: cookie
+          required: false
+          description: 관리자 Refresh Token (httpOnly Cookie). 로그인/재발급 응답의 Set-Cookie로 저장됩니다.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 재발급 성공
+          headers:
+            Set-Cookie:
+              description: 교체된 관리자 Refresh Token (httpOnly, path=/api/admin/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRefreshResponse'
+              example:
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: |
+            Refresh Token 쿠키가 없거나, JWT/DB 검증에 실패했거나,
+            만료·폐기(Rotation)된 토큰인 경우
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/auth/logout:
+    post:
+      tags: [Admin Auth]
+      summary: 관리자 로그아웃
+      description: |
+        httpOnly Cookie(adminRefreshToken) 기준으로 현재 세션을 정리합니다.
+        요청 Body는 사용하지 않으며, Access Token(Bearer) 인증도 필요하지 않습니다.
+        쿠키가 있으면 해당 Refresh Token 해시와 일치하는 DB 레코드만 삭제하고 쿠키를 제거합니다.
+        쿠키가 없거나 DB 레코드가 없어도 멱등하게 성공합니다.
+        응답 Body에 Access/Refresh Token을 포함하지 않습니다.
+      parameters:
+        - name: adminRefreshToken
+          in: cookie
+          required: false
+          description: 관리자 Refresh Token (httpOnly Cookie). 없어도 로그아웃은 성공합니다.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 로그아웃 성공
+          headers:
+            Set-Cookie:
+              description: adminRefreshToken 쿠키 제거 (path=/api/admin/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLogoutResponse'
+              example:
+                data:
+                  message: 로그아웃되었습니다.
+        '500':
+          description: 서버 내부 오류 (DB 연결 실패 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
   /api/admin/auth/me:
     get:
       tags: [Admin Auth]
@@ -83,23 +191,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: object
-                    required: [id, email, name]
-                    properties:
-                      id:
-                        type: integer
-                        example: 1
-                      email:
-                        type: string
-                        format: email
-                        example: admin@example.com
-                      name:
-                        type: string
-                        example: 관리자
+                $ref: '#/components/schemas/AdminMeResponse'
               example:
                 data:
                   id: 1

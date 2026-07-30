@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { s3KeySchema } from './presigned-url.schema';
 import { moveTypeArraySchema, regionArraySchema } from './profile.schema';
 
 export const moverProfileBodySchema = z.object({
@@ -8,6 +9,7 @@ export const moverProfileBodySchema = z.object({
   description: z.string().trim().min(8),
   service: moveTypeArraySchema,
   serviceRegions: regionArraySchema,
+  s3Key: s3KeySchema,
 });
 
 export type MoverProfileBody = z.infer<typeof moverProfileBodySchema>;
