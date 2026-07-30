@@ -6,10 +6,49 @@ components:
       properties:
         data:
           type: object
-          required: [region, service, profileImageUrl, updatedAt]
+          required:
+            - profileId
+            - userId
+            - name
+            - email
+            - phoneNumber
+            - profileImageUrl
+            - service
+            - region
+            - updatedAt
           properties:
+            profileId:
+              type: integer
+              example: 15
+            userId:
+              type: string
+              format: uuid
+              example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            name:
+              type: string
+              example: "???"
+            email:
+              type: string
+              format: email
+              example: codeit@email.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: "??? Presigned GET URL (?? ?? 1??). ??? ??? null"
+              example: null
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [SMALL]
             region:
               type: string
+              nullable: true
               enum:
                 - SEOUL
                 - GYEONGGI
@@ -28,17 +67,6 @@ components:
                 - BUSAN
                 - JEJU
               example: SEOUL
-            service:
-              type: array
-              items:
-                type: string
-                enum: [SMALL, HOME, OFFICE]
-              example: [HOME, SMALL]
-            profileImageUrl:
-              type: string
-              nullable: true
-              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
-              example: null
             updatedAt:
               type: string
               format: date-time
@@ -71,11 +99,11 @@ components:
               example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
             name:
               type: string
-              example: 박소정
+              example: "???"
             email:
               type: string
               format: email
-              example: sojeong@example.com
+              example: codeit@email.com
             phoneNumber:
               type: string
               nullable: true
@@ -83,14 +111,14 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              description: "??? Presigned GET URL (?? ?? 1??). ??? ??? null"
               example: null
             service:
               type: array
               items:
                 type: string
                 enum: [SMALL, HOME, OFFICE]
-              example: [HOME, SMALL]
+              example: [SMALL]
             region:
               type: string
               nullable: true
@@ -125,44 +153,46 @@ paths:
   /api/users/customers/profile:
     get:
       tags: [Customers]
-      summary: 일반 유저 본인 프로필 조회
+      summary: "?? ?? ?? ??? ??"
       description: |
-        로그인한 일반 유저(CUSTOMER)의 등록된 프로필을 조회합니다.
+        ???? ?? ??(CUSTOMER)? ??? ???? ?????.
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: 프로필 조회 성공
+          description: "??? ?? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CustomerProfileMeResponse'
         '401':
-          description: 로그인 필요
+          description: "??? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: 일반 유저(CUSTOMER)만 접근 가능
+          description: "?? ??(CUSTOMER)? ?? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: 등록된 프로필 없음
+          description: "??? ??? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
     patch:
       tags: [Customers]
-      summary: 일반 유저 프로필 등록/수정
+      summary: "?? ?? ??? ??/??"
       description: |
-        일반 유저(CUSTOMER)가 프로필 정보를 등록하거나 수정합니다.
-        - Content-Type: `application/json`
-        - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
-        - `s3Key`를 보내지 않으면 프로필 이미지는 null로 저장됩니다.
+        ?? ??(CUSTOMER)? ??? ??? ????? ?????.
+        - Content-Type: application/json
+        - ??(?? service ???): region, service ??. ???? ?? ??? ?????.
+        - ??(?? ???): ??? ??? ?? ?????. ?? ??? ??? NO_CHANGE.
+        - ???? ?? ? newPassword? ?? currentPassword, newPasswordConfirm? ?????.
+        - s3Key? ??????. GET /api/presigned-upload-url? ???? ? ?? key? ?????.
       security:
         - bearerAuth: []
       requestBody:
@@ -171,13 +201,25 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - region
-                - service
               properties:
+                name:
+                  type: string
+                  description: "??? ?? (2~20?)"
+                phoneNumber:
+                  type: string
+                  description: "??? ???? (?? 11??)"
+                currentPassword:
+                  type: string
+                  description: "???? ?? ? ?? ???? (??? ??)"
+                newPassword:
+                  type: string
+                  description: "??? ? ???? (8~20?, ??/??/????)"
+                newPasswordConfirm:
+                  type: string
+                  description: "? ???? ?? (newPassword ?? ? ??)"
                 region:
                   type: string
-                  description: 거주 지역
+                  description: "?? ?? (?? ? ??)"
                   enum:
                     - SEOUL
                     - GYEONGGI
@@ -195,59 +237,59 @@ paths:
                     - GYEONGNAM
                     - BUSAN
                     - JEJU
-                  example: SEOUL
                 service:
                   type: array
-                  description: 이용 서비스 목록 (최소 1개)
+                  description: "?? ??? ?? (?? ? ??, ?? 1?)"
                   minItems: 1
                   items:
                     type: string
                     enum: [SMALL, HOME, OFFICE]
-                  example: [HOME, SMALL]
                 s3Key:
                   type: string
-                  description: Presigned 업로드 후 받은 S3 key
-                  example: uploads/1710000000000_profile.jpg
-            examples:
-              default:
-                summary: 일반 유저 프로필 등록 예시
-                value:
-                  region: SEOUL
-                  service: [HOME, SMALL]
-                  s3Key: uploads/1710000000000_profile.jpg
+                  description: "Presigned ??? ? ?? S3 key"
+                  example: "profile-images/1785389998366_conan.jpg"
+            example:
+              name: "???"
+              phoneNumber: '01012345678'
+              currentPassword: OldPass123!
+              newPassword: NewPass123!
+              newPasswordConfirm: NewPass123!
+              region: SEOUL
+              service: [SMALL]
+              s3Key: profile-images/1785389998366_conan.jpg
       responses:
         '200':
-          description: 프로필 등록 성공
+          description: "??? ??/?? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CustomerProfileResponse'
         '400':
-          description: 요청 본문 형식 오류
+          description: "?? ?? ?? (NO_CHANGE, CURRENT_PASSWORD_REQUIRED, NEW_PASSWORD_MISMATCH ?)"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 로그인 필요
+          description: "??? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: 일반 유저(CUSTOMER)만 접근 가능
+          description: "?? ??(CUSTOMER)? ?? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: 등록 대상 프로필 없음
+          description: "?? ?? ??? ??"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: 이미 프로필 등록 완료
+          description: "???? ??"
           content:
             application/json:
               schema:
