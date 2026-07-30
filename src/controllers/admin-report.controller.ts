@@ -1,9 +1,19 @@
 import type { NextFunction, Request, Response } from 'express';
+import * as adminReportService from '../services/admin-report.service';
 
 export const getReportStatistics = async (
   _req: Request,
-  _res: Response,
-  _next: NextFunction
+  res: Response,
+  next: NextFunction
 ) => {
-  // TODO: 신고 관리 통계 조회를 구현한다.
+  try {
+    const { startDate, endDate } = res.locals.validated.query;
+    const statistics = await adminReportService.getReportStatistics({
+      startDate,
+      endDate,
+    });
+    res.status(200).json({ data: statistics });
+  } catch (error) {
+    next(error);
+  }
 };

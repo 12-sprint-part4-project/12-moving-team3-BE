@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
-import * as adminReportController from '../controllers/admin-report.controller';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
+import * as adminReportController from '../controllers/admin-report.controller';
 
 const router = Router();
 

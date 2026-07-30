@@ -8,7 +8,7 @@ import { createDateRange } from '../utils/admin-date-range.util';
 import { getUserCount } from '../repositories/admin-user.repository';
 import { getEstimateRequestCount } from '../repositories/admin-estimate-request.repository';
 import { getQuoteCount } from '../repositories/admin-quote.repository';
-import { getPendingReportCount } from '../repositories/admin-report.repository';
+import { getTotalReportCount } from '../repositories/admin-report.repository';
 
 export const getStatistics = async ({
   startDate,
@@ -40,7 +40,7 @@ export const getStatistics = async ({
       status: EstimateRequestStatus.COMPLETED,
       ...(dateRange && { moveDate: dateRange }),
     }),
-    getPendingReportCount({
+    getTotalReportCount({
       status: UserReportStatus.PENDING,
       ...(dateRange && { createdAt: dateRange }),
     }),
