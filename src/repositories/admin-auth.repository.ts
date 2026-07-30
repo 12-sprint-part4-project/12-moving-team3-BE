@@ -65,3 +65,15 @@ export const deleteAdminRefreshTokenById = async (
     where: { id },
   });
 };
+
+/**
+ * 로그아웃용 멱등 삭제. 레코드가 없어도 예외를 내지 않는다.
+ * tokenHash 한 건만 대상으로 하며 관리자 전체 토큰은 지우지 않는다.
+ */
+export const deleteAdminRefreshTokenByHash = async (
+  tokenHash: string
+): Promise<void> => {
+  await prisma.adminRefreshToken.deleteMany({
+    where: { tokenHash },
+  });
+};

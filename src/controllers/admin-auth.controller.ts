@@ -4,6 +4,7 @@ import type { AdminLoginBody } from '../schemas/admin-auth.schema';
 import * as adminAuthService from '../services/admin-auth.service';
 import {
   ADMIN_REFRESH_TOKEN_COOKIE_NAME,
+  clearAdminRefreshTokenCookie,
   setAdminRefreshTokenCookie,
 } from '../utils/admin-cookie.util';
 import { resolveAdminDeviceType } from '../utils/admin-device.util';
@@ -46,6 +47,21 @@ export const refreshAdminToken = async (req: Request, res: Response) => {
   res.status(200).json({
     data: {
       accessToken: result.accessToken,
+    },
+  });
+};
+
+export const logoutAdmin = async (req: Request, res: Response) => {
+  await adminAuthService.logoutAdmin(
+    req.cookies?.[ADMIN_REFRESH_TOKEN_COOKIE_NAME]
+  );
+
+  // 쿠키 유무와 관계없이 제거해 브라우저 쪽 인증 상태도 정리한다.
+  clearAdminRefreshTokenCookie(res);
+
+  res.status(200).json({
+    data: {
+      message: '로그아웃되었습니다.',
     },
   });
 };
