@@ -4,10 +4,6 @@ import type {
   MoveType,
   UserType,
 } from '@prisma/client';
-import {
-  CHAT_ATTACHMENT_MAX_SIZE,
-  generateChatAttachmentKey,
-} from '../constants/chat-attachment.constants';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
 import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
@@ -16,13 +12,12 @@ import type {
   CreateChatRoomBody,
   GetChatMessagesQuery,
   MarkChatRoomAsReadBody,
-  PresignChatAttachmentBody,
   SendChatMessageBody,
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
 import { toProfileImageUrl } from '../utils/profile-image.util';
-import { createPresignedUploadUrl } from './s3.service';
+import { createPresignedViewUrl } from './s3.service';
 
 interface CreateChatRoomResult {
   status: 200 | 201;
@@ -115,6 +110,15 @@ const toIsoString = (date: Date) => date.toISOString();
 
 /** Date를 YYYY-MM-DD 형식으로 변환한다. */
 const toDateString = (date: Date) => date.toISOString().slice(0, 10);
+
+/** 첨부 fileKey 목록을 조회용 Presigned URL로 변환한다. */
+const toAttachmentViewUrls = async (
+  attachments: { fileKey: string }[]
+): Promise<string[]> => {
+  return Promise.all(
+    attachments.map((attachment) => createPresignedViewUrl(attachment.fileKey))
+  );
+};
 
 /**
  * 채팅방 참여자 ID 목록을 결정한다.
@@ -538,16 +542,18 @@ export const getChatMessages = async (
     limit: query.limit,
   });
 
-  const messageItems: ChatMessageItem[] = messages.map((message) => ({
-    messageId: message.id,
-    senderId: message.senderId,
-    senderUserType: message.sender.userType,
-    messageType: message.messageType,
-    content: message.content,
-    isFiltered: message.isFiltered,
-    attachments: message.attachments.map((attachment) => attachment.fileKey),
-    createdAt: toIsoString(message.createdAt),
-  }));
+  const messageItems: ChatMessageItem[] = await Promise.all(
+    messages.map(async (message) => ({
+      messageId: message.id,
+      senderId: message.senderId,
+      senderUserType: message.sender.userType,
+      messageType: message.messageType,
+      content: message.content,
+      isFiltered: message.isFiltered,
+      attachments: await toAttachmentViewUrls(message.attachments),
+      createdAt: toIsoString(message.createdAt),
+    }))
+  );
 
   const oldestMessage = messageItems[messageItems.length - 1];
 
@@ -615,7 +621,7 @@ export const sendChatMessage = async (
     messageType: message.messageType,
     content: message.content,
     isFiltered: message.isFiltered,
-    attachments: message.attachments.map((attachment) => attachment.fileKey),
+    attachments: await toAttachmentViewUrls(message.attachments),
     createdAt: toIsoString(message.createdAt),
   };
 };
@@ -704,32 +710,4 @@ export const leaveChatRoom = async (
     roomId,
     leftAt: toIsoString(leftAt),
   };
-};
-
-interface PresignChatAttachmentResult {
-  uploadUrl: string;
-  fileKey: string;
-}
-
-/**
- * 채팅 첨부 이미지 업로드용 Presigned URL을 발급한다.
- * 5MB 초과 시 거부한다.
- */
-export const presignChatAttachment = async (
-  body: PresignChatAttachmentBody
-): Promise<PresignChatAttachmentResult> => {
-  if (body.fileSize > CHAT_ATTACHMENT_MAX_SIZE) {
-    throw new AppError('IMAGE_SIZE_EXCEEDED');
-  }
-
-  const filename =
-    generateChatAttachmentKey(body.contentType).split('/').pop() ??
-    'attachment';
-
-  const { uploadUrl, s3Key } = await createPresignedUploadUrl(
-    filename,
-    body.contentType
-  );
-
-  return { uploadUrl, fileKey: s3Key };
 };
