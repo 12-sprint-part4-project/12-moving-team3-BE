@@ -5,6 +5,7 @@ import type {
   CreateChatRoomBody,
   GetChatMessagesQuery,
   MarkChatRoomAsReadBody,
+  PresignChatAttachmentBody,
   SendChatMessageBody,
 } from '../schemas/chat.schema';
 import * as chatService from '../services/chat.service';
@@ -13,7 +14,11 @@ import { AppError } from '../utils/app.error';
 interface ValidatedLocals {
   params?: ChatRoomIdParams;
   query?: GetChatMessagesQuery;
-  body?: CreateChatRoomBody | SendChatMessageBody | MarkChatRoomAsReadBody;
+  body?:
+    | CreateChatRoomBody
+    | SendChatMessageBody
+    | MarkChatRoomAsReadBody
+    | PresignChatAttachmentBody;
 }
 
 /** GET /api/chat/rooms — 채팅방 목록 조회 요청을 처리한다. */
@@ -133,4 +138,20 @@ export const createChatRoom = async (req: Request, res: Response) => {
   res.status(result.status).json({
     data: result.data,
   });
+};
+
+/** POST /api/chat/attachments/presign — 채팅 첨부 이미지 업로드 URL 발급 */
+export const presignChatAttachment = async (_req: Request, res: Response) => {
+  getAuthenticatedUser(res);
+
+  const validated = res.locals.validated as ValidatedLocals | undefined;
+  const body = validated?.body as PresignChatAttachmentBody | undefined;
+
+  if (body === undefined) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const data = await chatService.presignChatAttachment(body);
+
+  res.status(200).json({ data });
 };
