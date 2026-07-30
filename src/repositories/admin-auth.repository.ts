@@ -1,5 +1,7 @@
-import type { DeviceType } from '@prisma/client';
+import type { DeviceType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export const findAdminByEmail = async (email: string) => {
   return prisma.adminUser.findUnique({
@@ -32,9 +34,10 @@ export interface CreateAdminRefreshTokenRecordInput {
 }
 
 export const createAdminRefreshTokenRecord = async (
-  data: CreateAdminRefreshTokenRecordInput
+  data: CreateAdminRefreshTokenRecordInput,
+  db: DbClient = prisma
 ) => {
-  return prisma.adminRefreshToken.create({
+  return db.adminRefreshToken.create({
     data,
   });
 };
@@ -47,7 +50,18 @@ export const findAdminRefreshTokenByHash = async (tokenHash: string) => {
       id: true,
       adminId: true,
       tokenHash: true,
+      device: true,
       expiresAt: true,
     },
+  });
+};
+
+/** Rotation 시 검증된 레코드 한 건만 폐기한다. adminId 전체 삭제는 하지 않는다. */
+export const deleteAdminRefreshTokenById = async (
+  id: number,
+  db: DbClient = prisma
+) => {
+  return db.adminRefreshToken.delete({
+    where: { id },
   });
 };

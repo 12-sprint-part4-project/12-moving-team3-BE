@@ -16,6 +16,9 @@ router.post(
   adminAuthController.loginAdmin
 );
 
+// Access Token 없이 Refresh Cookie만으로 재발급한다.
+router.post('/refresh', adminAuthController.refreshAdminToken);
+
 // 관리자 내 인증 정보 조회 (Swagger: src/docs/admin-auth.swagger.yaml)
 router.get('/me', requireAdminAuth, adminAuthController.getAdminMe);
 

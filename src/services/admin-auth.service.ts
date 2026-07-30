@@ -1,5 +1,6 @@
 import type { DeviceType } from '@prisma/client';
 import { JsonWebTokenError } from 'jsonwebtoken';
+import { prisma } from '../lib/prisma';
 import * as adminAuthRepository from '../repositories/admin-auth.repository';
 import { AppError } from '../utils/app.error';
 import {
@@ -94,6 +95,7 @@ export interface AdminRefreshTokenRecord {
   id: number;
   adminId: number;
   tokenHash: string;
+  device: DeviceType;
   expiresAt: Date;
 }
 
@@ -165,5 +167,52 @@ export const validateAdminRefreshToken = async (
     admin,
     refreshTokenRecord,
     payload,
+  };
+};
+
+export interface RefreshAdminTokenResult {
+  accessToken: string;
+  refreshToken: string;
+  refreshTokenMaxAgeMs: number;
+}
+
+/**
+ * 검증된 Refresh Token을 Rotation한다.
+ * 기존 레코드 삭제와 신규 저장은 트랜잭션으로 묶어 불완전 상태를 남기지 않는다.
+ */
+export const refreshAdminToken = async (
+  refreshToken: string | undefined
+): Promise<RefreshAdminTokenResult> => {
+  const { admin, refreshTokenRecord } =
+    await validateAdminRefreshToken(refreshToken);
+
+  const accessToken = createAdminAccessToken(admin.id);
+  const nextRefreshToken = createAdminRefreshToken(admin.id);
+  const { expiresAt, maxAgeMs } = getAdminRefreshTokenExpiry(nextRefreshToken);
+  const nextTokenHash = hashAdminRefreshToken(nextRefreshToken);
+
+  await prisma.$transaction(async (tx) => {
+    // 검증된 레코드 id만 삭제해 동일 관리자의 다른 세션 토큰은 유지한다.
+    await adminAuthRepository.deleteAdminRefreshTokenById(
+      refreshTokenRecord.id,
+      tx
+    );
+
+    await adminAuthRepository.createAdminRefreshTokenRecord(
+      {
+        adminId: admin.id,
+        tokenHash: nextTokenHash,
+        // 같은 세션의 device를 유지해 Rotation만으로 기기 정보가 바뀌지 않게 한다.
+        device: refreshTokenRecord.device,
+        expiresAt,
+      },
+      tx
+    );
+  });
+
+  return {
+    accessToken,
+    refreshToken: nextRefreshToken,
+    refreshTokenMaxAgeMs: maxAgeMs,
   };
 };
