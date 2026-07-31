@@ -42,11 +42,23 @@ export interface DashboardChartDateRange {
   groupBy: 'hour' | 'day';
 }
 
+const getKstStartOfToday = (now: Date): Date => {
+  const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
+
+  const kstDateStart = Date.UTC(
+    kstNow.getUTCFullYear(),
+    kstNow.getUTCMonth(),
+    kstNow.getUTCDate()
+  );
+
+  return new Date(kstDateStart - KST_OFFSET_MS);
+};
+
 export const getDashboardChartDateRange = (
   period: AdminDashboardRequestTrendFilter['period']
 ): DashboardChartDateRange => {
   const now = new Date();
-  const today = toKstStartOfDay(now);
+  const today = getKstStartOfToday(now);
   switch (period) {
     case 'DAY':
       return {

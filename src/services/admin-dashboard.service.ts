@@ -135,11 +135,26 @@ export const getRequestTrend = async (
 };
 
 export const getRequestStatus = async () => {
+  const { start, end } = getDashboardChartDateRange('MONTH');
+  const dateRange = { gte: start, lte: end };
+
   const [total, requested, matched, completed] = await Promise.all([
-    getEstimateRequestCount({ status: { not: EstimateRequestStatus.DRAFT } }),
-    getEstimateRequestCount({ status: EstimateRequestStatus.SUBMITTED }),
-    getEstimateRequestCount({ status: EstimateRequestStatus.CONFIRMED }),
-    getEstimateRequestCount({ status: EstimateRequestStatus.COMPLETED }),
+    getEstimateRequestCount({
+      status: { not: EstimateRequestStatus.DRAFT },
+      submittedAt: dateRange,
+    }),
+    getEstimateRequestCount({
+      status: EstimateRequestStatus.SUBMITTED,
+      submittedAt: dateRange,
+    }),
+    getEstimateRequestCount({
+      status: EstimateRequestStatus.CONFIRMED,
+      submittedAt: dateRange,
+    }),
+    getEstimateRequestCount({
+      status: EstimateRequestStatus.COMPLETED,
+      submittedAt: dateRange,
+    }),
   ]);
 
   return {
