@@ -238,3 +238,20 @@ export const signup = async (
     throw error;
   }
 };
+
+/**
+ * Refresh Cookie 기준 세션만 정리한다.
+ * JWT 검증·계정 조회 없이 해시 삭제를 시도해 멱등 로그아웃을 보장한다.
+ */
+export const logout = async (
+  refreshToken: string | undefined
+): Promise<void> => {
+  // 쿠키가 없으면 DB에 지울 대상이 없으므로 조회·삭제 없이 종료한다.
+  if (!refreshToken) {
+    return;
+  }
+
+  // 만료·위조 JWT여도 동일 문자열 해시로 DB에 남은 레코드를 제거할 수 있다.
+  const tokenHash = hashAuthRefreshToken(refreshToken);
+  await authRepository.deleteRefreshTokenByHash(tokenHash);
+};

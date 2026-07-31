@@ -235,6 +235,22 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        LogoutResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['message'],
+              properties: {
+                message: {
+                  type: 'string',
+                  example: '로그아웃되었습니다.',
+                },
+              },
+            },
+          },
+        },
         AdminLoginRequest: {
           type: 'object',
           required: ['email', 'password'],
