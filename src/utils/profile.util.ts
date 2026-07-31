@@ -1,6 +1,9 @@
 import { UserType } from '@prisma/client';
 
-type ProfileWithService = { service: unknown[] } | null;
+// 객체 형태는 interface, null 가능 여부는 호출부 파라미터에서 명시
+interface ProfileWithService {
+  service: unknown[];
+}
 
 /**
  * 유저 타입별 프로필 등록 완료 여부
@@ -8,8 +11,8 @@ type ProfileWithService = { service: unknown[] } | null;
  */
 export const resolveIsProfileCompleted = (
   userType: UserType,
-  customerProfile: ProfileWithService,
-  moverProfile: ProfileWithService
+  customerProfile: ProfileWithService | null,
+  moverProfile: ProfileWithService | null
 ): boolean => {
   if (userType === UserType.CUSTOMER) {
     return (customerProfile?.service.length ?? 0) > 0;
