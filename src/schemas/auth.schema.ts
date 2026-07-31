@@ -9,6 +9,10 @@ export interface LoginBody {
   password: string;
 }
 
+export interface KakaoLoginBody {
+  code: string;
+}
+
 export interface SignupBody {
   userType: ApiUserType;
   name: string;
@@ -53,6 +57,26 @@ const isApiUserType = (value: string): value is ApiUserType => {
 };
 
 const LOGIN_REQUIRED_FIELDS = ['userType', 'email', 'password'] as const;
+
+/**
+ * 카카오 로그인 요청 body에서 인가 코드(code)만 검증한다.
+ * FE가 Redirect URI로 받은 code를 그대로 전달한다.
+ */
+export const parseKakaoLoginBody = (body: unknown): KakaoLoginBody => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new AppError('KAKAO_CODE_REQUIRED');
+  }
+
+  const data = body as Record<string, unknown>;
+
+  if (typeof data.code !== 'string' || data.code.trim() === '') {
+    throw new AppError('KAKAO_CODE_REQUIRED');
+  }
+
+  return {
+    code: data.code.trim(),
+  };
+};
 
 /**
  * 로그인 요청 body를 명세의 검증 순서에 맞춰 파싱한다.

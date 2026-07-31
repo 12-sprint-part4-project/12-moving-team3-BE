@@ -1,5 +1,9 @@
 import type { Request, Response } from 'express';
-import { parseLoginBody, parseSignupBody } from '../schemas/auth.schema';
+import {
+  parseKakaoLoginBody,
+  parseLoginBody,
+  parseSignupBody,
+} from '../schemas/auth.schema';
 import * as authService from '../services/auth.service';
 import {
   AUTH_REFRESH_TOKEN_COOKIE_NAME,
@@ -62,5 +66,15 @@ export const logout = async (req: Request, res: Response) => {
     data: {
       message: '로그아웃되었습니다.',
     },
+  });
+};
+
+export const kakaoLogin = async (req: Request, res: Response) => {
+  const body = parseKakaoLoginBody(req.body);
+
+  const result = await authService.kakaoLogin(body);
+
+  res.status(200).json({
+    data: result,
   });
 };

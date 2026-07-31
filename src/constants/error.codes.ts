@@ -160,6 +160,10 @@ export const ERROR_CODES = {
     status: 400,
     message: '이메일과 비밀번호를 모두 입력해 주세요.',
   },
+  KAKAO_CODE_REQUIRED: {
+    status: 400,
+    message: '카카오 인가 코드가 필요합니다.',
+  },
   INVALID_CREDENTIALS: {
     status: 401,
     message: '이메일 또는 비밀번호가 일치하지 않습니다.',

@@ -252,6 +252,33 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        KakaoLoginRequest: {
+          type: 'object',
+          required: ['code'],
+          properties: {
+            code: {
+              type: 'string',
+              description: '카카오 인가 코드 (FE Redirect URI로 전달받은 값)',
+              example: 'kakao-authorization-code',
+            },
+          },
+        },
+        KakaoLoginReceiveResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['message'],
+              properties: {
+                message: {
+                  type: 'string',
+                  example: '인가 코드를 수신했습니다.',
+                },
+              },
+            },
+          },
+        },
         AdminLoginRequest: {
           type: 'object',
           required: ['email', 'password'],

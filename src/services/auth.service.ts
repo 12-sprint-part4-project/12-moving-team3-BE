@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import * as authRepository from '../repositories/auth.repository';
 import type {
   ApiUserType,
+  KakaoLoginBody,
   LoginBody,
   SignupBody,
 } from '../schemas/auth.schema';
@@ -224,6 +225,21 @@ export const signup = async (
 
     throw error;
   }
+};
+
+/**
+ * 카카오 인가 코드 수신 (1단계).
+ * 다음 단계에서 code → 카카오 Access Token 교환을 이어서 구현한다.
+ */
+export const kakaoLogin = async (
+  input: KakaoLoginBody
+): Promise<{ message: string }> => {
+  // code는 일회용·민감값이므로 로그에 남기지 않는다.
+  void input.code;
+
+  return {
+    message: '인가 코드를 수신했습니다.',
+  };
 };
 
 /**

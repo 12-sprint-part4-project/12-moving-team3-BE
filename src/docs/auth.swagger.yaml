@@ -147,6 +147,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/auth/kakao:
+    post:
+      tags: [Auth]
+      summary: 카카오 로그인 (인가 코드 수신)
+      description: |
+        FE가 카카오 Redirect URI로 받은 인가 코드(code)를 전달합니다.
+        현재는 code 수신·검증만 수행합니다.
+        (이후 단계에서 카카오 Access Token 교환 → 회원가입/로그인 → 우리 JWT 발급을 이어갑니다.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KakaoLoginRequest'
+            example:
+              code: 'kakao-authorization-code'
+      responses:
+        '200':
+          description: 인가 코드 수신 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoLoginReceiveResponse'
+              example:
+                data:
+                  message: 인가 코드를 수신했습니다.
+        '400':
+          description: 인가 코드 누락
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/auth/logout:
     post:
       tags: [Auth]
