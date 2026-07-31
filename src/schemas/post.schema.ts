@@ -83,3 +83,11 @@ export const createCommentBodySchema = z.object({
 });
 
 export type CreateCommentBody = z.infer<typeof createCommentBodySchema>;
+
+/** 댓글 목록 조회 query (최상위 댓글 기준 커서 페이지네이션) */
+export const commentListQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(20).optional().default(10),
+});
+
+export type CommentListQuery = z.infer<typeof commentListQuerySchema>;

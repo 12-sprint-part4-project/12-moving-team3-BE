@@ -1,6 +1,151 @@
+import type { CommentListQuery } from '../schemas/post.schema';
 import * as commentRepository from '../repositories/comment.repository';
+import type { CommentCursor } from '../repositories/comment.repository';
 import * as postRepository from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
+import { toProfileImageUrl } from '../utils/profile-image.util';
+
+const isCommentCursor = (value: unknown): value is CommentCursor => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    Number.isInteger(record.id) &&
+    (record.id as number) > 0 &&
+    typeof record.value === 'string' &&
+    record.value.length > 0
+  );
+};
+
+const encodeCursor = (cursor: CommentCursor): string =>
+  Buffer.from(JSON.stringify(cursor), 'utf-8').toString('base64url');
+
+const assertIsoDateCursorValue = (value: string): void => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== value) {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+};
+
+const decodeCursor = (cursor: string): CommentCursor => {
+  let decoded: unknown;
+
+  try {
+    decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf-8'));
+  } catch {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+
+  if (!isCommentCursor(decoded)) {
+    throw new AppError('INVALID_QUERY_PARAM');
+  }
+
+  assertIsoDateCursorValue(decoded.value);
+
+  return decoded;
+};
+
+const mapAuthor = (user: {
+  id: string;
+  nickname: string;
+  profileImageKey: string | null;
+}) => ({
+  id: user.id,
+  nickname: user.nickname,
+  profileImageUrl: toProfileImageUrl(user.profileImageKey),
+});
+
+const mapCommentItem = (
+  comment: {
+    id: number;
+    userId: string;
+    content: string;
+    createdAt: Date;
+    user: {
+      id: string;
+      nickname: string;
+      profileImageKey: string | null;
+    };
+  },
+  userId?: string
+) => ({
+  id: comment.id,
+  content: comment.content,
+  author: mapAuthor(comment.user),
+  isMine: userId ? comment.userId === userId : null,
+  createdAt: comment.createdAt,
+});
+
+/** 게시글 댓글 목록 (최상위 댓글 + 대댓글, 커서 페이지네이션) */
+export const getComments = async (
+  postId: number,
+  query: CommentListQuery,
+  userId?: string
+) => {
+  const post = await postRepository.findPostOwner(postId);
+
+  if (!post) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  const { limit } = query;
+  const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+
+  const rows = await commentRepository.findTopLevelComments(
+    postId,
+    limit,
+    cursor
+  );
+
+  const hasNextPage = rows.length > limit;
+  const topLevel = hasNextPage ? rows.slice(0, limit) : rows;
+  const parentIds = topLevel.map((comment) => comment.id);
+
+  const replyRows = await commentRepository.findRepliesByParentIds(
+    postId,
+    parentIds
+  );
+
+  const repliesByParentId = new Map<number, typeof replyRows>();
+
+  for (const reply of replyRows) {
+    if (reply.parentId == null) {
+      continue;
+    }
+
+    const existing = repliesByParentId.get(reply.parentId) ?? [];
+    existing.push(reply);
+    repliesByParentId.set(reply.parentId, existing);
+  }
+
+  const items = topLevel.map((comment) => ({
+    ...mapCommentItem(comment, userId),
+    replies: (repliesByParentId.get(comment.id) ?? []).map((reply) =>
+      mapCommentItem(reply, userId)
+    ),
+  }));
+
+  const lastRow =
+    topLevel.length > 0 ? topLevel[topLevel.length - 1] : undefined;
+
+  return {
+    items,
+    meta: {
+      nextCursor:
+        hasNextPage && lastRow
+          ? encodeCursor({
+              id: lastRow.id,
+              value: lastRow.createdAt.toISOString(),
+            })
+          : null,
+      hasNextPage,
+    },
+  };
+};
 
 /** 댓글 작성 */
 export const createComment = async (

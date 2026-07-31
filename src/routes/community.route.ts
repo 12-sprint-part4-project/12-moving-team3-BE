@@ -6,6 +6,7 @@ import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   commentIdParamsSchema,
+  commentListQuerySchema,
   createCommentBodySchema,
   createPostBodySchema,
   postIdParamsSchema,
@@ -507,6 +508,116 @@ router.delete(
 /**
  * @swagger
  * /api/posts/{postId}/comments:
+ *   get:
+ *     tags: [Posts]
+ *     summary: 댓글 목록 조회
+ *     description: |
+ *       게시글의 최상위 댓글을 커서 기반으로 조회합니다.
+ *       각 댓글에 대댓글(replies)이 포함됩니다 (depth 1).
+ *       정렬은 최상위 댓글 기준 작성일 오름차순(과거→최신)입니다.
+ *       Bearer Access Token은 선택입니다. 토큰이 있으면 isMine이 반영됩니다.
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: query
+ *         name: cursor
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: 이전 응답 meta.nextCursor 값
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 20
+ *           default: 10
+ *         description: 페이지당 최상위 댓글 개수
+ *     responses:
+ *       200:
+ *         description: 댓글 목록 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           content:
+ *                             type: string
+ *                           author:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                                 format: uuid
+ *                               nickname:
+ *                                 type: string
+ *                               profileImageUrl:
+ *                                 type: string
+ *                                 nullable: true
+ *                           isMine:
+ *                             type: boolean
+ *                             nullable: true
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           replies:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: integer
+ *                                 content:
+ *                                   type: string
+ *                                 author:
+ *                                   type: object
+ *                                   properties:
+ *                                     id:
+ *                                       type: string
+ *                                       format: uuid
+ *                                     nickname:
+ *                                       type: string
+ *                                     profileImageUrl:
+ *                                       type: string
+ *                                       nullable: true
+ *                                 isMine:
+ *                                   type: boolean
+ *                                   nullable: true
+ *                                 createdAt:
+ *                                   type: string
+ *                                   format: date-time
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     nextCursor:
+ *                       type: string
+ *                       nullable: true
+ *                     hasNextPage:
+ *                       type: boolean
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
  *   post:
  *     tags: [Posts]
  *     summary: 댓글 작성
@@ -554,6 +665,17 @@ router.delete(
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+router.get(
+  '/:postId/comments',
+  optionalAuth,
+  validateRequest({
+    params: postIdParamsSchema,
+    query: commentListQuerySchema,
+    errorCode: 'INVALID_QUERY_PARAM',
+  }),
+  commentController.getComments
+);
+
 router.post(
   '/:postId/comments',
   requireAuth,

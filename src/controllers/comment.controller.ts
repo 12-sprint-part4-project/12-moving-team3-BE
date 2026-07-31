@@ -1,12 +1,37 @@
 import type { NextFunction, Request, Response } from 'express';
-import { getAuthenticatedUser } from '../middlewares/auth.middleware';
+import {
+  getAuthenticatedUser,
+  getOptionalAuthenticatedUser,
+} from '../middlewares/auth.middleware';
 import type {
   CommentIdParams,
+  CommentListQuery,
   CreateCommentBody,
   PostIdParams,
 } from '../schemas/post.schema';
 import * as commentService from '../services/comment.service';
 import { getValidated } from '../utils/validated.util';
+
+/** GET /api/posts/:postId/comments — 댓글 목록 조회 */
+export const getComments = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = getOptionalAuthenticatedUser(res)?.userId;
+    const { postId } = getValidated<PostIdParams>(res, 'params');
+    const query = getValidated<CommentListQuery>(res, 'query');
+    const result = await commentService.getComments(postId, query, userId);
+
+    res.status(200).json({
+      data: { items: result.items },
+      meta: result.meta,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /** POST /api/posts/:postId/comments — 댓글 작성 */
 export const createComment = async (
