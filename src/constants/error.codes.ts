@@ -172,6 +172,10 @@ export const ERROR_CODES = {
     status: 401,
     message: '카카오 인가 코드로 토큰을 발급받지 못했습니다.',
   },
+  KAKAO_USER_INFO_FAILED: {
+    status: 401,
+    message: '카카오 사용자 정보를 조회하지 못했습니다.',
+  },
   INVALID_CREDENTIALS: {
     status: 401,
     message: '이메일 또는 비밀번호가 일치하지 않습니다.',

@@ -273,7 +273,7 @@ const options: swaggerJSDoc.Options = {
               properties: {
                 message: {
                   type: 'string',
-                  example: '카카오 Access Token을 발급받았습니다.',
+                  example: '카카오 사용자 정보를 조회했습니다.',
                 },
               },
             },

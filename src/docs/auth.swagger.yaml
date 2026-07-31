@@ -150,12 +150,12 @@ paths:
   /api/auth/kakao:
     post:
       tags: [Auth]
-      summary: 카카오 로그인 (인가 코드 → Access Token)
+      summary: 카카오 로그인 (토큰 교환 → 사용자 정보 조회)
       description: |
         FE가 카카오 Redirect URI로 받은 인가 코드(code)를 전달합니다.
-        BE가 카카오 토큰 API로 Access Token을 발급받습니다.
-        카카오 Access Token은 응답에 포함하지 않습니다.
-        (이후 단계에서 사용자 정보 조회 → 회원가입/로그인 → 우리 JWT 발급을 이어갑니다.)
+        BE가 카카오 Access Token을 발급받은 뒤, 해당 토큰으로 사용자 정보를 조회합니다.
+        카카오 Access Token·사용자 상세 정보는 응답에 포함하지 않습니다.
+        (이후 단계에서 DB 조회 → 회원가입/로그인 → 우리 JWT 발급을 이어갑니다.)
       requestBody:
         required: true
         content:
@@ -166,14 +166,14 @@ paths:
               code: 'kakao-authorization-code'
       responses:
         '200':
-          description: 카카오 Access Token 발급 성공
+          description: 카카오 사용자 정보 조회 성공
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/KakaoLoginReceiveResponse'
               example:
                 data:
-                  message: 카카오 Access Token을 발급받았습니다.
+                  message: 카카오 사용자 정보를 조회했습니다.
         '400':
           description: 인가 코드 누락
           content:
@@ -181,7 +181,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 카카오 토큰 교환 실패 (만료·위조 code, redirect_uri 불일치 등)
+          description: 카카오 토큰 교환 또는 사용자 정보 조회 실패
           content:
             application/json:
               schema:

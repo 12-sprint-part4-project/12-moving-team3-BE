@@ -2,6 +2,7 @@ import env from '../config/env';
 import { AppError } from './app.error';
 
 const KAKAO_TOKEN_URL = 'https://kauth.kakao.com/oauth/token';
+const KAKAO_USER_ME_URL = 'https://kapi.kakao.com/v2/user/me';
 
 export interface KakaoTokenResponse {
   accessToken: string;
@@ -10,6 +11,15 @@ export interface KakaoTokenResponse {
   expiresIn: number;
   refreshTokenExpiresIn?: number;
   scope?: string;
+}
+
+export interface KakaoUserInfo {
+  /** 카카오 회원번호 — AuthAccount.providerAccountId로 사용 */
+  id: string;
+  email?: string;
+  nickname?: string;
+  name?: string;
+  profileImageUrl?: string;
 }
 
 interface KakaoTokenApiSuccess {
@@ -24,6 +34,18 @@ interface KakaoTokenApiSuccess {
 interface KakaoTokenApiError {
   error?: string;
   error_description?: string;
+}
+
+interface KakaoUserMeApiResponse {
+  id: number;
+  kakao_account?: {
+    email?: string;
+    name?: string;
+    profile?: {
+      nickname?: string;
+      profile_image_url?: string;
+    };
+  };
 }
 
 /**
@@ -73,5 +95,46 @@ export const exchangeKakaoAuthorizationCode = async (
     expiresIn: payload.expires_in,
     refreshTokenExpiresIn: payload.refresh_token_expires_in,
     scope: payload.scope,
+  };
+};
+
+/**
+ * 카카오 Access Token으로 사용자 정보(회원번호·이메일·닉네임 등)를 조회한다.
+ */
+export const fetchKakaoUserInfo = async (
+  accessToken: string
+): Promise<KakaoUserInfo> => {
+  let response: Response;
+
+  try {
+    response = await fetch(KAKAO_USER_ME_URL, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+      },
+    });
+  } catch {
+    throw new AppError('KAKAO_USER_INFO_FAILED');
+  }
+
+  if (!response.ok) {
+    throw new AppError('KAKAO_USER_INFO_FAILED');
+  }
+
+  const payload = (await response.json()) as KakaoUserMeApiResponse;
+
+  if (typeof payload.id !== 'number') {
+    throw new AppError('KAKAO_USER_INFO_FAILED');
+  }
+
+  const account = payload.kakao_account;
+
+  return {
+    id: String(payload.id),
+    email: account?.email,
+    nickname: account?.profile?.nickname,
+    name: account?.name,
+    profileImageUrl: account?.profile?.profile_image_url,
   };
 };

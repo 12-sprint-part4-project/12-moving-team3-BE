@@ -20,7 +20,10 @@ import {
 } from '../utils/auth-password.util';
 import { hashAuthRefreshToken } from '../utils/auth-token-hash.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
-import { exchangeKakaoAuthorizationCode } from '../utils/kakao-oauth.util';
+import {
+  exchangeKakaoAuthorizationCode,
+  fetchKakaoUserInfo,
+} from '../utils/kakao-oauth.util';
 import { resolveIsProfileCompleted } from '../utils/profile.util';
 
 export interface SignupServiceInput extends SignupBody {
@@ -229,24 +232,25 @@ export const signup = async (
 };
 
 /**
- * 카카오 로그인 2단계: 인가 코드 → 카카오 Access Token 교환.
- * 다음 단계에서 Access Token으로 사용자 정보 조회를 이어서 구현한다.
+ * 카카오 로그인 3단계: Access Token으로 카카오 사용자 정보 조회.
+ * 다음 단계에서 providerAccountId(카카오 id)로 DB 조회 → 회원가입/로그인을 이어서 구현한다.
  */
 export const kakaoLogin = async (
   input: KakaoLoginBody
 ): Promise<{ message: string }> => {
-  // 카카오 Access Token은 FE로 내려주지 않고, 다음 단계(유저 조회)에서만 사용한다.
   const kakaoToken = await exchangeKakaoAuthorizationCode(input.code);
-  void kakaoToken.accessToken;
+  const kakaoUser = await fetchKakaoUserInfo(kakaoToken.accessToken);
+  // 다음 단계에서 DB 조회에 사용. 개인정보는 응답에 포함하지 않는다.
+  void kakaoUser;
 
   return {
-    message: '카카오 Access Token을 발급받았습니다.',
+    message: '카카오 사용자 정보를 조회했습니다.',
   };
 };
 
 /**
  * Refresh Cookie 기준 세션만 정리한다.
- * JWT 검증·계정 조회 없이 해시 삭제를 시도해 멱등 로그아웃을 보장한다.
+ * JWT 검증·계정 조회 없이 해시 삭제를 시도해 멱등 동작을 보장한다.
  */
 export const logout = async (
   refreshToken: string | undefined
