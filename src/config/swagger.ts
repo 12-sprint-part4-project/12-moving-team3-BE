@@ -194,6 +194,7 @@ const options: swaggerJSDoc.Options = {
                   required: [
                     'id',
                     'userType',
+                    'nickname',
                     'email',
                     'phoneNumber',
                     'isProfileCompleted',
@@ -209,6 +210,7 @@ const options: swaggerJSDoc.Options = {
                       enum: ['CUSTOMER', 'MOVER'],
                       example: 'CUSTOMER',
                     },
+                    nickname: { type: 'string', example: 'sojeong' },
                     email: {
                       type: 'string',
                       format: 'email',

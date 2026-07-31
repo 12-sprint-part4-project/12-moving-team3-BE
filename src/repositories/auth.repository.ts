@@ -30,6 +30,7 @@ export const findUserWithLocalAuthByEmail = async (email: string) => {
     select: {
       id: true,
       userType: true,
+      nickname: true,
       email: true,
       phoneNumber: true,
       customerProfile: { select: { id: true, service: true } },

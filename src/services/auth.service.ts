@@ -49,6 +49,7 @@ export interface LoginServiceResult {
   user: {
     id: string;
     userType: ApiUserType;
+    nickname: string;
     email: string;
     phoneNumber: string;
     isProfileCompleted: boolean;
@@ -116,6 +117,7 @@ export const login = async (
     user: {
       id: user.id,
       userType: apiUserType,
+      nickname: user.nickname,
       email: user.email,
       phoneNumber: user.phoneNumber ?? '',
       isProfileCompleted: resolveIsProfileCompleted(
