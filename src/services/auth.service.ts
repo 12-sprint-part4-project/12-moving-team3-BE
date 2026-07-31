@@ -20,6 +20,7 @@ import {
 } from '../utils/auth-password.util';
 import { hashAuthRefreshToken } from '../utils/auth-token-hash.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
+import { exchangeKakaoAuthorizationCode } from '../utils/kakao-oauth.util';
 import { resolveIsProfileCompleted } from '../utils/profile.util';
 
 export interface SignupServiceInput extends SignupBody {
@@ -228,17 +229,18 @@ export const signup = async (
 };
 
 /**
- * 카카오 인가 코드 수신 (1단계).
- * 다음 단계에서 code → 카카오 Access Token 교환을 이어서 구현한다.
+ * 카카오 로그인 2단계: 인가 코드 → 카카오 Access Token 교환.
+ * 다음 단계에서 Access Token으로 사용자 정보 조회를 이어서 구현한다.
  */
 export const kakaoLogin = async (
   input: KakaoLoginBody
 ): Promise<{ message: string }> => {
-  // code는 일회용·민감값이므로 로그에 남기지 않는다.
-  void input.code;
+  // 카카오 Access Token은 FE로 내려주지 않고, 다음 단계(유저 조회)에서만 사용한다.
+  const kakaoToken = await exchangeKakaoAuthorizationCode(input.code);
+  void kakaoToken.accessToken;
 
   return {
-    message: '인가 코드를 수신했습니다.',
+    message: '카카오 Access Token을 발급받았습니다.',
   };
 };
 

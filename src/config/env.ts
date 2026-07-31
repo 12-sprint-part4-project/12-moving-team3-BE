@@ -7,6 +7,9 @@ const env = {
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:8000',
   corsOrigin:
     process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001',
+  // 카카오 OAuth — redirect_uri는 FE authorize 요청과 반드시 동일해야 한다.
+  kakaoRestApiKey: process.env.KAKAO_REST_API_KEY ?? '',
+  kakaoRedirectUri: process.env.KAKAO_REDIRECT_URI ?? '',
 };
 
 export default env;

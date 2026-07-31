@@ -164,6 +164,14 @@ export const ERROR_CODES = {
     status: 400,
     message: '카카오 인가 코드가 필요합니다.',
   },
+  KAKAO_CONFIG_MISSING: {
+    status: 500,
+    message: '카카오 로그인 설정이 올바르지 않습니다.',
+  },
+  KAKAO_TOKEN_EXCHANGE_FAILED: {
+    status: 401,
+    message: '카카오 인가 코드로 토큰을 발급받지 못했습니다.',
+  },
   INVALID_CREDENTIALS: {
     status: 401,
     message: '이메일 또는 비밀번호가 일치하지 않습니다.',
