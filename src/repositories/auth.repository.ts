@@ -84,6 +84,40 @@ export const findUserByKakaoProviderAccountId = async (
   return authAccount?.user ?? null;
 };
 
+/**
+ * 이메일로 유저를 조회하고, 이미 연결된 카카오 AuthAccount가 있는지도 함께 반환한다.
+ */
+export const findUserWithKakaoAuthByEmail = async (email: string) => {
+  return prisma.user.findUnique({
+    where: { email },
+    select: {
+      ...userAuthSelect,
+      authAccounts: {
+        where: { provider: AuthProvider.KAKAO },
+        select: { providerAccountId: true },
+        take: 1,
+      },
+    },
+  });
+};
+
+/**
+ * 기존 User에 카카오 AuthAccount를 연결한다.
+ */
+export const linkKakaoAuthToUser = async (
+  userId: string,
+  providerAccountId: string,
+  db: DbClient = prisma
+) => {
+  return db.authAccount.create({
+    data: {
+      userId,
+      provider: AuthProvider.KAKAO,
+      providerAccountId,
+    },
+  });
+};
+
 export const deleteRefreshTokensByUserId = async (
   userId: string,
   db: DbClient = prisma

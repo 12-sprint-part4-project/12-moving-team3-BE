@@ -154,7 +154,8 @@ paths:
       description: |
         FE가 카카오 Redirect URI로 받은 인가 코드(code)와 선택한 userType을 전달합니다.
         BE가 카카오 Access Token·사용자 정보를 조회한 뒤,
-        카카오 회원번호로 DB를 조회해 없으면 회원가입, 있으면 로그인합니다.
+        카카오 회원번호로 DB를 조회해 있으면 로그인하고,
+        없으면 동일 이메일의 기존 계정에 카카오를 연동하거나 신규 회원가입합니다.
         Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
       parameters:
         - name: User-Agent
@@ -182,7 +183,7 @@ paths:
                   userType: MOVER
       responses:
         '200':
-          description: 기존 카카오 계정 로그인 성공
+          description: 기존 계정 로그인 성공 (카카오 연동 포함)
           headers:
             Set-Cookie:
               description: Refresh Token (httpOnly, path=/api/auth)
@@ -222,7 +223,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: 이메일 중복 (이미 로컬 등으로 가입된 이메일)
+          description: 이메일 충돌 (다른 카카오 계정에 이미 연결된 이메일 등)
           content:
             application/json:
               schema:

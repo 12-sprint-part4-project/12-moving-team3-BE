@@ -163,18 +163,13 @@ const createKakaoUser = async (
   }
 
   const email = kakaoUser.email.trim().toLowerCase();
-  const existingEmail = await authRepository.findUserByEmail(email);
 
-  if (existingEmail) {
-    throw new AppError('EMAIL_ALREADY_EXISTS');
-  }
-
+  // 카카오 실명(name) 권한은 사업자 비즈앱 필요 → 소셜 가입 시 name = nickname
   const nickname = await resolveUniqueKakaoNickname(
     kakaoUser.nickname,
     kakaoUser.id
   );
-  const name =
-    kakaoUser.name?.trim() || kakaoUser.nickname?.trim() || '카카오유저';
+  const name = nickname;
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await authRepository.createUserWithKakaoAuth(
@@ -228,6 +223,44 @@ const createKakaoUser = async (
     refreshToken: result.refreshToken,
     refreshTokenMaxAgeMs: result.refreshTokenMaxAgeMs,
   };
+};
+
+/**
+ * 동일 이메일의 기존 계정에 카카오를 연결한 뒤 세션을 발급한다.
+ */
+const linkKakaoToExistingUser = async (
+  kakaoUser: KakaoUserInfo,
+  userType: ApiUserType,
+  device: DeviceType
+): Promise<LoginServiceResult | null> => {
+  if (!kakaoUser.email?.trim()) {
+    throw new AppError('KAKAO_EMAIL_REQUIRED');
+  }
+
+  const email = kakaoUser.email.trim().toLowerCase();
+  const existing = await authRepository.findUserWithKakaoAuthByEmail(email);
+
+  if (!existing) {
+    return null;
+  }
+
+  if (toApiUserType(existing.userType) !== userType) {
+    throw new AppError('USER_TYPE_MISMATCH');
+  }
+
+  const linkedKakao = existing.authAccounts[0];
+
+  if (linkedKakao && linkedKakao.providerAccountId !== kakaoUser.id) {
+    throw new AppError('EMAIL_ALREADY_EXISTS');
+  }
+
+  if (!linkedKakao) {
+    await authRepository.linkKakaoAuthToUser(existing.id, kakaoUser.id);
+  }
+
+  const { authAccounts: _authAccounts, ...user } = existing;
+
+  return issueAuthSession(user, device);
 };
 
 export const login = async (
@@ -392,6 +425,7 @@ export const signup = async (
 /**
  * 카카오 로그인: code → 토큰 → 유저 정보 → DB 조회 후 회원가입 또는 로그인.
  * 우리 서비스 Access/Refresh Token을 발급한다.
+ * 동일 이메일의 기존 계정(로컬 등)이 있으면 카카오를 연동한 뒤 로그인한다.
  */
 export const kakaoLogin = async (
   input: KakaoLoginServiceInput
@@ -417,6 +451,19 @@ export const kakaoLogin = async (
   }
 
   try {
+    const linkedSession = await linkKakaoToExistingUser(
+      kakaoUser,
+      input.userType,
+      input.device
+    );
+
+    if (linkedSession) {
+      return {
+        ...linkedSession,
+        isNewUser: false,
+      };
+    }
+
     const session = await createKakaoUser(
       kakaoUser,
       input.userType,
