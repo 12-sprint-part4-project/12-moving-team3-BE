@@ -215,6 +215,7 @@ export const getReceivedEstimateRequests = async (
 };
 
 // --- 일반 유저 견적요청 (DRAFT → SUBMITTED) ---
+// 프로필 완료 검사는 requireCompletedCustomerProfile 미들웨어에서 처리
 
 /**
  * Asia/Seoul 기준 오늘 날짜를 YYYY-MM-DD 로 반환

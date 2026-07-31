@@ -12,6 +12,7 @@ import {
   quoteParamsSchema,
 } from '../schemas/quote.schema';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import { requireCompletedMoverProfile } from '../middlewares/profile.middleware';
 
 const router = Router();
 
@@ -36,10 +37,12 @@ router.patch(
 );
 
 // 기사님이 받은 견적 요청 목록 조회 (Swagger 문서: src/docs/mover.swagger.yaml)
+// 인증 → MOVER → 프로필 등록 완료 순으로 통과
 router.get(
   '/estimate-requests',
   requireAuth,
   allowUserTypes('MOVER'),
+  requireCompletedMoverProfile,
   validateRequest({
     query: estimateRequestListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -52,6 +55,7 @@ router.post(
   '/estimate-requests/:estimateRequestId/quotes',
   requireAuth,
   allowUserTypes('MOVER'),
+  requireCompletedMoverProfile,
   validateRequest({
     params: quoteParamsSchema,
     body: quoteBodySchema,
@@ -65,6 +69,7 @@ router.get(
   '/quotes',
   requireAuth,
   allowUserTypes('MOVER'),
+  requireCompletedMoverProfile,
   validateRequest({
     query: quoteListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -77,6 +82,7 @@ router.get(
   '/quotes/:quoteId',
   requireAuth,
   allowUserTypes('MOVER'),
+  requireCompletedMoverProfile,
   validateRequest({
     params: quoteIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
