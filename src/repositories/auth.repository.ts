@@ -1,4 +1,9 @@
-import { UserType, type DeviceType, type Prisma } from '@prisma/client';
+import {
+  AuthProvider,
+  UserType,
+  type DeviceType,
+  type Prisma,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -24,6 +29,18 @@ export const findUserByPhoneNumber = async (phoneNumber: string) => {
   });
 };
 
+const userAuthSelect = {
+  id: true,
+  userType: true,
+  name: true,
+  nickname: true,
+  email: true,
+  phoneNumber: true,
+  createdAt: true,
+  customerProfile: { select: { id: true, service: true } },
+  moverProfile: { select: { id: true, service: true } },
+} as const;
+
 export const findUserWithLocalAuthByEmail = async (email: string) => {
   return prisma.user.findUnique({
     where: { email },
@@ -42,6 +59,29 @@ export const findUserWithLocalAuthByEmail = async (email: string) => {
       },
     },
   });
+};
+
+/**
+ * 카카오 providerAccountId(회원번호)로 연결된 User를 조회한다.
+ */
+export const findUserByKakaoProviderAccountId = async (
+  providerAccountId: string
+) => {
+  const authAccount = await prisma.authAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: AuthProvider.KAKAO,
+        providerAccountId,
+      },
+    },
+    select: {
+      user: {
+        select: userAuthSelect,
+      },
+    },
+  });
+
+  return authAccount?.user ?? null;
 };
 
 export const deleteRefreshTokensByUserId = async (
@@ -107,17 +147,50 @@ export const createUserWithLocalAuth = async (
           }
         : {}),
     },
-    select: {
-      id: true,
-      userType: true,
-      name: true,
-      nickname: true,
-      email: true,
-      phoneNumber: true,
-      createdAt: true,
-      customerProfile: { select: { id: true, service: true } },
-      moverProfile: { select: { id: true, service: true } },
+    select: userAuthSelect,
+  });
+};
+
+export interface CreateUserWithKakaoAuthInput {
+  name: string;
+  nickname: string;
+  email: string;
+  userType: UserType;
+  providerAccountId: string;
+}
+
+export const createUserWithKakaoAuth = async (
+  input: CreateUserWithKakaoAuthInput,
+  db: DbClient = prisma
+) => {
+  return db.user.create({
+    data: {
+      name: input.name,
+      nickname: input.nickname,
+      email: input.email,
+      userType: input.userType,
+      authAccounts: {
+        create: {
+          provider: AuthProvider.KAKAO,
+          providerAccountId: input.providerAccountId,
+        },
+      },
+      ...(input.userType === UserType.CUSTOMER
+        ? {
+            customerProfile: {
+              create: {},
+            },
+          }
+        : {}),
+      ...(input.userType === UserType.MOVER
+        ? {
+            moverProfile: {
+              create: {},
+            },
+          }
+        : {}),
     },
+    select: userAuthSelect,
   });
 };
 

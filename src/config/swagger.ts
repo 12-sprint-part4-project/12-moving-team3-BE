@@ -254,26 +254,74 @@ const options: swaggerJSDoc.Options = {
         },
         KakaoLoginRequest: {
           type: 'object',
-          required: ['code'],
+          required: ['code', 'userType'],
           properties: {
             code: {
               type: 'string',
               description: '카카오 인가 코드 (FE Redirect URI로 전달받은 값)',
               example: 'kakao-authorization-code',
             },
+            userType: {
+              type: 'string',
+              enum: ['CUSTOMER', 'MOVER'],
+              example: 'CUSTOMER',
+            },
           },
         },
-        KakaoLoginReceiveResponse: {
+        KakaoLoginResponse: {
           type: 'object',
           required: ['data'],
           properties: {
             data: {
               type: 'object',
-              required: ['message'],
+              required: ['user', 'accessToken', 'isNewUser'],
               properties: {
-                message: {
+                user: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'userType',
+                    'nickname',
+                    'email',
+                    'phoneNumber',
+                    'isProfileCompleted',
+                  ],
+                  properties: {
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    userType: {
+                      type: 'string',
+                      enum: ['CUSTOMER', 'MOVER'],
+                      example: 'CUSTOMER',
+                    },
+                    nickname: { type: 'string', example: 'sojeong' },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'kakao.user@example.com',
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '',
+                      description: '카카오 가입 시 비어 있을 수 있다',
+                    },
+                    isProfileCompleted: {
+                      type: 'boolean',
+                      example: false,
+                    },
+                  },
+                },
+                accessToken: {
                   type: 'string',
-                  example: '카카오 사용자 정보를 조회했습니다.',
+                  description: 'Access Token (JWT)',
+                },
+                isNewUser: {
+                  type: 'boolean',
+                  description: 'true면 이번 요청에서 신규 회원가입됨',
+                  example: false,
                 },
               },
             },

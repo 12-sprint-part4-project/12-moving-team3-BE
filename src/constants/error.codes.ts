@@ -176,6 +176,10 @@ export const ERROR_CODES = {
     status: 401,
     message: '카카오 사용자 정보를 조회하지 못했습니다.',
   },
+  KAKAO_EMAIL_REQUIRED: {
+    status: 400,
+    message: '카카오 계정에 이메일이 필요합니다. 카카오에서 이메일 제공에 동의해 주세요.',
+  },
   INVALID_CREDENTIALS: {
     status: 401,
     message: '이메일 또는 비밀번호가 일치하지 않습니다.',

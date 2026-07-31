@@ -150,38 +150,79 @@ paths:
   /api/auth/kakao:
     post:
       tags: [Auth]
-      summary: 카카오 로그인 (토큰 교환 → 사용자 정보 조회)
+      summary: 카카오 로그인 / 회원가입
       description: |
-        FE가 카카오 Redirect URI로 받은 인가 코드(code)를 전달합니다.
-        BE가 카카오 Access Token을 발급받은 뒤, 해당 토큰으로 사용자 정보를 조회합니다.
-        카카오 Access Token·사용자 상세 정보는 응답에 포함하지 않습니다.
-        (이후 단계에서 DB 조회 → 회원가입/로그인 → 우리 JWT 발급을 이어갑니다.)
+        FE가 카카오 Redirect URI로 받은 인가 코드(code)와 선택한 userType을 전달합니다.
+        BE가 카카오 Access Token·사용자 정보를 조회한 뒤,
+        카카오 회원번호로 DB를 조회해 없으면 회원가입, 있으면 로그인합니다.
+        Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
+      parameters:
+        - name: User-Agent
+          in: header
+          required: false
+          description: 기기 유형(DESKTOP/MOBILE/TABLET) 판별에 사용. 없거나 판별 불가 시 DESKTOP.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/KakaoLoginRequest'
-            example:
-              code: 'kakao-authorization-code'
+            examples:
+              customer:
+                summary: 일반 유저 카카오 로그인
+                value:
+                  code: 'kakao-authorization-code'
+                  userType: CUSTOMER
+              mover:
+                summary: 기사님 카카오 로그인
+                value:
+                  code: 'kakao-authorization-code'
+                  userType: MOVER
       responses:
         '200':
-          description: 카카오 사용자 정보 조회 성공
+          description: 기존 카카오 계정 로그인 성공
+          headers:
+            Set-Cookie:
+              description: Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/KakaoLoginReceiveResponse'
-              example:
-                data:
-                  message: 카카오 사용자 정보를 조회했습니다.
+                $ref: '#/components/schemas/KakaoLoginResponse'
+        '201':
+          description: 카카오 계정 신규 회원가입 성공
+          headers:
+            Set-Cookie:
+              description: Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoLoginResponse'
         '400':
-          description: 인가 코드 누락
+          description: 인가 코드 누락, userType 오류, 카카오 이메일 미제공 등
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
           description: 카카오 토큰 교환 또는 사용자 정보 조회 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 사용자 유형 불일치
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 이메일 중복 (이미 로컬 등으로 가입된 이메일)
           content:
             application/json:
               schema:

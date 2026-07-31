@@ -72,9 +72,22 @@ export const logout = async (req: Request, res: Response) => {
 export const kakaoLogin = async (req: Request, res: Response) => {
   const body = parseKakaoLoginBody(req.body);
 
-  const result = await authService.kakaoLogin(body);
+  const result = await authService.kakaoLogin({
+    ...body,
+    device: resolveAuthDeviceType(req.get('user-agent')),
+  });
 
-  res.status(200).json({
-    data: result,
+  setAuthRefreshTokenCookie(
+    res,
+    result.refreshToken,
+    result.refreshTokenMaxAgeMs
+  );
+
+  res.status(result.isNewUser ? 201 : 200).json({
+    data: {
+      user: result.user,
+      accessToken: result.accessToken,
+      isNewUser: result.isNewUser,
+    },
   });
 };
