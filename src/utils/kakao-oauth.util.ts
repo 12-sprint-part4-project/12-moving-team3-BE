@@ -66,6 +66,10 @@ export const exchangeKakaoAuthorizationCode = async (
     code,
   });
 
+  if (env.kakaoClientSecret) {
+    body.set('client_secret', env.kakaoClientSecret);
+  }
+
   let response: Response;
 
   try {
@@ -76,7 +80,10 @@ export const exchangeKakaoAuthorizationCode = async (
       },
       body,
     });
-  } catch {
+  } catch (error) {
+    if (env.nodeEnv === 'development') {
+      console.error('[kakao] token exchange network error', error);
+    }
     throw new AppError('KAKAO_TOKEN_EXCHANGE_FAILED');
   }
 
@@ -85,6 +92,15 @@ export const exchangeKakaoAuthorizationCode = async (
     | KakaoTokenApiError;
 
   if (!response.ok || !('access_token' in payload) || !payload.access_token) {
+    if (env.nodeEnv === 'development') {
+      const kakaoError = payload as KakaoTokenApiError;
+      console.error('[kakao] token exchange failed', {
+        status: response.status,
+        error: kakaoError.error,
+        error_description: kakaoError.error_description,
+        redirect_uri: env.kakaoRedirectUri,
+      });
+    }
     throw new AppError('KAKAO_TOKEN_EXCHANGE_FAILED');
   }
 
@@ -114,17 +130,30 @@ export const fetchKakaoUserInfo = async (
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
       },
     });
-  } catch {
+  } catch (error) {
+    if (env.nodeEnv === 'development') {
+      console.error('[kakao] user info network error', error);
+    }
     throw new AppError('KAKAO_USER_INFO_FAILED');
   }
 
   if (!response.ok) {
+    if (env.nodeEnv === 'development') {
+      const errorBody = await response.text();
+      console.error('[kakao] user info failed', {
+        status: response.status,
+        body: errorBody,
+      });
+    }
     throw new AppError('KAKAO_USER_INFO_FAILED');
   }
 
   const payload = (await response.json()) as KakaoUserMeApiResponse;
 
   if (typeof payload.id !== 'number') {
+    if (env.nodeEnv === 'development') {
+      console.error('[kakao] user info missing id', payload);
+    }
     throw new AppError('KAKAO_USER_INFO_FAILED');
   }
 
