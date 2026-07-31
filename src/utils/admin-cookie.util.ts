@@ -1,10 +1,11 @@
 import type { CookieOptions, Response } from 'express';
+import env from '../config/env';
 
 export const ADMIN_REFRESH_TOKEN_COOKIE_NAME = 'adminRefreshToken';
 
 export const ADMIN_REFRESH_TOKEN_COOKIE_OPTIONS = {
   httpOnly: true, // XSS로 스크립트에서 토큰 읽기 방지
-  secure: process.env.NODE_ENV === 'production',
+  secure: env.nodeEnv === 'production',
   sameSite: 'lax',
   path: '/api/admin/auth', // 관리자 인증 경로에만 자동 전송
 } satisfies CookieOptions;
