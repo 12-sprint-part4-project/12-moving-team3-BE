@@ -1,11 +1,5 @@
 import { PostsCategory, Region } from '@prisma/client';
 import { z } from 'zod';
-import {
-  ALLOWED_IMAGE_MIME_TYPES,
-  MAX_IMAGE_FILE_SIZE,
-  POST_IMAGE_KEY_PREFIX,
-  POST_IMAGE_UUID_REGEX,
-} from '../constants/image.constants';
 
 export const POST_SORT_VALUES = [
   'LATEST',
@@ -39,20 +33,13 @@ export type PostIdParams = z.infer<typeof postIdParamsSchema>;
 
 export const MAX_POST_IMAGES = 5;
 
-const postImageKeySchema = z
-  .string()
-  .min(1)
-  .refine(
-    (key) => {
-      if (!key.startsWith(POST_IMAGE_KEY_PREFIX)) {
-        return false;
-      }
+/** GET /api/presigned-upload-url (prefix=posts) 로 발급된 s3Key 형식 */
+const POST_IMAGE_S3_KEY_PATTERN =
+  /^posts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$/i;
 
-      const uuid = key.slice(POST_IMAGE_KEY_PREFIX.length);
-      return POST_IMAGE_UUID_REGEX.test(uuid);
-    },
-    { message: 'imageKey는 posts/{uuid} 형식이어야 합니다.' }
-  );
+const postImageKeySchema = z.string().regex(POST_IMAGE_S3_KEY_PATTERN, {
+  message: 'imageKey는 posts/{uuid}_{filename} 형식의 s3Key여야 합니다.',
+});
 
 /** 게시글 생성 요청 바디 */
 export const createPostBodySchema = z.object({
@@ -96,14 +83,3 @@ export const createCommentBodySchema = z.object({
 });
 
 export type CreateCommentBody = z.infer<typeof createCommentBodySchema>;
-
-export const presignedUrlBodySchema = z.object({
-  contentType: z.enum(ALLOWED_IMAGE_MIME_TYPES),
-  contentLength: z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_IMAGE_FILE_SIZE),
-});
-
-export type PresignedUrlBody = z.infer<typeof presignedUrlBodySchema>;

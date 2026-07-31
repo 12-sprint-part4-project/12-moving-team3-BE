@@ -11,8 +11,6 @@ import {
 } from '../schemas/post.schema';
 import * as postRepository from '../repositories/post.repository';
 import type { PostCursor } from '../repositories/post.repository';
-import type { AllowedImageMimeType } from '../constants/image.constants';
-import * as s3Service from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toProfileImageUrl } from '../utils/profile-image.util';
 
@@ -242,9 +240,3 @@ export const deletePost = async (postId: number, userId: string) => {
     throw new AppError('POST_NOT_FOUND');
   }
 };
-
-/** 게시글 이미지 업로드 Presigned URL 발급 */
-export const getPresignedUrl = async (
-  contentType: AllowedImageMimeType,
-  contentLength: number
-) => s3Service.createPostImagePresignedUrl(contentType, contentLength);

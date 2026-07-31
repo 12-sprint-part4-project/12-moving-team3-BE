@@ -7,7 +7,6 @@ import type {
   CreatePostBody,
   PostIdParams,
   PostListQuery,
-  PresignedUrlBody,
   UpdatePostBody,
 } from '../schemas/post.schema';
 import * as postService from '../services/post.service';
@@ -78,28 +77,6 @@ export const updatePost = async (
     const { postId } = getValidated<PostIdParams>(res, 'params');
     const body = getValidated<UpdatePostBody>(res, 'body');
     const result = await postService.updatePost(postId, userId, body);
-
-    res.status(200).json({ data: result });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/** POST /api/posts/image/presigned-url — 이미지 업로드 Presigned URL 발급 */
-export const getPresignedUrl = async (
-  _req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    getAuthenticatedUser(res);
-
-    const { contentType, contentLength } =
-      getValidated<PresignedUrlBody>(res, 'body');
-    const result = await postService.getPresignedUrl(
-      contentType,
-      contentLength
-    );
 
     res.status(200).json({ data: result });
   } catch (error) {

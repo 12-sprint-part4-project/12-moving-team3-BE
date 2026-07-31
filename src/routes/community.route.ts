@@ -10,7 +10,6 @@ import {
   createPostBodySchema,
   postIdParamsSchema,
   postListQuerySchema,
-  presignedUrlBodySchema,
   updatePostBodySchema,
 } from '../schemas/post.schema';
 
@@ -150,67 +149,6 @@ router.get(
 
 /**
  * @swagger
- * /api/posts/image/presigned-url:
- *   post:
- *     tags: [Posts]
- *     summary: 게시글 이미지 업로드 Presigned URL 발급
- *     description: |
- *       S3에 이미지를 직접 업로드하기 위한 Presigned URL을 발급합니다.
- *       발급된 presignedUrl로 PUT 요청하여 이미지를 업로드하고,
- *       imageKey를 게시글 생성/수정 시 사용합니다.
- *       유효 시간은 5분(300초)입니다.
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [contentType, contentLength]
- *             properties:
- *               contentType:
- *                 type: string
- *                 enum: [image/jpeg, image/png, image/webp]
- *                 description: 허용 MIME 타입
- *               contentLength:
- *                 type: integer
- *                 minimum: 1
- *                 maximum: 5242880
- *                 description: 업로드할 파일 크기(바이트). Presigned URL 서명에 포함되며 PUT 요청 Content-Length와 일치해야 합니다.
- *     responses:
- *       200:
- *         description: Presigned URL 발급 성공
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: object
- *                   properties:
- *                     presignedUrl:
- *                       type: string
- *                       description: S3 PUT 업로드용 Presigned URL
- *                     imageKey:
- *                       type: string
- *                       description: 게시글 생성/수정 시 사용할 이미지 키
- *       400:
- *         $ref: '#/components/responses/BadRequest'
- *       401:
- *         $ref: '#/components/responses/Unauthorized'
- *       500:
- *         $ref: '#/components/responses/InternalServerError'
- */
-router.post(
-  '/image/presigned-url',
-  requireAuth,
-  validateRequest({ body: presignedUrlBodySchema, errorCode: 'INVALID_REQUEST' }),
-  postController.getPresignedUrl
-);
-
-/**
- * @swagger
  * /api/posts/{postId}:
  *   get:
  *     tags: [Posts]
@@ -315,6 +253,7 @@ router.get(
  *       로그인한 사용자가 게시글을 생성합니다.
  *       가구 나눔(FURNITURE_SHARE) 카테고리는 latitude, longitude가 필수입니다.
  *       imageKeys는 최대 5장까지 등록할 수 있습니다.
+ *       이미지는 `GET /api/presigned-upload-url?prefix=posts`로 업로드한 뒤 반환된 s3Key를 사용합니다.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -341,11 +280,11 @@ router.get(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned URL로 발급받은 posts/{uuid} 형식 imageKey 목록
+ *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
- *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+ *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$
  *               latitude:
  *                 type: number
  *                 minimum: -90
@@ -413,11 +352,11 @@ router.post(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned URL로 발급받은 posts/{uuid} 형식 imageKey 목록
+ *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
- *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+ *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$
  *     responses:
  *       200:
  *         description: 게시글 수정 성공
