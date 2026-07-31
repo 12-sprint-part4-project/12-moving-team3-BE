@@ -1,8 +1,13 @@
 import { Router } from 'express';
+import * as commentController from '../controllers/comment.controller';
+import * as likeController from '../controllers/like.controller';
 import * as postController from '../controllers/post.controller';
 import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
+  commentIdParamsSchema,
+  commentListQuerySchema,
+  createCommentBodySchema,
   createPostBodySchema,
   postIdParamsSchema,
   postListQuerySchema,
@@ -249,6 +254,7 @@ router.get(
  *       로그인한 사용자가 게시글을 생성합니다.
  *       가구 나눔(FURNITURE_SHARE) 카테고리는 latitude, longitude가 필수입니다.
  *       imageKeys는 최대 5장까지 등록할 수 있습니다.
+ *       이미지는 `GET /api/presigned-upload-url?prefix=posts`로 업로드한 뒤 반환된 s3Key를 사용합니다.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -275,9 +281,11 @@ router.get(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
+ *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
+ *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$
  *               latitude:
  *                 type: number
  *                 minimum: -90
@@ -345,9 +353,11 @@ router.post(
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
+ *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
+ *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$
  *     responses:
  *       200:
  *         description: 게시글 수정 성공
@@ -418,6 +428,380 @@ router.delete(
   requireAuth,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   postController.deletePost
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/likes:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 게시글 좋아요 추가
+ *     description: 로그인한 사용자가 게시글에 좋아요를 추가합니다. 이미 좋아요한 경우 409를 반환합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       201:
+ *         description: 좋아요 추가 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   nullable: true
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *   delete:
+ *     tags: [Posts]
+ *     summary: 게시글 좋아요 취소
+ *     description: 로그인한 사용자가 게시글 좋아요를 취소합니다. 좋아요 기록이 없으면 404를 반환합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 좋아요 취소 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/likes',
+  requireAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  likeController.createLike
+);
+
+router.delete(
+  '/:postId/likes',
+  requireAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  likeController.deleteLike
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/comments:
+ *   get:
+ *     tags: [Posts]
+ *     summary: 댓글 목록 조회
+ *     description: |
+ *       게시글의 최상위 댓글을 커서 기반으로 조회합니다.
+ *       각 댓글에 대댓글(replies)이 포함됩니다 (depth 1).
+ *       정렬은 최상위 댓글 기준 작성일 오름차순(과거→최신)입니다.
+ *       Bearer Access Token은 선택입니다. 토큰이 있으면 isMine이 반영됩니다.
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: query
+ *         name: cursor
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: 이전 응답 meta.nextCursor 값
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 20
+ *           default: 10
+ *         description: 페이지당 최상위 댓글 개수
+ *     responses:
+ *       200:
+ *         description: 댓글 목록 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           content:
+ *                             type: string
+ *                           author:
+ *                             type: object
+ *                             properties:
+ *                               id:
+ *                                 type: string
+ *                                 format: uuid
+ *                               nickname:
+ *                                 type: string
+ *                               profileImageUrl:
+ *                                 type: string
+ *                                 nullable: true
+ *                           isMine:
+ *                             type: boolean
+ *                             nullable: true
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           replies:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: integer
+ *                                 content:
+ *                                   type: string
+ *                                 author:
+ *                                   type: object
+ *                                   properties:
+ *                                     id:
+ *                                       type: string
+ *                                       format: uuid
+ *                                     nickname:
+ *                                       type: string
+ *                                     profileImageUrl:
+ *                                       type: string
+ *                                       nullable: true
+ *                                 isMine:
+ *                                   type: boolean
+ *                                   nullable: true
+ *                                 createdAt:
+ *                                   type: string
+ *                                   format: date-time
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     nextCursor:
+ *                       type: string
+ *                       nullable: true
+ *                     hasNextPage:
+ *                       type: boolean
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *   post:
+ *     tags: [Posts]
+ *     summary: 댓글 작성
+ *     description: 로그인한 사용자가 게시글에 댓글을 작성합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [content]
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: 댓글 작성 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get(
+  '/:postId/comments',
+  optionalAuth,
+  validateRequest({
+    params: postIdParamsSchema,
+    query: commentListQuerySchema,
+    errorCode: 'INVALID_QUERY_PARAM',
+  }),
+  commentController.getComments
+);
+
+router.post(
+  '/:postId/comments',
+  requireAuth,
+  validateRequest({
+    params: postIdParamsSchema,
+    body: createCommentBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  commentController.createComment
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/comments/{commentId}/replies:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 대댓글 작성
+ *     description: |
+ *       로그인한 사용자가 댓글에 대댓글을 작성합니다.
+ *       대댓글에 대한 대댓글은 불가합니다 (depth 1 제한).
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [content]
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: 대댓글 작성 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/comments/:commentId/replies',
+  requireAuth,
+  validateRequest({
+    params: commentIdParamsSchema,
+    body: createCommentBodySchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  commentController.createReply
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/comments/{commentId}:
+ *   delete:
+ *     tags: [Posts]
+ *     summary: 댓글 삭제
+ *     description: |
+ *       본인 댓글을 soft delete합니다.
+ *       댓글 삭제 시 해당 댓글의 대댓글도 함께 삭제됩니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: path
+ *         name: commentId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 댓글 삭제 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.delete(
+  '/:postId/comments/:commentId',
+  requireAuth,
+  validateRequest({
+    params: commentIdParamsSchema,
+    errorCode: 'INVALID_REQUEST',
+  }),
+  commentController.deleteComment
 );
 
 export default router;
