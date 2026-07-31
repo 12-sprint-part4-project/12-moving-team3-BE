@@ -4,6 +4,11 @@ import type {
   MoveType,
   UserType,
 } from '@prisma/client';
+import {
+  CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES,
+  CHAT_ATTACHMENT_MAX_SIZE,
+  isValidChatAttachmentKey,
+} from '../constants/chat-attachment.constants';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
 import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
@@ -17,7 +22,7 @@ import type {
 import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
 import { toProfileImageUrl } from '../utils/profile-image.util';
-import { createPresignedViewUrl } from './s3.service';
+import { createPresignedViewUrl, getObjectMetadata } from './s3.service';
 
 interface CreateChatRoomResult {
   status: 200 | 201;
@@ -569,10 +574,11 @@ export const getChatMessages = async (
 };
 
 /**
- * TEXT 메시지를 전송한다.
+ * TEXT/IMAGE 메시지를 전송한다.
  * - 활성 참여자만 발송 가능
  * - isMessagingAllowed가 false이면 거부
- * - 클린봇 마스킹 후 저장, 필터 시 rawLog 보관
+ * - TEXT: 클린봇 마스킹 후 저장, 필터 시 rawLog 보관
+ * - IMAGE: S3에 업로드된 fileKey(최대 5개)를 검증·저장
  * - 나간 상대는 재참여시켜 목록에 재노출
  */
 export const sendChatMessage = async (
@@ -580,30 +586,23 @@ export const sendChatMessage = async (
   roomId: number,
   body: SendChatMessageBody
 ): Promise<ChatMessageItem> => {
-  const { maskedContent, isFiltered, rawContent } = filterChatContent(
-    body.content
-  );
+  if (body.messageType === 'IMAGE') {
+    return sendImageMessage(authUser, roomId, body.attachments);
+  }
+
+  return sendTextMessage(authUser, roomId, body.content);
+};
+
+/** TEXT 메시지 저장·마스킹·재참여 처리를 수행한다. */
+const sendTextMessage = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  content: string
+): Promise<ChatMessageItem> => {
+  const { maskedContent, isFiltered, rawContent } = filterChatContent(content);
 
   const message = await prisma.$transaction(async (tx) => {
-    const room = await chatRepository.findRoomForMessaging(roomId, tx);
-
-    if (!room) {
-      throw new AppError('ROOM_NOT_FOUND');
-    }
-
-    const participation = await chatRepository.findActiveParticipation(
-      roomId,
-      authUser.userId,
-      tx
-    );
-
-    if (!participation) {
-      throw new AppError('FORBIDDEN');
-    }
-
-    if (!isMessagingAllowedByEstimateStatus(room.estimateRequest?.status)) {
-      throw new AppError('MESSAGING_NOT_ALLOWED');
-    }
+    await assertCanSendMessage(tx, roomId, authUser.userId);
 
     return chatRepository.createTextMessage(tx, {
       roomId,
@@ -614,6 +613,114 @@ export const sendChatMessage = async (
     });
   });
 
+  return toChatMessageItem(message);
+};
+
+/**
+ * IMAGE 메시지 첨부를 검증한 뒤 저장한다.
+ * 권한 확인 후 fileKey 형식·S3 존재·MIME·용량을 검증하고 ChatAttachment에 fileSize를 기록한다.
+ */
+const sendImageMessage = async (
+  authUser: AuthenticatedUser,
+  roomId: number,
+  attachments: string[]
+): Promise<ChatMessageItem> => {
+  // S3 메타데이터 조회로 객체 존재/크기/MIME을 유추할 수 있으므로 권한을 먼저 확인한다.
+  await assertCanSendMessage(prisma, roomId, authUser.userId);
+
+  if (new Set(attachments).size !== attachments.length) {
+    throw new AppError('INVALID_REQUEST', '첨부 이미지 key가 중복되었습니다.');
+  }
+
+  for (const fileKey of attachments) {
+    if (!isValidChatAttachmentKey(fileKey)) {
+      throw new AppError('INVALID_REQUEST', '유효하지 않은 첨부 이미지 key입니다.');
+    }
+  }
+
+  const resolvedAttachments = await Promise.all(
+    attachments.map(async (fileKey) => {
+      const metadata = await getObjectMetadata(fileKey);
+
+      if (!metadata) {
+        throw new AppError(
+          'INVALID_REQUEST',
+          '업로드되지 않은 첨부 이미지입니다.'
+        );
+      }
+
+      if (metadata.contentLength > CHAT_ATTACHMENT_MAX_SIZE) {
+        throw new AppError('IMAGE_SIZE_EXCEEDED');
+      }
+
+      if (
+        !metadata.contentType ||
+        !(CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES as readonly string[]).includes(
+          metadata.contentType
+        )
+      ) {
+        throw new AppError('INVALID_IMAGE_FORMAT');
+      }
+
+      return {
+        fileKey,
+        fileSize: metadata.contentLength,
+      };
+    })
+  );
+
+  const message = await prisma.$transaction(async (tx) => {
+    // 트랜잭션 직전 권한 상태 변경(나가기 등)에 대비해 재확인한다.
+    await assertCanSendMessage(tx, roomId, authUser.userId);
+
+    return chatRepository.createImageMessage(tx, {
+      roomId,
+      senderId: authUser.userId,
+      attachments: resolvedAttachments,
+    });
+  });
+
+  return toChatMessageItem(message);
+};
+
+/** 방 존재·활성 참여·발송 가능 여부를 확인하고 실패 시 AppError를 던진다. */
+const assertCanSendMessage = async (
+  dbClient: chatRepository.ChatDbClient,
+  roomId: number,
+  userId: string
+) => {
+  const room = await chatRepository.findRoomForMessaging(roomId, dbClient);
+
+  if (!room) {
+    throw new AppError('ROOM_NOT_FOUND');
+  }
+
+  const participation = await chatRepository.findActiveParticipation(
+    roomId,
+    userId,
+    dbClient
+  );
+
+  if (!participation) {
+    throw new AppError('FORBIDDEN');
+  }
+
+  if (!isMessagingAllowedByEstimateStatus(room.estimateRequest?.status)) {
+    throw new AppError('MESSAGING_NOT_ALLOWED');
+  }
+};
+
+/** 저장 메시지를 API 응답 DTO로 변환한다. attachments는 조회용 Presigned URL. */
+const toChatMessageItem = async (message: {
+  id: number;
+  senderId: string;
+  sender: { userType: UserType };
+  messageType: MessageType;
+  content: string;
+  isFiltered: boolean;
+  attachments: { fileKey: string }[];
+  createdAt: Date;
+}): Promise<ChatMessageItem> => {
   return {
     messageId: message.id,
     senderId: message.senderId,

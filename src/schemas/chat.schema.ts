@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAT_ATTACHMENT_MAX_COUNT } from '../constants/chat-attachment.constants';
 
 /** POST /api/chat/rooms 요청 body 스키마 */
 export const createChatRoomBodySchema = z.object({
@@ -26,11 +27,20 @@ export const getChatMessagesQuerySchema = z.object({
 
 export type GetChatMessagesQuery = z.infer<typeof getChatMessagesQuerySchema>;
 
-/** POST /api/chat/rooms/:roomId/messages 요청 body 스키마 (TEXT만) */
-export const sendChatMessageBodySchema = z.object({
-  messageType: z.literal('TEXT'),
-  content: z.string().trim().min(1).max(2000),
-});
+/** POST /api/chat/rooms/:roomId/messages 요청 body 스키마 (TEXT | IMAGE) */
+export const sendChatMessageBodySchema = z.discriminatedUnion('messageType', [
+  z.object({
+    messageType: z.literal('TEXT'),
+    content: z.string().trim().min(1).max(2000),
+  }),
+  z.object({
+    messageType: z.literal('IMAGE'),
+    attachments: z
+      .array(z.string().trim().min(1))
+      .min(1)
+      .max(CHAT_ATTACHMENT_MAX_COUNT),
+  }),
+]);
 
 export type SendChatMessageBody = z.infer<typeof sendChatMessageBodySchema>;
 
