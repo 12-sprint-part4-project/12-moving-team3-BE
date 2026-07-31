@@ -19,6 +19,7 @@ import {
 } from '../utils/auth-password.util';
 import { hashAuthRefreshToken } from '../utils/auth-token-hash.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
+import { resolveIsProfileCompleted } from '../utils/profile.util';
 
 export interface SignupServiceInput extends SignupBody {
   device: DeviceType;
@@ -63,22 +64,6 @@ const toPrismaUserType = (userType: ApiUserType): UserType => {
 
 const toApiUserType = (userType: UserType): ApiUserType => {
   return userType === UserType.MOVER ? 'MOVER' : 'CUSTOMER';
-};
-
-const resolveIsProfileCompleted = (
-  userType: UserType,
-  customerProfile: { service: unknown[] } | null,
-  moverProfile: { service: unknown[] } | null
-): boolean => {
-  if (userType === UserType.CUSTOMER) {
-    return (customerProfile?.service.length ?? 0) > 0;
-  }
-
-  if (userType === UserType.MOVER) {
-    return (moverProfile?.service.length ?? 0) > 0;
-  }
-
-  return false;
 };
 
 export const login = async (

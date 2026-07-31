@@ -6,6 +6,7 @@ paths:
       description: |
         일반 유저의 활성 견적요청을 조회합니다.
         DRAFT/SUBMITTED 는 항상 활성, CONFIRMED 는 이사일(KST 오늘) 이전까지 활성입니다.
+        고객 프로필 등록이 완료되지 않은 경우 404(PROFILE_NOT_FOUND)를 반환합니다.
       security:
         - bearerAuth: []
       responses:
@@ -29,12 +30,20 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 고객 프로필 미등록 (PROFILE_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/estimate-requests:
     post:
       tags: [EstimateRequest]
       summary: 견적요청 DRAFT 생성
-      description: 활성 요청이 없을 때만 DRAFT 견적요청을 생성합니다.
+      description: |
+        활성 요청이 없을 때만 DRAFT 견적요청을 생성합니다.
+        고객 프로필 등록이 완료되지 않은 경우 404(PROFILE_NOT_FOUND)를 반환합니다.
       security:
         - bearerAuth: []
       responses:
@@ -64,6 +73,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 고객 프로필 미등록 (PROFILE_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: 이미 진행 중인 견적요청 존재
           content:
@@ -75,6 +90,9 @@ paths:
     get:
       tags: [EstimateRequest]
       summary: 견적요청 상세 조회
+      description: |
+        본인 견적요청 상세를 조회합니다.
+        고객 프로필 미등록 시 404(PROFILE_NOT_FOUND), 요청 없음 시 404(ESTIMATE_REQUEST_NOT_FOUND).
       security:
         - bearerAuth: []
       parameters:
@@ -100,7 +118,13 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: |
+            고객 프로필 미등록(PROFILE_NOT_FOUND) 또는
+            견적요청 없음(ESTIMATE_REQUEST_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/estimate-requests/{estimateRequestId}/step:
     patch:
@@ -110,6 +134,7 @@ paths:
         FE 스텝 모델 기준 step 1~3 저장.
         1=이사종류, 2=이사날짜, 3=출발지+도착지 일괄.
         완료 화면(step 4)은 submit 성공 후 FE에서 전환합니다.
+        고객 프로필 등록이 완료되지 않은 경우 404(PROFILE_NOT_FOUND)를 반환합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -234,7 +259,9 @@ paths:
     patch:
       tags: [EstimateRequest]
       summary: 완료 항목 재수정
-      description: DRAFT 상태에서 이미 입력한 필드를 단건으로 수정합니다.
+      description: |
+        DRAFT 상태에서 이미 입력한 필드를 단건으로 수정합니다.
+        고객 프로필 등록이 완료되지 않은 경우 404(PROFILE_NOT_FOUND)를 반환합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -296,7 +323,9 @@ paths:
     post:
       tags: [EstimateRequest]
       summary: 견적요청 제출
-      description: 필수 입력이 모두 채워진 DRAFT를 SUBMITTED로 전환하고 currentStep을 4로 설정합니다.
+      description: |
+        필수 입력이 모두 채워진 DRAFT를 SUBMITTED로 전환하고 currentStep을 4로 설정합니다.
+        고객 프로필 등록이 완료되지 않은 경우 404(PROFILE_NOT_FOUND)를 반환합니다.
       security:
         - bearerAuth: []
       parameters:
