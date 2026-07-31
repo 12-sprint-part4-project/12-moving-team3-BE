@@ -234,6 +234,12 @@ export const ERROR_CODES = {
     message: '본인 견적에만 리뷰를 작성할 수 있습니다.',
   },
 
+  // 관리자
+  ADMIN_INVALID_QUERY_PARAM: {
+    status: 400,
+    message: '조회 조건이 올바르지 않습니다.',
+  },
+
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
   ADMIN_INVALID_LOGIN_BODY: {
     status: 400,
