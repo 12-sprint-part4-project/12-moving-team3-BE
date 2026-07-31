@@ -57,9 +57,10 @@ export const deleteRefreshTokensByUserId = async (
  * tokenHash 한 건만 대상으로 하며 사용자 전체 토큰은 지우지 않는다.
  */
 export const deleteRefreshTokenByHash = async (
-  tokenHash: string
+  tokenHash: string,
+  db: DbClient = prisma
 ): Promise<void> => {
-  await prisma.refreshToken.deleteMany({
+  await db.refreshToken.deleteMany({
     where: { tokenHash },
   });
 };
