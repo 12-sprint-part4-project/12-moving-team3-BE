@@ -102,3 +102,88 @@ paths:
                 error:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
+  /api/admin/dashboard/charts/request-trend:
+    get:
+      tags: [Admin Dashboard]
+      summary: 관리자 견적 요청 추이 조회
+      description: |
+        선택한 기간의 시간별 또는 일별 견적 요청 건수를 조회합니다.
+        DAY는 오늘 00시부터 현재 시각까지 시간 단위, WEEK는 오늘을 포함한 최근 7일,
+        MONTH는 오늘을 포함한 최근 30일을 일 단위로 집계합니다.
+        데이터가 없는 시간 또는 날짜도 count가 0인 항목으로 반환합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          required: true
+          description: 조회 기간
+          schema:
+            type: string
+            enum: [DAY, WEEK, MONTH]
+            example: WEEK
+      responses:
+        '200':
+          description: 견적 요청 추이 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [label, count]
+                      properties:
+                        label:
+                          type: string
+                          description: 기간에 따른 시간 또는 날짜 레이블
+                          example: '07/31'
+                        count:
+                          type: integer
+                          description: 해당 시간 또는 날짜에 제출된 견적 요청 수
+                          example: 12
+              examples:
+                week:
+                  summary: 최근 7일 조회 예시
+                  value:
+                    data:
+                      - label: '07/25'
+                        count: 8
+                      - label: '07/26'
+                        count: 0
+                      - label: '07/31'
+                        count: 12
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않거나, 관리자 계정이 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
