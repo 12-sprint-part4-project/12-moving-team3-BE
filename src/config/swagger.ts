@@ -1,8 +1,8 @@
 import swaggerJSDoc from 'swagger-jsdoc';
+import env from './env';
 
 // 배포 환경에서는 .env의 API_BASE_URL을 실제 공개 주소로 설정
-export const SWAGGER_BASE_URL =
-  process.env.API_BASE_URL || 'http://localhost:3000';
+export const SWAGGER_BASE_URL = env.apiBaseUrl;
 
 const options: swaggerJSDoc.Options = {
   failOnErrors: true, // @swagger 주석 파싱 오류 시 서버 시작을 실패시켜 문서 누락을 조기에 발견
@@ -16,8 +16,7 @@ const options: swaggerJSDoc.Options = {
     servers: [
       {
         url: SWAGGER_BASE_URL,
-        description:
-          process.env.NODE_ENV === 'production' ? 'Production' : 'Local',
+        description: env.nodeEnv === 'production' ? 'Production' : 'Local',
       },
     ],
     components: {

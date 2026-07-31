@@ -1,10 +1,9 @@
-import 'dotenv/config';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
-import { SWAGGER_BASE_URL, swaggerSpec } from './config/swagger';
+import { swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/error.handler';
 import favoritesRouter from './routes/favorites.route';
 import adminAuthRouter from './routes/admin-auth.route';
@@ -26,10 +25,11 @@ import adminReportRouter from './routes/admin-report.route';
 import notificationRouter from './routes/notification.route';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
 import adminCompletedRouter from './routes/admin-completed.route';
+import env from './config/env';
 
 const app = express();
 
-const corsOrigins = (process.env.CORS_ORIGIN ?? '')
+const corsOrigins = (env.corsOrigin ?? '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -56,7 +56,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Swagger 문서 - 프로덕션 배포 시에는 노출 X
-if (process.env.NODE_ENV !== 'production') {
+if (env.nodeEnv !== 'production') {
   app.use(
     '/api-docs',
     swaggerUi.serve,
@@ -95,10 +95,10 @@ app.use('/api', presignedUrlRouter);
 
 app.use(errorHandler);
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server is running on port ${process.env.PORT}`);
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`Swagger docs: ${SWAGGER_BASE_URL}/api-docs`);
+app.listen(env.port, () => {
+  console.log(`Server is running on port ${env.port}`);
+  if (env.nodeEnv !== 'production') {
+    console.log(`Swagger docs: ${env.apiBaseUrl}/api-docs`);
   }
   // 이사 전날 리마인더 배치 (매일 09:00 Asia/Seoul)
   startMoveDayReminderCron();
