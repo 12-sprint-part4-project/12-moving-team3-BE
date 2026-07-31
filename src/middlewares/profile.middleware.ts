@@ -1,71 +1,61 @@
 import { UserType } from '@prisma/client';
 import type { RequestHandler } from 'express';
+import type { ErrorCode } from '../constants/error.codes';
 import * as customerProfileRepository from '../repositories/customer-profile.repository';
 import * as moverProfileRepository from '../repositories/mover-profile.repository';
 import { AppError } from '../utils/app.error';
 import { resolveIsProfileCompleted } from '../utils/profile.util';
-import {
-  getAuthenticatedUser,
-  type AuthenticatedUser,
-} from './auth.middleware';
+import { getAuthenticatedUser } from './auth.middleware';
+
+type ProfileUserType = typeof UserType.CUSTOMER | typeof UserType.MOVER;
 
 /**
- * requireAuth + allowUserTypes('CUSTOMER') 뒤에 사용.
- * 고객 프로필 등록이 완료된 사용자만 통과시킨다.
+ * 유저 타입별 프로필 완료 여부를 검사하는 미들웨어 팩토리
+ * requireAuth + allowUserTypes(...) 뒤에 사용
  */
-export const requireCompletedCustomerProfile: RequestHandler = async (
-  _req,
-  res,
-  next
-) => {
-  try {
-    const user: AuthenticatedUser = getAuthenticatedUser(res);
-    const customerProfile =
-      await customerProfileRepository.findCustomerProfileByUserId(user.userId);
+const requireCompletedProfile =
+  (userType: ProfileUserType, incompleteErrorCode: ErrorCode): RequestHandler =>
+  async (_req, res, next) => {
+    try {
+      const { userId } = getAuthenticatedUser(res);
 
-    const isCompleted = resolveIsProfileCompleted(
-      UserType.CUSTOMER,
-      customerProfile,
-      null
-    );
+      const [customerProfile, moverProfile] =
+        userType === UserType.CUSTOMER
+          ? [
+              await customerProfileRepository.findCustomerProfileByUserId(
+                userId
+              ),
+              null,
+            ]
+          : [
+              null,
+              await moverProfileRepository.findMoverProfileByUserId(userId),
+            ];
 
-    if (!isCompleted) {
-      throw new AppError('PROFILE_NOT_FOUND');
+      const isCompleted = resolveIsProfileCompleted(
+        userType,
+        customerProfile,
+        moverProfile
+      );
+
+      if (!isCompleted) {
+        throw new AppError(incompleteErrorCode);
+      }
+
+      next();
+    } catch (error) {
+      next(error);
     }
+  };
 
-    next();
-  } catch (error) {
-    next(error);
-  }
-};
+/** 고객 프로필 등록이 완료된 사용자만 통과 */
+export const requireCompletedCustomerProfile = requireCompletedProfile(
+  UserType.CUSTOMER,
+  'PROFILE_NOT_FOUND'
+);
 
-/**
- * requireAuth + allowUserTypes('MOVER') 뒤에 사용.
- * 기사 프로필 등록이 완료된 사용자만 통과시킨다.
- */
-export const requireCompletedMoverProfile: RequestHandler = async (
-  _req,
-  res,
-  next
-) => {
-  try {
-    const user: AuthenticatedUser = getAuthenticatedUser(res);
-    const moverProfile =
-      await moverProfileRepository.findMoverProfileByUserId(user.userId);
-
-    const isCompleted = resolveIsProfileCompleted(
-      UserType.MOVER,
-      null,
-      moverProfile
-    );
-
-    if (!isCompleted) {
-      // 기사 도메인 기존 API와 동일 코드 (받은 견적/견적 목록 등)
-      throw new AppError('PROFILE_NOT_REGISTERED');
-    }
-
-    next();
-  } catch (error) {
-    next(error);
-  }
-};
+/** 기사 프로필 등록이 완료된 사용자만 통과 */
+export const requireCompletedMoverProfile = requireCompletedProfile(
+  UserType.MOVER,
+  'PROFILE_NOT_REGISTERED'
+);
