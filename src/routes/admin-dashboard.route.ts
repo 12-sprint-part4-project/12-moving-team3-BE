@@ -27,6 +27,7 @@ router.get(
   adminDashboardController.getRequestTrend
 );
 
+// 요청 상태 조회 (Swagger: src/docs/admin-dashboard.swagger.yaml)
 router.get(
   '/charts/request-status',
   requireAdminAuth,
