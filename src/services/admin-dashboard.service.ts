@@ -133,3 +133,19 @@ export const getRequestTrend = async (
 
   return result;
 };
+
+export const getRequestStatus = async () => {
+  const [total, requested, matched, completed] = await Promise.all([
+    getEstimateRequestCount({ status: { not: EstimateRequestStatus.DRAFT } }),
+    getEstimateRequestCount({ status: EstimateRequestStatus.SUBMITTED }),
+    getEstimateRequestCount({ status: EstimateRequestStatus.CONFIRMED }),
+    getEstimateRequestCount({ status: EstimateRequestStatus.COMPLETED }),
+  ]);
+
+  return {
+    total,
+    requested,
+    matched,
+    completed,
+  };
+};

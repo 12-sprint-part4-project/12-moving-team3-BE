@@ -37,3 +37,16 @@ export const getRequestTrend = async (
     next(error);
   }
 };
+
+export const getRequestStatus = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const requestStatus = await adminDashboardService.getRequestStatus();
+    res.status(200).json({ data: requestStatus });
+  } catch (error) {
+    next(error);
+  }
+};

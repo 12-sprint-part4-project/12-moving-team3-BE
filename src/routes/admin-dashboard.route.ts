@@ -27,4 +27,10 @@ router.get(
   adminDashboardController.getRequestTrend
 );
 
+router.get(
+  '/charts/request-status',
+  requireAdminAuth,
+  adminDashboardController.getRequestStatus
+);
+
 export default router;
