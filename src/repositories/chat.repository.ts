@@ -590,6 +590,26 @@ const rejoinLeftParticipants = async (
 };
 
 /**
+ * 메시지 생성 후 lastMessageAt을 조건부 갱신하고, 나간 상대를 재참여시킨다.
+ */
+const finalizeMessageCreation = async (
+  tx: ChatTransactionClient,
+  roomId: number,
+  senderId: string,
+  createdAt: Date
+) => {
+  await tx.chatRoom.updateMany({
+    where: {
+      id: roomId,
+      OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: createdAt } }],
+    },
+    data: { lastMessageAt: createdAt },
+  });
+
+  await rejoinLeftParticipants(tx, roomId, senderId);
+};
+
+/**
  * TEXT 메시지를 저장하고 lastMessageAt을 갱신한다.
  * 필터된 경우 rawLog를 함께 저장하며, 나간 상대는 재참여시킨다.
  */
@@ -634,18 +654,12 @@ export const createTextMessage = async (
     },
   });
 
-  await tx.chatRoom.updateMany({
-    where: {
-      id: data.roomId,
-      OR: [
-        { lastMessageAt: null },
-        { lastMessageAt: { lt: message.createdAt } },
-      ],
-    },
-    data: { lastMessageAt: message.createdAt },
-  });
-
-  await rejoinLeftParticipants(tx, data.roomId, data.senderId);
+  await finalizeMessageCreation(
+    tx,
+    data.roomId,
+    data.senderId,
+    message.createdAt
+  );
 
   return message;
 };
@@ -693,18 +707,12 @@ export const createImageMessage = async (
     },
   });
 
-  await tx.chatRoom.updateMany({
-    where: {
-      id: data.roomId,
-      OR: [
-        { lastMessageAt: null },
-        { lastMessageAt: { lt: message.createdAt } },
-      ],
-    },
-    data: { lastMessageAt: message.createdAt },
-  });
-
-  await rejoinLeftParticipants(tx, data.roomId, data.senderId);
+  await finalizeMessageCreation(
+    tx,
+    data.roomId,
+    data.senderId,
+    message.createdAt
+  );
 
   return message;
 };

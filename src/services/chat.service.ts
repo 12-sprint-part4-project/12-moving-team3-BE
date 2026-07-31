@@ -618,13 +618,16 @@ const sendTextMessage = async (
 
 /**
  * IMAGE 메시지 첨부를 검증한 뒤 저장한다.
- * fileKey 형식·S3 존재·MIME·용량을 확인하고 ChatAttachment에 fileSize를 기록한다.
+ * 권한 확인 후 fileKey 형식·S3 존재·MIME·용량을 검증하고 ChatAttachment에 fileSize를 기록한다.
  */
 const sendImageMessage = async (
   authUser: AuthenticatedUser,
   roomId: number,
   attachments: string[]
 ): Promise<ChatMessageItem> => {
+  // S3 메타데이터 조회로 객체 존재/크기/MIME을 유추할 수 있으므로 권한을 먼저 확인한다.
+  await assertCanSendMessage(prisma, roomId, authUser.userId);
+
   if (new Set(attachments).size !== attachments.length) {
     throw new AppError('INVALID_REQUEST', '첨부 이미지 key가 중복되었습니다.');
   }
@@ -667,6 +670,7 @@ const sendImageMessage = async (
   );
 
   const message = await prisma.$transaction(async (tx) => {
+    // 트랜잭션 직전 권한 상태 변경(나가기 등)에 대비해 재확인한다.
     await assertCanSendMessage(tx, roomId, authUser.userId);
 
     return chatRepository.createImageMessage(tx, {
@@ -681,11 +685,11 @@ const sendImageMessage = async (
 
 /** 방 존재·활성 참여·발송 가능 여부를 확인하고 실패 시 AppError를 던진다. */
 const assertCanSendMessage = async (
-  tx: chatRepository.ChatTransactionClient,
+  dbClient: chatRepository.ChatDbClient,
   roomId: number,
   userId: string
 ) => {
-  const room = await chatRepository.findRoomForMessaging(roomId, tx);
+  const room = await chatRepository.findRoomForMessaging(roomId, dbClient);
 
   if (!room) {
     throw new AppError('ROOM_NOT_FOUND');
@@ -694,7 +698,7 @@ const assertCanSendMessage = async (
   const participation = await chatRepository.findActiveParticipation(
     roomId,
     userId,
-    tx
+    dbClient
   );
 
   if (!participation) {
