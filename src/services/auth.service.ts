@@ -73,7 +73,7 @@ export interface KakaoLoginServiceResult extends LoginServiceResult {
   isNewUser: boolean;
 }
 
-interface KakaoAuthUser {
+interface AuthSessionUser {
   id: string;
   userType: UserType;
   nickname: string;
@@ -92,7 +92,7 @@ const toApiUserType = (userType: UserType): ApiUserType => {
 };
 
 const issueAuthSession = async (
-  user: KakaoAuthUser,
+  user: AuthSessionUser,
   device: DeviceType
 ): Promise<LoginServiceResult> => {
   const apiUserType = toApiUserType(user.userType);
@@ -101,7 +101,10 @@ const issueAuthSession = async (
   const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
   await prisma.$transaction(async (tx) => {
+    // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
     await authRepository.deleteRefreshTokensByUserId(user.id, tx);
+
+    // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
     await authRepository.createRefreshTokenRecord(
       {
         userId: user.id,
@@ -283,49 +286,11 @@ export const login = async (
     throw new AppError('INVALID_CREDENTIALS');
   }
 
-  const apiUserType = toApiUserType(user.userType);
-
-  if (apiUserType !== input.userType) {
+  if (toApiUserType(user.userType) !== input.userType) {
     throw new AppError('USER_TYPE_MISMATCH');
   }
 
-  const accessToken = createAccessToken(user.id, apiUserType);
-  const refreshToken = createRefreshToken(user.id);
-  const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
-
-  await prisma.$transaction(async (tx) => {
-    // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
-    await authRepository.deleteRefreshTokensByUserId(user.id, tx);
-
-    // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
-    await authRepository.createRefreshTokenRecord(
-      {
-        userId: user.id,
-        tokenHash: hashAuthRefreshToken(refreshToken),
-        device: input.device,
-        expiresAt,
-      },
-      tx
-    );
-  });
-
-  return {
-    user: {
-      id: user.id,
-      userType: apiUserType,
-      nickname: user.nickname,
-      email: user.email,
-      phoneNumber: user.phoneNumber ?? '',
-      isProfileCompleted: resolveIsProfileCompleted(
-        user.userType,
-        user.customerProfile,
-        user.moverProfile
-      ),
-    },
-    accessToken,
-    refreshToken,
-    refreshTokenMaxAgeMs: maxAgeMs,
-  };
+  return issueAuthSession(user, input.device);
 };
 
 export const signup = async (
