@@ -6,7 +6,7 @@ import { adminMemberListQuerySchema } from '../schemas/admin-member.schema';
 
 const router = Router();
 
-// 관리자 회원 목록 조회
+// 관리자 회원 목록 조회 (Swagger: src/docs/admin-member.swagger.yaml)
 router.get(
   '/',
   requireAdminAuth,
