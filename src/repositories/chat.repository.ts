@@ -437,6 +437,24 @@ export const findActiveParticipation = async (
   });
 };
 
+/** 채팅방의 활성 참여자 userId 목록을 반환한다. */
+export const findActiveParticipantIds = async (
+  roomId: number,
+  dbClient: ChatDbClient = prisma
+): Promise<string[]> => {
+  const rows = await dbClient.chatRoomParticipant.findMany({
+    where: {
+      roomId,
+      leftAt: null,
+    },
+    select: {
+      participantId: true,
+    },
+  });
+
+  return rows.map((row) => row.participantId);
+};
+
 /** 유저가 해당 방에 참여한 이력이 있는지(leftAt 무관) 확인한다. */
 export const findAnyParticipation = async (
   roomId: number,
