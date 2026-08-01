@@ -194,6 +194,7 @@ const options: swaggerJSDoc.Options = {
                   required: [
                     'id',
                     'userType',
+                    'nickname',
                     'email',
                     'phoneNumber',
                     'isProfileCompleted',
@@ -209,6 +210,7 @@ const options: swaggerJSDoc.Options = {
                       enum: ['CUSTOMER', 'MOVER'],
                       example: 'CUSTOMER',
                     },
+                    nickname: { type: 'string', example: 'sojeong' },
                     email: {
                       type: 'string',
                       format: 'email',
@@ -245,6 +247,81 @@ const options: swaggerJSDoc.Options = {
                 message: {
                   type: 'string',
                   example: '로그아웃되었습니다.',
+                },
+              },
+            },
+          },
+        },
+        KakaoLoginRequest: {
+          type: 'object',
+          required: ['code', 'userType'],
+          properties: {
+            code: {
+              type: 'string',
+              description: '카카오 인가 코드 (FE Redirect URI로 전달받은 값)',
+              example: 'kakao-authorization-code',
+            },
+            userType: {
+              type: 'string',
+              enum: ['CUSTOMER', 'MOVER'],
+              example: 'CUSTOMER',
+            },
+          },
+        },
+        KakaoLoginResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['user', 'accessToken', 'isNewUser'],
+              properties: {
+                user: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'userType',
+                    'nickname',
+                    'email',
+                    'phoneNumber',
+                    'isProfileCompleted',
+                  ],
+                  properties: {
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    userType: {
+                      type: 'string',
+                      enum: ['CUSTOMER', 'MOVER'],
+                      example: 'CUSTOMER',
+                    },
+                    nickname: { type: 'string', example: 'sojeong' },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'kakao.user@example.com',
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '',
+                      description: '카카오 가입 시 비어 있을 수 있다',
+                    },
+                    isProfileCompleted: {
+                      type: 'boolean',
+                      example: false,
+                    },
+                  },
+                },
+                accessToken: {
+                  type: 'string',
+                  description: 'Access Token (JWT)',
+                },
+                isNewUser: {
+                  type: 'boolean',
+                  description: 'true면 이번 요청에서 신규 회원가입됨',
+                  example: false,
                 },
               },
             },
