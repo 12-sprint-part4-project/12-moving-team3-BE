@@ -28,6 +28,13 @@ export const SENT_QUOTE_STATUSES: QuoteStatus[] = [
   QuoteStatus.CONFIRMED,
 ];
 
+/** 기사님 견적 상세 조회 허용 상태 (보낸 견적 + 반려) */
+export const MOVER_QUOTE_DETAIL_STATUSES: QuoteStatus[] = [
+  QuoteStatus.PENDING,
+  QuoteStatus.CONFIRMED,
+  QuoteStatus.REJECTED,
+];
+
 /** 목록 조회 기본 페이지 크기 */
 const DEFAULT_QUOTE_LIST_LIMIT = 8;
 

@@ -11,6 +11,8 @@ export interface QuoteDetailDto {
   id: number;
   estimateRequestId: number;
   price: number | null;
+  status: QuoteStatus;
+  rejectReason: string | null;
   isMoveCompleted: boolean;
   customer: { name: string };
   moveType: MoveType | null;

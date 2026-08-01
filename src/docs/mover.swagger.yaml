@@ -191,6 +191,14 @@ components:
               type: integer
               nullable: true
               example: 180000
+            status:
+              type: string
+              enum: [PENDING, CONFIRMED, REJECTED]
+              example: CONFIRMED
+            rejectReason:
+              type: string
+              nullable: true
+              example: null
             isMoveCompleted:
               type: boolean
               example: false
@@ -823,9 +831,9 @@ paths:
   /api/users/movers/quotes/{quoteId}:
     get:
       tags: [Movers]
-      summary: 보낸 견적 상세 조회
+      summary: 보낸 견적 / 반려 견적 상세 조회
       description: |
-        기사님 본인이 보낸 견적(PENDING, CONFIRMED)을 상세 조회할 수 있습니다.
+        기사님 본인의 견적(PENDING, CONFIRMED, REJECTED)을 상세 조회할 수 있습니다.
         Access Token이 필요하며, userType이 MOVER인 계정만 접근할 수 있습니다.
         기사 프로필 등록이 완료되지 않은 경우 404(PROFILE_NOT_REGISTERED)를 반환합니다.
       security:
@@ -851,6 +859,8 @@ paths:
                   id: 1
                   estimateRequestId: 101
                   price: 180000
+                  status: CONFIRMED
+                  rejectReason: null
                   isMoveCompleted: false
                   customer:
                     name: 김인서
@@ -884,7 +894,7 @@ paths:
           description: |
             접근 거부
             - USER_TYPE_FORBIDDEN: MOVER가 아닌 계정으로 접근
-            - FORBIDDEN: 본인이 보낸 견적이 아님
+            - FORBIDDEN: 본인 견적이 아님
           content:
             application/json:
               schema:
@@ -897,7 +907,7 @@ paths:
                       code: USER_TYPE_FORBIDDEN
                       message: 접근 권한이 없습니다.
                 forbidden:
-                  summary: 본인이 보낸 견적 아님
+                  summary: 본인 견적 아님
                   value:
                     error:
                       code: FORBIDDEN

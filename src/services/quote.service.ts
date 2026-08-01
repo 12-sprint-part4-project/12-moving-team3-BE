@@ -32,6 +32,7 @@ import type {
 } from '../repositories/quote.repository';
 import {
   PAST_QUOTE_FILTER_VALUES,
+  MOVER_QUOTE_DETAIL_STATUSES,
   SENT_QUOTE_STATUSES,
   type PastQuoteFilter,
   type QuoteBody,
@@ -285,6 +286,8 @@ const toQuoteDetailDto = (quote: QuoteDetailRow): QuoteDetailDto => {
     id: quote.id,
     estimateRequestId: quote.estimateRequestId,
     price: quote.price,
+    status: quote.status,
+    rejectReason: quote.rejectReason,
     isMoveCompleted: isMoveCompleted(estimateRequest.status),
     customer: { name: estimateRequest.user.name },
     moveType: estimateRequest.moveType,
@@ -360,12 +363,12 @@ export const getQuoteDetail = async (
     throw new AppError('QUOTE_NOT_FOUND');
   }
 
-  // 본인이 보낸 견적(PENDING/CONFIRMED)만 조회 가능하도록 권한 검증
-  const isOwnSentQuote =
+  // 본인 견적(PENDING/CONFIRMED/REJECTED)만 조회 가능하도록 권한 검증
+  const isOwnQuote =
     quote.moverId === input.moverId &&
-    SENT_QUOTE_STATUSES.includes(quote.status);
+    MOVER_QUOTE_DETAIL_STATUSES.includes(quote.status);
 
-  if (!isOwnSentQuote) {
+  if (!isOwnQuote) {
     throw new AppError('FORBIDDEN');
   }
 
