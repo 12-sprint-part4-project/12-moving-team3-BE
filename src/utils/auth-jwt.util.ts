@@ -128,3 +128,37 @@ export const verifyAccessToken = (
 
   return decoded;
 };
+
+const isRefreshTokenPayload = (
+  payload: unknown
+): payload is RefreshTokenPayload => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+
+  return (
+    typeof candidate.sub === 'string' &&
+    candidate.sub.length > 0 &&
+    candidate.typ === 'refresh' &&
+    typeof candidate.jti === 'string' &&
+    candidate.jti.length > 0
+  );
+};
+
+export const verifyRefreshToken = (
+  refreshToken: string
+): RefreshTokenPayload => {
+  const decoded = jwt.verify(
+    refreshToken,
+    getRequiredEnv('JWT_REFRESH_SECRET'),
+    { algorithms: ['HS256'] }
+  );
+
+  if (!isRefreshTokenPayload(decoded)) {
+    throw new jwt.JsonWebTokenError('Invalid refresh token payload');
+  }
+
+  return decoded;
+};
