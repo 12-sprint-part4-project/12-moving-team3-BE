@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 
@@ -26,8 +26,8 @@ export type AdminMemberListRow = Prisma.UserGetPayload<{
 
 /**
  * 목록/카운트에 공통으로 쓰는 where.
- * status 필터는 userStatus 관계가 있는 행만 매칭하며,
- * 관계 부재를 ACTIVE로 간주하지 않는다(해당 정책은 Service에서 결정).
+ * Service는 관계 부재를 ACTIVE로 정규화하므로,
+ * status=ACTIVE 필터도 관계가 없는 회원을 함께 포함해야 목록/필터가 모순되지 않는다.
  */
 const buildAdminMemberListWhere = (
   params: Pick<AdminMemberListQuery, 'userType' | 'status' | 'search'>
@@ -40,23 +40,39 @@ const buildAdminMemberListWhere = (
     where.userType = params.userType;
   }
 
-  // status가 있을 때만 관계 내부 값으로 필터한다.
-  // is 조건을 쓰면 관계가 없는 회원은 자연히 제외되어, ACTIVE 기본값 추론을 Repo에서 하지 않게 된다.
-  if (params.status) {
-    where.userStatus = {
-      is: {
-        status: params.status,
+  // search OR와 status OR가 섞이지 않도록 AND로 묶는다.
+  const andConditions: Prisma.UserWhereInput[] = [];
+
+  if (params.status === UserStatus.ACTIVE) {
+    andConditions.push({
+      OR: [
+        { userStatus: { is: null } },
+        { userStatus: { is: { status: UserStatus.ACTIVE } } },
+      ],
+    });
+  } else if (params.status) {
+    andConditions.push({
+      userStatus: {
+        is: {
+          status: params.status,
+        },
       },
-    };
+    });
   }
 
   if (params.search) {
-    where.OR = [
-      { name: { contains: params.search, mode: 'insensitive' } },
-      { nickname: { contains: params.search, mode: 'insensitive' } },
-      { email: { contains: params.search, mode: 'insensitive' } },
-      { phoneNumber: { contains: params.search, mode: 'insensitive' } },
-    ];
+    andConditions.push({
+      OR: [
+        { name: { contains: params.search, mode: 'insensitive' } },
+        { nickname: { contains: params.search, mode: 'insensitive' } },
+        { email: { contains: params.search, mode: 'insensitive' } },
+        { phoneNumber: { contains: params.search, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
   }
 
   return where;

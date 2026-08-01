@@ -10,10 +10,10 @@ export interface AdminMemberListItemDto {
   phoneNumber: string | null;
   userType: UserType;
   /**
-   * UserStatusInfo 관계가 없을 수 있다.
-   * ACTIVE 기본값 정책은 Service 단계에서 확정하고, DTO는 null을 허용한다.
+   * UserStatusInfo가 없으면 Service에서 ACTIVE로 정규화한다.
+   * (스키마 기본값 ACTIVE + 관계 부재는 미생성으로 간주)
    */
-  status: UserStatus | null;
+  status: UserStatus;
   suspendedAt: Date | null;
   suspendedUntil: Date | null;
   createdAt: Date;
