@@ -549,23 +549,33 @@ export const refreshAuthToken = async (
   }
 
   const tokenHash = hashAuthRefreshToken(refreshToken);
-  const record = await authRepository.findRefreshTokenByHash(tokenHash);
 
-  if (
-    !record ||
-    record.expiresAt.getTime() <= Date.now() ||
-    payload.sub !== record.userId
-  ) {
-    throw new AppError('UNAUTHORIZED');
-  }
+  return prisma.$transaction(async (tx) => {
+    const record = await authRepository.findRefreshTokenByHash(tokenHash, tx);
 
-  const apiUserType = toApiUserType(record.user.userType);
-  const accessToken = createAccessToken(record.user.id, apiUserType);
-  const nextRefreshToken = createRefreshToken(record.user.id);
-  const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(nextRefreshToken);
+    if (
+      !record ||
+      record.expiresAt.getTime() <= Date.now() ||
+      payload.sub !== record.userId
+    ) {
+      throw new AppError('UNAUTHORIZED');
+    }
 
-  await prisma.$transaction(async (tx) => {
-    await authRepository.deleteRefreshTokensByUserId(record.user.id, tx);
+    const { count } = await authRepository.deleteRefreshTokenByHash(
+      tokenHash,
+      tx
+    );
+
+    // 동시 Rotation 등으로 이미 삭제된 토큰이면 재발급하지 않는다.
+    if (count === 0) {
+      throw new AppError('UNAUTHORIZED');
+    }
+
+    const apiUserType = toApiUserType(record.user.userType);
+    const accessToken = createAccessToken(record.user.id, apiUserType);
+    const nextRefreshToken = createRefreshToken(record.user.id);
+    const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(nextRefreshToken);
+
     await authRepository.createRefreshTokenRecord(
       {
         userId: record.user.id,
@@ -575,13 +585,13 @@ export const refreshAuthToken = async (
       },
       tx
     );
-  });
 
-  return {
-    accessToken,
-    refreshToken: nextRefreshToken,
-    refreshTokenMaxAgeMs: maxAgeMs,
-  };
+    return {
+      accessToken,
+      refreshToken: nextRefreshToken,
+      refreshTokenMaxAgeMs: maxAgeMs,
+    };
+  });
 };
 
 /**
