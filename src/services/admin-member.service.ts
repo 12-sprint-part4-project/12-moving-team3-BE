@@ -4,7 +4,9 @@ import type {
   AdminMemberListResultDto,
 } from '../dtos/admin-member.dto';
 import {
+  findAdminMemberDetail,
   findAdminMembersWithCount,
+  type AdminMemberDetailRow,
   type AdminMemberListRow,
 } from '../repositories/admin-member.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
@@ -47,7 +49,8 @@ export const getAdminMemberList = async (
 };
 
 /** 관리자 회원 상세 조회 */
-export const getAdminMemberDetail = async (_memberId: string) => {
-  // TODO: Repository 조회 및 상세 응답 DTO 구성
-  return {};
+export const getAdminMemberDetail = async (
+  memberId: string
+): Promise<AdminMemberDetailRow | null> => {
+  return findAdminMemberDetail(memberId);
 };

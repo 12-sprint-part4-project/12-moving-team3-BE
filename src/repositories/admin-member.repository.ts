@@ -25,6 +25,47 @@ export type AdminMemberListRow = Prisma.UserGetPayload<{
   select: typeof adminMemberListSelect;
 }>;
 
+/** 관리자 회원 상세 select — 기본 정보 + 유형별 프로필만 조회 */
+const adminMemberDetailSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  email: true,
+  phoneNumber: true,
+  profileImageKey: true,
+  userType: true,
+  createdAt: true,
+  customerProfile: {
+    select: {
+      id: true,
+      region: true,
+      service: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+  moverProfile: {
+    select: {
+      id: true,
+      service: true,
+      career: true,
+      shortDescription: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+      serviceRegions: {
+        select: {
+          region: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+export type AdminMemberDetailRow = Prisma.UserGetPayload<{
+  select: typeof adminMemberDetailSelect;
+}>;
+
 /**
  * 목록/카운트에 공통으로 쓰는 where.
  * Service는 관계 부재를 ACTIVE로 정규화하므로,
@@ -106,4 +147,17 @@ export const findAdminMembersWithCount = async (
   ]);
 
   return { items, totalCount };
+};
+
+/** 관리자 회원 상세 조회 (삭제되지 않은 회원만) */
+export const findAdminMemberDetail = async (
+  memberId: string
+): Promise<AdminMemberDetailRow | null> => {
+  return prisma.user.findFirst({
+    where: {
+      id: memberId,
+      deletedAt: null,
+    },
+    select: adminMemberDetailSelect,
+  });
 };
