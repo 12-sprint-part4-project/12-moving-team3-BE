@@ -49,11 +49,13 @@ const decodeCursor = (cursor: string): CommentCursor => {
   return decoded;
 };
 
-const mapAuthor = async (user: {
+interface CommentAuthor {
   id: string;
   nickname: string;
   profileImageKey: string | null;
-}) => ({
+}
+
+const mapAuthor = async (user: CommentAuthor) => ({
   id: user.id,
   nickname: user.nickname,
   profileImageUrl: await toPresignedViewUrl(user.profileImageKey),
@@ -65,11 +67,7 @@ const mapCommentItem = async (
     userId: string;
     content: string;
     createdAt: Date;
-    user: {
-      id: string;
-      nickname: string;
-      profileImageKey: string | null;
-    };
+    user: CommentAuthor;
   },
   userId?: string
 ) => ({
