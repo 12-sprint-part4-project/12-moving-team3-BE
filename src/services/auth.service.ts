@@ -153,20 +153,27 @@ const resolveUniqueKakaoNickname = async (
   return `${kakaoId}_${Date.now()}`.slice(0, 50);
 };
 
+/**
+ * 카카오 이메일이 존재하고 인증되었는지 검사한 뒤 정규화된 이메일을 반환한다.
+ */
+const requireVerifiedKakaoEmail = (kakaoUser: KakaoUserInfo): string => {
+  if (!kakaoUser.email?.trim()) {
+    throw new AppError('KAKAO_EMAIL_REQUIRED');
+  }
+
+  if (!kakaoUser.isEmailVerified) {
+    throw new AppError('KAKAO_EMAIL_NOT_VERIFIED');
+  }
+
+  return kakaoUser.email.trim().toLowerCase();
+};
+
 const createKakaoUser = async (
   kakaoUser: KakaoUserInfo,
   userType: ApiUserType,
   device: DeviceType
 ): Promise<LoginServiceResult> => {
-  if (!kakaoUser.email?.trim()) {
-    throw new AppError('KAKAO_EMAIL_REQUIRED');
-  }
-
-  const email = kakaoUser.email.trim().toLowerCase();
-
-  if (!kakaoUser.isEmailVerified) {
-    throw new AppError('KAKAO_EMAIL_NOT_VERIFIED');
-  }
+  const email = requireVerifiedKakaoEmail(kakaoUser);
 
   // 카카오 실명(name) 권한은 사업자 비즈앱 필요 → 소셜 가입 시 name = nickname
   const nickname = await resolveUniqueKakaoNickname(
@@ -237,17 +244,7 @@ const linkKakaoToExistingUser = async (
   userType: ApiUserType,
   device: DeviceType
 ): Promise<LoginServiceResult | null> => {
-  if (!kakaoUser.email?.trim()) {
-    throw new AppError('KAKAO_EMAIL_REQUIRED');
-  }
-
-  const email = kakaoUser.email.trim().toLowerCase();
-
-  // 미인증 이메일로는 기존 계정 자동 연결을 하지 않는다
-  if (!kakaoUser.isEmailVerified) {
-    throw new AppError('KAKAO_EMAIL_NOT_VERIFIED');
-  }
-
+  const email = requireVerifiedKakaoEmail(kakaoUser);
   const existing = await authRepository.findUserWithKakaoAuthByEmail(email);
 
   if (!existing) {
