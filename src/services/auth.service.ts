@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import * as authRepository from '../repositories/auth.repository';
 import type {
   ApiUserType,
+  KakaoLoginBody,
   LoginBody,
   SignupBody,
 } from '../schemas/auth.schema';
@@ -19,6 +20,11 @@ import {
 } from '../utils/auth-password.util';
 import { hashAuthRefreshToken } from '../utils/auth-token-hash.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
+import {
+  exchangeKakaoAuthorizationCode,
+  fetchKakaoUserInfo,
+  type KakaoUserInfo,
+} from '../utils/kakao-oauth.util';
 import { resolveIsProfileCompleted } from '../utils/profile.util';
 
 export interface SignupServiceInput extends SignupBody {
@@ -26,6 +32,10 @@ export interface SignupServiceInput extends SignupBody {
 }
 
 export interface LoginServiceInput extends LoginBody {
+  device: DeviceType;
+}
+
+export interface KakaoLoginServiceInput extends KakaoLoginBody {
   device: DeviceType;
 }
 
@@ -49,6 +59,7 @@ export interface LoginServiceResult {
   user: {
     id: string;
     userType: ApiUserType;
+    nickname: string;
     email: string;
     phoneNumber: string;
     isProfileCompleted: boolean;
@@ -58,12 +69,238 @@ export interface LoginServiceResult {
   refreshTokenMaxAgeMs: number;
 }
 
+export interface KakaoLoginServiceResult extends LoginServiceResult {
+  isNewUser: boolean;
+}
+
+interface KakaoAuthUser {
+  id: string;
+  userType: UserType;
+  nickname: string;
+  email: string;
+  phoneNumber: string | null;
+  customerProfile: { id: number; service: unknown[] } | null;
+  moverProfile: { id: number; service: unknown[] } | null;
+}
+
 const toPrismaUserType = (userType: ApiUserType): UserType => {
   return userType === 'MOVER' ? UserType.MOVER : UserType.CUSTOMER;
 };
 
 const toApiUserType = (userType: UserType): ApiUserType => {
   return userType === UserType.MOVER ? 'MOVER' : 'CUSTOMER';
+};
+
+const issueAuthSession = async (
+  user: KakaoAuthUser,
+  device: DeviceType
+): Promise<LoginServiceResult> => {
+  const apiUserType = toApiUserType(user.userType);
+  const accessToken = createAccessToken(user.id, apiUserType);
+  const refreshToken = createRefreshToken(user.id);
+  const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
+
+  await prisma.$transaction(async (tx) => {
+    await authRepository.deleteRefreshTokensByUserId(user.id, tx);
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: user.id,
+        tokenHash: hashAuthRefreshToken(refreshToken),
+        device,
+        expiresAt,
+      },
+      tx
+    );
+  });
+
+  return {
+    user: {
+      id: user.id,
+      userType: apiUserType,
+      nickname: user.nickname,
+      email: user.email,
+      phoneNumber: user.phoneNumber ?? '',
+      isProfileCompleted: resolveIsProfileCompleted(
+        user.userType,
+        user.customerProfile,
+        user.moverProfile
+      ),
+    },
+    accessToken,
+    refreshToken,
+    refreshTokenMaxAgeMs: maxAgeMs,
+  };
+};
+
+const resolveUniqueKakaoNickname = async (
+  preferred: string | undefined,
+  kakaoId: string
+): Promise<string> => {
+  const base = (preferred?.trim() || `kakao_${kakaoId}`).slice(0, 50);
+  const existingBase = await authRepository.findUserByNickname(base);
+
+  if (!existingBase) {
+    return base;
+  }
+
+  const fallback = `kakao_${kakaoId}`.slice(0, 50);
+  const existingFallback = await authRepository.findUserByNickname(fallback);
+
+  if (!existingFallback) {
+    return fallback;
+  }
+
+  return `${kakaoId}_${Date.now()}`.slice(0, 50);
+};
+
+/**
+ * 카카오 이메일이 존재하고 인증되었는지 검사한 뒤 정규화된 이메일을 반환한다.
+ */
+const requireVerifiedKakaoEmail = (kakaoUser: KakaoUserInfo): string => {
+  if (!kakaoUser.email?.trim()) {
+    throw new AppError('KAKAO_EMAIL_REQUIRED');
+  }
+
+  if (!kakaoUser.isEmailVerified) {
+    throw new AppError('KAKAO_EMAIL_NOT_VERIFIED');
+  }
+
+  return kakaoUser.email.trim().toLowerCase();
+};
+
+const createKakaoUser = async (
+  kakaoUser: KakaoUserInfo,
+  userType: ApiUserType,
+  device: DeviceType
+): Promise<LoginServiceResult> => {
+  const email = requireVerifiedKakaoEmail(kakaoUser);
+
+  // 카카오 실명(name) 권한은 사업자 비즈앱 필요 → 소셜 가입 시 name = nickname
+  const nickname = await resolveUniqueKakaoNickname(
+    kakaoUser.nickname,
+    kakaoUser.id
+  );
+  const name = nickname;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await authRepository.createUserWithKakaoAuth(
+      {
+        name,
+        nickname,
+        email,
+        userType: toPrismaUserType(userType),
+        providerAccountId: kakaoUser.id,
+      },
+      tx
+    );
+
+    const apiUserType = toApiUserType(user.userType);
+    const accessToken = createAccessToken(user.id, apiUserType);
+    const refreshToken = createRefreshToken(user.id);
+    const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
+
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: user.id,
+        tokenHash: hashAuthRefreshToken(refreshToken),
+        device,
+        expiresAt,
+      },
+      tx
+    );
+
+    return {
+      user,
+      accessToken,
+      refreshToken,
+      refreshTokenMaxAgeMs: maxAgeMs,
+    };
+  });
+
+  return {
+    user: {
+      id: result.user.id,
+      userType: toApiUserType(result.user.userType),
+      nickname: result.user.nickname,
+      email: result.user.email,
+      phoneNumber: result.user.phoneNumber ?? '',
+      isProfileCompleted: resolveIsProfileCompleted(
+        result.user.userType,
+        result.user.customerProfile,
+        result.user.moverProfile
+      ),
+    },
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    refreshTokenMaxAgeMs: result.refreshTokenMaxAgeMs,
+  };
+};
+
+/**
+ * 동일 이메일의 기존 계정에 카카오를 연결한 뒤 세션을 발급한다.
+ */
+const linkKakaoToExistingUser = async (
+  kakaoUser: KakaoUserInfo,
+  userType: ApiUserType,
+  device: DeviceType
+): Promise<LoginServiceResult | null> => {
+  const email = requireVerifiedKakaoEmail(kakaoUser);
+  const existing = await authRepository.findUserWithKakaoAuthByEmail(email);
+
+  if (!existing) {
+    return null;
+  }
+
+  if (toApiUserType(existing.userType) !== userType) {
+    throw new AppError('USER_TYPE_MISMATCH');
+  }
+
+  const linkedKakao = existing.authAccounts[0];
+
+  if (linkedKakao && linkedKakao.providerAccountId !== kakaoUser.id) {
+    throw new AppError('EMAIL_ALREADY_EXISTS');
+  }
+
+  const { authAccounts: _authAccounts, ...user } = existing;
+  const apiUserType = toApiUserType(user.userType);
+  const accessToken = createAccessToken(user.id, apiUserType);
+  const refreshToken = createRefreshToken(user.id);
+  const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
+
+  await prisma.$transaction(async (tx) => {
+    if (!linkedKakao) {
+      await authRepository.linkKakaoAuthToUser(existing.id, kakaoUser.id, tx);
+    }
+
+    await authRepository.deleteRefreshTokensByUserId(user.id, tx);
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: user.id,
+        tokenHash: hashAuthRefreshToken(refreshToken),
+        device,
+        expiresAt,
+      },
+      tx
+    );
+  });
+
+  return {
+    user: {
+      id: user.id,
+      userType: apiUserType,
+      nickname: user.nickname,
+      email: user.email,
+      phoneNumber: user.phoneNumber ?? '',
+      isProfileCompleted: resolveIsProfileCompleted(
+        user.userType,
+        user.customerProfile,
+        user.moverProfile
+      ),
+    },
+    accessToken,
+    refreshToken,
+    refreshTokenMaxAgeMs: maxAgeMs,
+  };
 };
 
 export const login = async (
@@ -116,6 +353,7 @@ export const login = async (
     user: {
       id: user.id,
       userType: apiUserType,
+      nickname: user.nickname,
       email: user.email,
       phoneNumber: user.phoneNumber ?? '',
       isProfileCompleted: resolveIsProfileCompleted(
@@ -225,8 +463,71 @@ export const signup = async (
 };
 
 /**
+ * 카카오 로그인: code → 토큰 → 유저 정보 → DB 조회 후 회원가입 또는 로그인.
+ * 우리 서비스 Access/Refresh Token을 발급한다.
+ * 동일 이메일의 기존 계정(로컬 등)이 있으면 카카오를 연동한 뒤 로그인한다.
+ */
+export const kakaoLogin = async (
+  input: KakaoLoginServiceInput
+): Promise<KakaoLoginServiceResult> => {
+  const kakaoToken = await exchangeKakaoAuthorizationCode(input.code);
+  const kakaoUser = await fetchKakaoUserInfo(kakaoToken.accessToken);
+
+  const existingUser = await authRepository.findUserByKakaoProviderAccountId(
+    kakaoUser.id
+  );
+
+  if (existingUser) {
+    if (toApiUserType(existingUser.userType) !== input.userType) {
+      throw new AppError('USER_TYPE_MISMATCH');
+    }
+
+    const session = await issueAuthSession(existingUser, input.device);
+
+    return {
+      ...session,
+      isNewUser: false,
+    };
+  }
+
+  try {
+    const linkedSession = await linkKakaoToExistingUser(
+      kakaoUser,
+      input.userType,
+      input.device
+    );
+
+    if (linkedSession) {
+      return {
+        ...linkedSession,
+        isNewUser: false,
+      };
+    }
+
+    const session = await createKakaoUser(
+      kakaoUser,
+      input.userType,
+      input.device
+    );
+
+    return {
+      ...session,
+      isNewUser: true,
+    };
+  } catch (error) {
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
+};
+
+/**
  * Refresh Cookie 기준 세션만 정리한다.
- * JWT 검증·계정 조회 없이 해시 삭제를 시도해 멱등 로그아웃을 보장한다.
+ * JWT 검증·계정 조회 없이 해시 삭제를 시도해 멱등 동작을 보장한다.
  */
 export const logout = async (
   refreshToken: string | undefined
