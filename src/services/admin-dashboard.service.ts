@@ -17,6 +17,10 @@ import { getQuoteCount } from '../repositories/admin-quote.repository';
 import { getTotalReportCount } from '../repositories/admin-report.repository';
 import { AdminDashboardRequestTrendFilter } from '../schemas/admin-dashboard.schema';
 
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const KST_OFFSET_MS = 9 * HOUR_MS;
+
 export const getStatistics = async ({
   startDate,
   endDate,
@@ -65,9 +69,7 @@ export const getStatistics = async ({
 const createHourlyBuckets = (start: Date): Date[] => {
   const buckets: Date[] = [];
   for (let i = 0; i < 24; i++) {
-    const bucket = new Date(start);
-    bucket.setHours(i, 0, 0, 0);
-    buckets.push(bucket);
+    buckets.push(new Date(start.getTime() + i * HOUR_MS));
   }
   return buckets;
 };
@@ -76,27 +78,26 @@ const createDailyBuckets = (start: Date, days: number): Date[] => {
   const buckets: Date[] = [];
 
   for (let i = 0; i < days; i++) {
-    const bucket = new Date(start);
-    bucket.setDate(start.getDate() + i);
-    // 날짜 비교 시 시간 차이로 인해 매칭되지 않도록 자정으로 통일한다.
-    bucket.setHours(0, 0, 0, 0);
-    buckets.push(bucket);
+    buckets.push(new Date(start.getTime() + i * DAY_MS));
   }
 
   return buckets;
 };
 
+const toKstDate = (date: Date) => new Date(date.getTime() + KST_OFFSET_MS);
+
 const formatTrendLabel = (
   bucket: Date,
   period: AdminDashboardRequestTrendFilter['period']
 ) => {
+  const kstBucket = toKstDate(bucket);
   switch (period) {
     case 'DAY':
-      return `${String(bucket.getHours()).padStart(2, '0')}시`;
+      return `${String(kstBucket.getUTCHours()).padStart(2, '0')}시`;
 
     case 'WEEK':
     case 'MONTH':
-      return `${String(bucket.getMonth() + 1).padStart(2, '0')}/${String(bucket.getDate()).padStart(2, '0')}`;
+      return `${String(kstBucket.getUTCMonth() + 1).padStart(2, '0')}/${String(kstBucket.getUTCDate()).padStart(2, '0')}`;
   }
 };
 

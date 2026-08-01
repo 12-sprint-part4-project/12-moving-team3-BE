@@ -42,15 +42,28 @@ export interface DashboardChartDateRange {
   groupBy: 'hour' | 'day';
 }
 
+/**
+ * 현재 시간을 기준으로
+ * KST(한국 표준시) 오늘 자정에 해당하는 UTC Date를 반환한다.
+ *
+ * 예시:
+ *   - now: 2024-04-04T15:10:00Z (UTC)
+ *   - KST 현재 시각: 2024-04-05 00:10:00
+ *   - 반환값: 2024-04-04T15:00:00Z
+ *     (KST 2024-04-05 00:00:00에 해당하는 UTC 시각)
+ */
 const getKstStartOfToday = (now: Date): Date => {
+  // 현재 시각을 KST 기준으로 변환
   const kstNow = new Date(now.getTime() + KST_OFFSET_MS);
 
+  // KST 날짜의 자정(00:00:00)에 해당하는 UTC 타임스탬프
   const kstDateStart = Date.UTC(
     kstNow.getUTCFullYear(),
     kstNow.getUTCMonth(),
     kstNow.getUTCDate()
   );
 
+  // KST 자정에 해당하는 UTC Date 객체 반환
   return new Date(kstDateStart - KST_OFFSET_MS);
 };
 
