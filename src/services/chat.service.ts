@@ -21,12 +21,15 @@ import type {
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
-import { toProfileImageUrl } from '../utils/profile-image.util';
 import {
   emitChatMessageCreated,
   emitChatRoomRead,
 } from './chat-socket.service';
-import { createPresignedViewUrl, getObjectMetadata } from './s3.service';
+import {
+  createPresignedViewUrl,
+  getObjectMetadata,
+  toPresignedViewUrl,
+} from './s3.service';
 
 interface CreateChatRoomResult {
   status: 200 | 201;
@@ -395,43 +398,45 @@ export const getChatRoomList = async (
     chatRepository.findUnreadCountsByRooms(authUser.userId, roomFilters),
   ]);
 
-  const roomListItems = roomVisibility
-    .map(({ room }): ChatRoomListItem | null => {
-      const partnerCandidates = room.participants.filter(
-        (participant) => participant.participantId !== authUser.userId
-      );
+  const roomListItems = (
+    await Promise.all(
+      roomVisibility.map(async ({ room }): Promise<ChatRoomListItem | null> => {
+        const partnerCandidates = room.participants.filter(
+          (participant) => participant.participantId !== authUser.userId
+        );
 
-      const partnerParticipant =
-        partnerCandidates.find((participant) => participant.leftAt === null) ??
-        partnerCandidates[0];
+        const partnerParticipant =
+          partnerCandidates.find((participant) => participant.leftAt === null) ??
+          partnerCandidates[0];
 
-      if (!partnerParticipant) {
-        return null;
-      }
+        if (!partnerParticipant) {
+          return null;
+        }
 
-      const partner = partnerParticipant.user;
-      const lastMessage = lastMessageByRoomId.get(room.id);
+        const partner = partnerParticipant.user;
+        const lastMessage = lastMessageByRoomId.get(room.id);
 
-      return {
-        roomId: room.id,
-        roomType: room.roomType,
-        partner: {
-          id: partner.id,
-          userType: partner.userType,
-          nickname: partner.nickname,
-          profileImageUrl: toProfileImageUrl(partner.profileImageKey),
-        },
-        lastMessage: lastMessage
-          ? {
-              content: lastMessage.content,
-              messageType: lastMessage.messageType,
-              createdAt: toIsoString(lastMessage.createdAt),
-            }
-          : null,
-        unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
-      };
-    })
-    .filter((item): item is ChatRoomListItem => item !== null);
+        return {
+          roomId: room.id,
+          roomType: room.roomType,
+          partner: {
+            id: partner.id,
+            userType: partner.userType,
+            nickname: partner.nickname,
+            profileImageUrl: await toPresignedViewUrl(partner.profileImageKey),
+          },
+          lastMessage: lastMessage
+            ? {
+                content: lastMessage.content,
+                messageType: lastMessage.messageType,
+                createdAt: toIsoString(lastMessage.createdAt),
+              }
+            : null,
+          unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
+        };
+      })
+    )
+  ).filter((item): item is ChatRoomListItem => item !== null);
 
   return { rooms: roomListItems };
 };
@@ -497,7 +502,7 @@ export const getChatRoomDetail = async (
       id: partner.id,
       userType: partner.userType,
       nickname: partner.nickname,
-      profileImageUrl: toProfileImageUrl(partner.profileImageKey),
+            profileImageUrl: await toPresignedViewUrl(partner.profileImageKey),
     },
     requestSummary: room.estimateRequest
       ? {

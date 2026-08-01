@@ -12,7 +12,7 @@ import {
 import * as postRepository from '../repositories/post.repository';
 import type { PostCursor } from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
-import { toProfileImageUrl } from '../utils/profile-image.util';
+import { toPresignedViewUrl } from './s3.service';
 
 const isPostSort = (value: unknown): value is PostSort =>
   typeof value === 'string' &&
@@ -97,7 +97,7 @@ const getCursorValue = (
   return { id: post.id, sort, value: post.createdAt.toISOString() };
 };
 
-const mapPostListItem = (
+const mapPostListItem = async (
   post: Awaited<ReturnType<typeof postRepository.findPosts>>[number],
   userId?: string
 ) => ({
@@ -106,11 +106,11 @@ const mapPostListItem = (
   region: post.region ?? null,
   title: post.title,
   contentPreview: post.content.slice(0, CONTENT_PREVIEW_MAX_LENGTH),
-  thumbnailUrl: toProfileImageUrl(post.images[0]?.imageKey),
+  thumbnailUrl: await toPresignedViewUrl(post.images[0]?.imageKey),
   author: {
     id: post.user.id,
     nickname: post.user.nickname,
-    profileImageUrl: toProfileImageUrl(post.user.profileImageKey),
+    profileImageUrl: await toPresignedViewUrl(post.user.profileImageKey),
   },
   likeCount: post.likeCount,
   commentCount: post.commentCount,
@@ -144,7 +144,7 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
   const lastRow = items.length > 0 ? items[items.length - 1] : undefined;
 
   return {
-    items: items.map((post) => mapPostListItem(post, userId)),
+    items: await Promise.all(items.map((post) => mapPostListItem(post, userId))),
     meta: {
       nextCursor:
         hasNextPage && lastRow
@@ -169,13 +169,15 @@ export const getPostById = async (postId: number, userId?: string) => {
     region: post.region ?? null,
     title: post.title,
     content: post.content,
-    images: post.images.map((img) => ({
-      imageUrl: toProfileImageUrl(img.imageKey),
-    })),
+    images: await Promise.all(
+      post.images.map(async (img) => ({
+        imageUrl: await toPresignedViewUrl(img.imageKey),
+      }))
+    ),
     author: {
       id: post.user.id,
       nickname: post.user.nickname,
-      profileImageUrl: toProfileImageUrl(post.user.profileImageKey),
+      profileImageUrl: await toPresignedViewUrl(post.user.profileImageKey),
     },
     likeCount: post.likeCount,
     commentCount: post.commentCount,

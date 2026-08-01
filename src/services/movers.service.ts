@@ -14,7 +14,7 @@ import type {
   MoversListQuery,
 } from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
-import { toProfileImageUrl } from '../utils/profile-image.util';
+import { toPresignedViewUrl } from './s3.service';
 import {
   decodeFavoriteListCursor,
   decodeMoverListCursor,
@@ -62,14 +62,14 @@ const EMPTY_REVIEW_STATS = {
 };
 
 /** profileImageKey → profileImageUrl (클라이언트용) */
-const mapUserProfileImage = <T extends { profileImageKey: string | null }>(
+const mapUserProfileImage = async <T extends { profileImageKey: string | null }>(
   user: T
-): Omit<T, 'profileImageKey'> & { profileImageUrl: string | null } => {
+): Promise<Omit<T, 'profileImageKey'> & { profileImageUrl: string | null }> => {
   const { profileImageKey, ...rest } = user;
 
   return {
     ...rest,
-    profileImageUrl: toProfileImageUrl(profileImageKey),
+    profileImageUrl: await toPresignedViewUrl(profileImageKey),
   };
 };
 
@@ -103,12 +103,14 @@ const moversService = {
       reviewRepository.getReviewStatsByMoverIds(moverIds),
     ]);
 
-    const moversWithReviews = movers.map((mover) => ({
-      ...mover,
-      user: mapUserProfileImage(mover.user),
-      review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
-      isFavorited: favoritedMoverIds.has(mover.user.id),
-    }));
+    const moversWithReviews = await Promise.all(
+      movers.map(async (mover) => ({
+        ...mover,
+        user: await mapUserProfileImage(mover.user),
+        review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
+        isFavorited: favoritedMoverIds.has(mover.user.id),
+      }))
+    );
 
     const lastMover = movers.length > 0 ? movers[movers.length - 1] : undefined;
 
@@ -155,7 +157,7 @@ const moversService = {
       data: {
         moverDetail: {
           ...moverDetail,
-          user: mapUserProfileImage(moverDetail.user),
+          user: await mapUserProfileImage(moverDetail.user),
         },
         reviewStats,
         isFavorited: favorite != null,
@@ -189,28 +191,30 @@ const moversService = {
       countMoverFavoritedByMoverIds(moverIds),
     ]);
 
-    const favoritesWithDetails = favorites.map((favorite) => {
-      if (!favorite.moverId) {
+    const favoritesWithDetails = await Promise.all(
+      favorites.map(async (favorite) => {
+        if (!favorite.moverId) {
+          return {
+            ...favorite,
+            mover: favorite.mover
+              ? await mapUserProfileImage(favorite.mover)
+              : favorite.mover,
+            reviewStats: EMPTY_REVIEW_STATS,
+            favoritedCount: 0,
+          };
+        }
+
         return {
           ...favorite,
           mover: favorite.mover
-            ? mapUserProfileImage(favorite.mover)
+            ? await mapUserProfileImage(favorite.mover)
             : favorite.mover,
-          reviewStats: EMPTY_REVIEW_STATS,
-          favoritedCount: 0,
+          reviewStats:
+            reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
+          favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
         };
-      }
-
-      return {
-        ...favorite,
-        mover: favorite.mover
-          ? mapUserProfileImage(favorite.mover)
-          : favorite.mover,
-        reviewStats:
-          reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
-        favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
-      };
-    });
+      })
+    );
 
     const lastFavorite =
       favorites.length > 0 ? favorites[favorites.length - 1] : undefined;
