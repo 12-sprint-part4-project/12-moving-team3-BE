@@ -907,7 +907,7 @@ paths:
                       code: USER_TYPE_FORBIDDEN
                       message: 접근 권한이 없습니다.
                 forbidden:
-                  summary: 본인이 보낸 견적 아님
+                  summary: 본인 견적 아님
                   value:
                     error:
                       code: FORBIDDEN
