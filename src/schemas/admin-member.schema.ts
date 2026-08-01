@@ -15,3 +15,12 @@ export const adminMemberListQuerySchema = listQuerySchema
   .and(adminStatisticsFilterSchema);
 
 export type AdminMemberListQuery = z.infer<typeof adminMemberListQuerySchema>;
+
+/** 관리자 회원 상세 조회 Path Params 스키마 (실제 검증은 이후 구현) */
+export const adminMemberDetailParamsSchema = z.object({
+  memberId: z.string(),
+});
+
+export type AdminMemberDetailParams = z.infer<
+  typeof adminMemberDetailParamsSchema
+>;
