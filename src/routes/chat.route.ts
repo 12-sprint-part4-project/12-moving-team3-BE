@@ -232,7 +232,8 @@ router.get(
  *       TEXT: 전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
  *       IMAGE: 사전 `GET /api/presigned-upload-url?prefix=chat-attachments`로 업로드한 s3Key를 최대 5개까지 첨부합니다.
  *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
- *       Idempotency-Key·소켓 브로드캐스트는 이번 범위에 포함되지 않습니다.
+ *       성공 시 Socket.IO로 `chat:message`·수신자 `chat:unread`를 emit합니다.
+ *       Idempotency-Key는 이번 범위에 포함되지 않습니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
@@ -360,7 +361,7 @@ router.post(
  *       마지막으로 읽은 메시지(`lastReadMessageId`)를 기준으로 읽음 상태를 갱신합니다.
  *       활성 참여자만 처리할 수 있으며, 해당 방·재참여(joinedAt) 이후 메시지만 유효합니다.
  *       이미 더 앞선 메시지를 읽은 경우 현재 읽음 위치를 그대로 반환합니다(전진만 허용).
- *       소켓 브로드캐스트는 이번 범위에 포함되지 않습니다.
+ *       성공 시 Socket.IO로 `chat:read`·본인 `chat:unread`를 emit합니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
