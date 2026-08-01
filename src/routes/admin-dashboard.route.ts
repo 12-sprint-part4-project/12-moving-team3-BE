@@ -34,4 +34,10 @@ router.get(
   adminDashboardController.getRequestStatus
 );
 
+router.get(
+  '/recent-activities',
+  requireAdminAuth,
+  adminDashboardController.getRecentActivities
+);
+
 export default router;

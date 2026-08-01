@@ -164,3 +164,8 @@ export const getRequestStatus = async () => {
     completed,
   };
 };
+
+export const getRecentActivities = async () => {
+  const { start, end } = getDashboardChartDateRange('WEEK');
+  const dateRange = { gte: start, lte: end };
+};

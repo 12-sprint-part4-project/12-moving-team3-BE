@@ -45,7 +45,22 @@ export const getRequestStatus = async (
 ) => {
   try {
     const requestStatus = await adminDashboardService.getRequestStatus();
+
     res.status(200).json({ data: requestStatus });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getRecentActivities = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const recentActivities = await adminDashboardService.getRecentActivities();
+
+    res.status(200).json({ data: recentActivities });
   } catch (error) {
     next(error);
   }
