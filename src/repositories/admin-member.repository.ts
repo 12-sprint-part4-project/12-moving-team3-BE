@@ -1,6 +1,7 @@
 import { Prisma, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
+import { createDateRange } from '../utils/admin-date-range.util';
 
 /** 관리자 회원 목록 select — DTO 매핑에 필요한 필드만 조회 */
 const adminMemberListSelect = {
@@ -30,10 +31,17 @@ export type AdminMemberListRow = Prisma.UserGetPayload<{
  * status=ACTIVE 필터도 관계가 없는 회원을 함께 포함해야 목록/필터가 모순되지 않는다.
  */
 const buildAdminMemberListWhere = (
-  params: Pick<AdminMemberListQuery, 'userType' | 'status' | 'search'>
+  params: Pick<
+    AdminMemberListQuery,
+    'userType' | 'status' | 'search' | 'startDate' | 'endDate'
+  >
 ): Prisma.UserWhereInput => {
+  // 통계 API와 동일: startDate가 없으면 기간 필터를 두지 않는다.
+  const dateRange = createDateRange(params.startDate, params.endDate);
+
   const where: Prisma.UserWhereInput = {
     deletedAt: null,
+    ...(dateRange && { createdAt: dateRange }),
   };
 
   if (params.userType) {
