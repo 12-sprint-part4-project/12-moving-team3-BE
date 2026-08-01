@@ -30,3 +30,21 @@ export const getRequestTrendRows = async ({
   `;
   return result;
 };
+
+export const getCompletedEstimateRequestRecentActivities = async (
+  where: Prisma.EstimateRequestWhereInput
+) => {
+  return prisma.estimateRequest.findMany({
+    where,
+    select: {
+      id: true,
+      moveDate: true,
+      user: { select: { name: true } },
+      confirmedQuote: { select: { mover: { select: { name: true } } } },
+    },
+    orderBy: {
+      moveDate: 'desc',
+    },
+    take: 5,
+  });
+};
