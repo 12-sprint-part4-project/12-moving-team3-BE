@@ -22,6 +22,10 @@ import type {
 import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
 import { toProfileImageUrl } from '../utils/profile-image.util';
+import {
+  emitChatMessageCreated,
+  emitChatRoomRead,
+} from './chat-socket.service';
 import { createPresignedViewUrl, getObjectMetadata } from './s3.service';
 
 interface CreateChatRoomResult {
@@ -613,7 +617,14 @@ const sendTextMessage = async (
     });
   });
 
-  return toChatMessageItem(message);
+  const item = await toChatMessageItem(message);
+  await emitChatMessageCreated({
+    roomId,
+    senderId: authUser.userId,
+    message: item,
+  });
+
+  return item;
 };
 
 /**
@@ -634,7 +645,10 @@ const sendImageMessage = async (
 
   for (const fileKey of attachments) {
     if (!isValidChatAttachmentKey(fileKey)) {
-      throw new AppError('INVALID_REQUEST', '유효하지 않은 첨부 이미지 key입니다.');
+      throw new AppError(
+        'INVALID_REQUEST',
+        '유효하지 않은 첨부 이미지 key입니다.'
+      );
     }
   }
 
@@ -680,7 +694,14 @@ const sendImageMessage = async (
     });
   });
 
-  return toChatMessageItem(message);
+  const item = await toChatMessageItem(message);
+  await emitChatMessageCreated({
+    roomId,
+    senderId: authUser.userId,
+    message: item,
+  });
+
+  return item;
 };
 
 /** 방 존재·활성 참여·발송 가능 여부를 확인하고 실패 시 AppError를 던진다. */
@@ -773,6 +794,16 @@ export const markChatRoomAsRead = async (
     roomId,
     readerId: authUser.userId,
     lastReadMessageId: body.lastReadMessageId,
+  });
+
+  const participantIds = await chatRepository.findActiveParticipantIds(roomId);
+  const partnerIds = participantIds.filter((id) => id !== authUser.userId);
+
+  await emitChatRoomRead({
+    roomId,
+    readerId: authUser.userId,
+    lastReadMessageId: readStatus.lastReadMessageId,
+    partnerIds,
   });
 
   return { lastReadMessageId: readStatus.lastReadMessageId };
