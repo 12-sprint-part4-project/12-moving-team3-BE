@@ -3,6 +3,7 @@ import { AppError } from './app.error';
 
 const KAKAO_TOKEN_URL = 'https://kauth.kakao.com/oauth/token';
 const KAKAO_USER_ME_URL = 'https://kapi.kakao.com/v2/user/me';
+const KAKAO_REQUEST_TIMEOUT_MS = 10_000;
 
 export interface KakaoTokenResponse {
   accessToken: string;
@@ -17,6 +18,8 @@ export interface KakaoUserInfo {
   /** 카카오 회원번호 — AuthAccount.providerAccountId로 사용 */
   id: string;
   email?: string;
+  /** 카카오 이메일 소유 인증 여부 — 미인증 이메일은 계정 연결에 사용하지 않는다 */
+  isEmailVerified: boolean;
   nickname?: string;
   name?: string;
   profileImageUrl?: string;
@@ -40,6 +43,7 @@ interface KakaoUserMeApiResponse {
   id: number;
   kakao_account?: {
     email?: string;
+    is_email_verified?: boolean;
     name?: string;
     profile?: {
       nickname?: string;
@@ -79,6 +83,7 @@ export const exchangeKakaoAuthorizationCode = async (
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
       },
       body,
+      signal: AbortSignal.timeout(KAKAO_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     if (env.nodeEnv === 'development') {
@@ -87,9 +92,18 @@ export const exchangeKakaoAuthorizationCode = async (
     throw new AppError('KAKAO_TOKEN_EXCHANGE_FAILED');
   }
 
-  const payload = (await response.json()) as
-    | KakaoTokenApiSuccess
-    | KakaoTokenApiError;
+  let payload: KakaoTokenApiSuccess | KakaoTokenApiError;
+
+  try {
+    payload = (await response.json()) as
+      | KakaoTokenApiSuccess
+      | KakaoTokenApiError;
+  } catch (error) {
+    if (env.nodeEnv === 'development') {
+      console.error('[kakao] token exchange JSON parse error', error);
+    }
+    throw new AppError('KAKAO_TOKEN_EXCHANGE_FAILED');
+  }
 
   if (!response.ok || !('access_token' in payload) || !payload.access_token) {
     if (env.nodeEnv === 'development') {
@@ -129,6 +143,7 @@ export const fetchKakaoUserInfo = async (
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
       },
+      signal: AbortSignal.timeout(KAKAO_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     if (env.nodeEnv === 'development') {
@@ -148,11 +163,22 @@ export const fetchKakaoUserInfo = async (
     throw new AppError('KAKAO_USER_INFO_FAILED');
   }
 
-  const payload = (await response.json()) as KakaoUserMeApiResponse;
+  let payload: KakaoUserMeApiResponse;
+
+  try {
+    payload = (await response.json()) as KakaoUserMeApiResponse;
+  } catch (error) {
+    if (env.nodeEnv === 'development') {
+      console.error('[kakao] user info JSON parse error', error);
+    }
+    throw new AppError('KAKAO_USER_INFO_FAILED');
+  }
 
   if (typeof payload.id !== 'number') {
     if (env.nodeEnv === 'development') {
-      console.error('[kakao] user info missing id', payload);
+      console.error('[kakao] user info missing id', {
+        idType: typeof payload.id,
+      });
     }
     throw new AppError('KAKAO_USER_INFO_FAILED');
   }
@@ -162,6 +188,7 @@ export const fetchKakaoUserInfo = async (
   return {
     id: String(payload.id),
     email: account?.email,
+    isEmailVerified: account?.is_email_verified === true,
     nickname: account?.profile?.nickname,
     name: account?.name,
     profileImageUrl: account?.profile?.profile_image_url,

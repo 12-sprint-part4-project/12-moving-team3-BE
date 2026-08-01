@@ -73,7 +73,7 @@ export interface KakaoLoginServiceResult extends LoginServiceResult {
   isNewUser: boolean;
 }
 
-interface AuthSessionUser {
+interface KakaoAuthUser {
   id: string;
   userType: UserType;
   nickname: string;
@@ -92,7 +92,7 @@ const toApiUserType = (userType: UserType): ApiUserType => {
 };
 
 const issueAuthSession = async (
-  user: AuthSessionUser,
+  user: KakaoAuthUser,
   device: DeviceType
 ): Promise<LoginServiceResult> => {
   const apiUserType = toApiUserType(user.userType);
@@ -101,10 +101,7 @@ const issueAuthSession = async (
   const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
   await prisma.$transaction(async (tx) => {
-    // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
     await authRepository.deleteRefreshTokensByUserId(user.id, tx);
-
-    // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
     await authRepository.createRefreshTokenRecord(
       {
         userId: user.id,
@@ -166,6 +163,10 @@ const createKakaoUser = async (
   }
 
   const email = kakaoUser.email.trim().toLowerCase();
+
+  if (!kakaoUser.isEmailVerified) {
+    throw new AppError('KAKAO_EMAIL_NOT_VERIFIED');
+  }
 
   // 카카오 실명(name) 권한은 사업자 비즈앱 필요 → 소셜 가입 시 name = nickname
   const nickname = await resolveUniqueKakaoNickname(
@@ -241,6 +242,12 @@ const linkKakaoToExistingUser = async (
   }
 
   const email = kakaoUser.email.trim().toLowerCase();
+
+  // 미인증 이메일로는 기존 계정 자동 연결을 하지 않는다
+  if (!kakaoUser.isEmailVerified) {
+    throw new AppError('KAKAO_EMAIL_NOT_VERIFIED');
+  }
+
   const existing = await authRepository.findUserWithKakaoAuthByEmail(email);
 
   if (!existing) {
@@ -257,13 +264,46 @@ const linkKakaoToExistingUser = async (
     throw new AppError('EMAIL_ALREADY_EXISTS');
   }
 
-  if (!linkedKakao) {
-    await authRepository.linkKakaoAuthToUser(existing.id, kakaoUser.id);
-  }
-
   const { authAccounts: _authAccounts, ...user } = existing;
+  const apiUserType = toApiUserType(user.userType);
+  const accessToken = createAccessToken(user.id, apiUserType);
+  const refreshToken = createRefreshToken(user.id);
+  const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
-  return issueAuthSession(user, device);
+  await prisma.$transaction(async (tx) => {
+    if (!linkedKakao) {
+      await authRepository.linkKakaoAuthToUser(existing.id, kakaoUser.id, tx);
+    }
+
+    await authRepository.deleteRefreshTokensByUserId(user.id, tx);
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: user.id,
+        tokenHash: hashAuthRefreshToken(refreshToken),
+        device,
+        expiresAt,
+      },
+      tx
+    );
+  });
+
+  return {
+    user: {
+      id: user.id,
+      userType: apiUserType,
+      nickname: user.nickname,
+      email: user.email,
+      phoneNumber: user.phoneNumber ?? '',
+      isProfileCompleted: resolveIsProfileCompleted(
+        user.userType,
+        user.customerProfile,
+        user.moverProfile
+      ),
+    },
+    accessToken,
+    refreshToken,
+    refreshTokenMaxAgeMs: maxAgeMs,
+  };
 };
 
 export const login = async (
@@ -286,11 +326,49 @@ export const login = async (
     throw new AppError('INVALID_CREDENTIALS');
   }
 
-  if (toApiUserType(user.userType) !== input.userType) {
+  const apiUserType = toApiUserType(user.userType);
+
+  if (apiUserType !== input.userType) {
     throw new AppError('USER_TYPE_MISMATCH');
   }
 
-  return issueAuthSession(user, input.device);
+  const accessToken = createAccessToken(user.id, apiUserType);
+  const refreshToken = createRefreshToken(user.id);
+  const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
+
+  await prisma.$transaction(async (tx) => {
+    // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
+    await authRepository.deleteRefreshTokensByUserId(user.id, tx);
+
+    // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: user.id,
+        tokenHash: hashAuthRefreshToken(refreshToken),
+        device: input.device,
+        expiresAt,
+      },
+      tx
+    );
+  });
+
+  return {
+    user: {
+      id: user.id,
+      userType: apiUserType,
+      nickname: user.nickname,
+      email: user.email,
+      phoneNumber: user.phoneNumber ?? '',
+      isProfileCompleted: resolveIsProfileCompleted(
+        user.userType,
+        user.customerProfile,
+        user.moverProfile
+      ),
+    },
+    accessToken,
+    refreshToken,
+    refreshTokenMaxAgeMs: maxAgeMs,
+  };
 };
 
 export const signup = async (
