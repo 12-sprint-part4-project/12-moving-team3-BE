@@ -10,17 +10,28 @@ import type {
 } from '../sockets/socket.types';
 import { resolveUnreadPayload } from '../utils/chat-unread.util';
 
+interface ChatMessageCreatedParams {
+  roomId: number;
+  senderId: string;
+  message: ChatMessagePayload['message'];
+}
+
+interface ChatRoomReadParams {
+  roomId: number;
+  readerId: string;
+  lastReadMessageId: number;
+  partnerIds: string[];
+}
+
 /**
  * 새 메시지를 참여자에게 알리고, 수신자 미읽음 뱃지를 갱신한다.
  * - 메시지는 유저 룸으로만 전송(방 join 여부와 무관, 중복 방지)
  * - Socket.IO 미초기화 시 no-op
  * - 알림 실패는 REST 응답에 영향을 주지 않도록 내부에서 처리한다
  */
-export const emitChatMessageCreated = async (params: {
-  roomId: number;
-  senderId: string;
-  message: ChatMessagePayload['message'];
-}): Promise<void> => {
+export const emitChatMessageCreated = async (
+  params: ChatMessageCreatedParams
+): Promise<void> => {
   try {
     const io = getChatIo();
     if (!io) {
@@ -62,12 +73,9 @@ export const emitChatMessageCreated = async (params: {
  * Socket.IO 미초기화 시 no-op.
  * 알림 실패는 REST 응답에 영향을 주지 않도록 내부에서 처리한다.
  */
-export const emitChatRoomRead = async (params: {
-  roomId: number;
-  readerId: string;
-  lastReadMessageId: number;
-  partnerIds: string[];
-}): Promise<void> => {
+export const emitChatRoomRead = async (
+  params: ChatRoomReadParams
+): Promise<void> => {
   try {
     const io = getChatIo();
     if (!io) {
