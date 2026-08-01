@@ -21,7 +21,7 @@ export const getRequestTrendRows = async ({
   const trunc = Prisma.raw(`'${groupBy}'`);
   const result = await prisma.$queryRaw<RequestTrendRow[]>`
     SELECT
-      DATE_TRUNC(${trunc}, submitted_at) AS bucket,
+      DATE_TRUNC(${trunc}, submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul') AS bucket,
       COUNT(*) AS count
     FROM estimate_requests
     WHERE submitted_at BETWEEN ${start} AND ${end}
