@@ -1,0 +1,101 @@
+import { Prisma, UserStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
+
+/** 관리자 회원 목록 select — DTO 매핑에 필요한 필드만 조회 */
+const adminMemberListSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  email: true,
+  phoneNumber: true,
+  userType: true,
+  createdAt: true,
+  userStatus: {
+    select: {
+      status: true,
+      suspendedAt: true,
+      suspendedUntil: true,
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+export type AdminMemberListRow = Prisma.UserGetPayload<{
+  select: typeof adminMemberListSelect;
+}>;
+
+/**
+ * 목록/카운트에 공통으로 쓰는 where.
+ * Service는 관계 부재를 ACTIVE로 정규화하므로,
+ * status=ACTIVE 필터도 관계가 없는 회원을 함께 포함해야 목록/필터가 모순되지 않는다.
+ */
+const buildAdminMemberListWhere = (
+  params: Pick<AdminMemberListQuery, 'userType' | 'status' | 'search'>
+): Prisma.UserWhereInput => {
+  const where: Prisma.UserWhereInput = {
+    deletedAt: null,
+  };
+
+  if (params.userType) {
+    where.userType = params.userType;
+  }
+
+  // search OR와 status OR가 섞이지 않도록 AND로 묶는다.
+  const andConditions: Prisma.UserWhereInput[] = [];
+
+  if (params.status === UserStatus.ACTIVE) {
+    andConditions.push({
+      OR: [
+        { userStatus: { is: null } },
+        { userStatus: { is: { status: UserStatus.ACTIVE } } },
+      ],
+    });
+  } else if (params.status) {
+    andConditions.push({
+      userStatus: {
+        is: {
+          status: params.status,
+        },
+      },
+    });
+  }
+
+  if (params.search) {
+    andConditions.push({
+      OR: [
+        { name: { contains: params.search, mode: 'insensitive' } },
+        { nickname: { contains: params.search, mode: 'insensitive' } },
+        { email: { contains: params.search, mode: 'insensitive' } },
+        { phoneNumber: { contains: params.search, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
+  }
+
+  return where;
+};
+
+/** 관리자 회원 목록 + 전체 건수 조회 (totalPages는 Service에서 계산) */
+export const findAdminMembersWithCount = async (
+  params: AdminMemberListQuery
+): Promise<{ items: AdminMemberListRow[]; totalCount: number }> => {
+  const where = buildAdminMemberListWhere(params);
+  const skip = (params.page - 1) * params.pageSize;
+
+  const [items, totalCount] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      select: adminMemberListSelect,
+      // createdAt이 같으면 id로 tie-break해 offset 페이지네이션 순서를 안정화한다.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip,
+      take: params.pageSize,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return { items, totalCount };
+};
