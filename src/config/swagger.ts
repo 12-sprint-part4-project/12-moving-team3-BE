@@ -252,6 +252,22 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        RefreshResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['accessToken'],
+              properties: {
+                accessToken: {
+                  type: 'string',
+                  description: '재발급된 Access Token (JWT)',
+                },
+              },
+            },
+          },
+        },
         KakaoLoginRequest: {
           type: 'object',
           required: ['code', 'userType'],

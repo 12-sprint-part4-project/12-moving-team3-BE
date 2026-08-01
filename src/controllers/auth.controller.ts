@@ -69,6 +69,24 @@ export const logout = async (req: Request, res: Response) => {
   });
 };
 
+export const refreshAuthToken = async (req: Request, res: Response) => {
+  const result = await authService.refreshAuthToken(
+    req.cookies?.[AUTH_REFRESH_TOKEN_COOKIE_NAME]
+  );
+
+  setAuthRefreshTokenCookie(
+    res,
+    result.refreshToken,
+    result.refreshTokenMaxAgeMs
+  );
+
+  res.status(200).json({
+    data: {
+      accessToken: result.accessToken,
+    },
+  });
+};
+
 export const kakaoLogin = async (req: Request, res: Response) => {
   const body = parseKakaoLoginBody(req.body);
 

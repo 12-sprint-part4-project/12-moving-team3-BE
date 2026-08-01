@@ -1,4 +1,5 @@
 import { UserType, type DeviceType } from '@prisma/client';
+import { JsonWebTokenError } from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import * as authRepository from '../repositories/auth.repository';
 import type {
@@ -12,6 +13,7 @@ import {
   createAccessToken,
   createRefreshToken,
   getAuthRefreshTokenExpiry,
+  verifyRefreshToken,
 } from '../utils/auth-jwt.util';
 import {
   AUTH_PASSWORD_DUMMY_HASH,
@@ -523,6 +525,73 @@ export const kakaoLogin = async (
 
     throw error;
   }
+};
+
+export const refreshAuthToken = async (
+  refreshToken: string | undefined
+): Promise<{
+  accessToken: string;
+  refreshToken: string;
+  refreshTokenMaxAgeMs: number;
+}> => {
+  if (!refreshToken) {
+    throw new AppError('UNAUTHORIZED');
+  }
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(refreshToken);
+  } catch (error) {
+    if (error instanceof JsonWebTokenError) {
+      throw new AppError('UNAUTHORIZED');
+    }
+    throw error;
+  }
+
+  const tokenHash = hashAuthRefreshToken(refreshToken);
+
+  return prisma.$transaction(async (tx) => {
+    const record = await authRepository.findRefreshTokenByHash(tokenHash, tx);
+
+    if (
+      !record ||
+      record.expiresAt.getTime() <= Date.now() ||
+      payload.sub !== record.userId
+    ) {
+      throw new AppError('UNAUTHORIZED');
+    }
+
+    const { count } = await authRepository.deleteRefreshTokenByHash(
+      tokenHash,
+      tx
+    );
+
+    // 동시 Rotation 등으로 이미 삭제된 토큰이면 재발급하지 않는다.
+    if (count === 0) {
+      throw new AppError('UNAUTHORIZED');
+    }
+
+    const apiUserType = toApiUserType(record.user.userType);
+    const accessToken = createAccessToken(record.user.id, apiUserType);
+    const nextRefreshToken = createRefreshToken(record.user.id);
+    const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(nextRefreshToken);
+
+    await authRepository.createRefreshTokenRecord(
+      {
+        userId: record.user.id,
+        tokenHash: hashAuthRefreshToken(nextRefreshToken),
+        device: record.device,
+        expiresAt,
+      },
+      tx
+    );
+
+    return {
+      accessToken,
+      refreshToken: nextRefreshToken,
+      refreshTokenMaxAgeMs: maxAgeMs,
+    };
+  });
 };
 
 /**
