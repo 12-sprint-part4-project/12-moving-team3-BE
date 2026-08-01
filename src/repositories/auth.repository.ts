@@ -127,6 +127,18 @@ export const deleteRefreshTokensByUserId = async (
   });
 };
 
+export const findRefreshTokenByHash = async (tokenHash: string) => {
+  return prisma.refreshToken.findUnique({
+    where: { tokenHash },
+    select: {
+      userId: true,
+      device: true,
+      expiresAt: true,
+      user: { select: { id: true, userType: true } },
+    },
+  });
+};
+
 /**
  * 로그아웃용 멱등 삭제. 레코드가 없어도 예외를 내지 않는다.
  * tokenHash 한 건만 대상으로 하며 사용자 전체 토큰은 지우지 않는다.

@@ -235,6 +235,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Access Token 재발급
+      description: |
+        httpOnly Cookie(refreshToken)로 Access Token을 재발급합니다.
+        성공 시 Refresh Token도 Rotation되어 Set-Cookie로 교체됩니다.
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 재발급 성공
+          headers:
+            Set-Cookie:
+              description: 교체된 Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          description: Refresh Token 누락·만료·무효
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/auth/logout:
     post:
       tags: [Auth]
