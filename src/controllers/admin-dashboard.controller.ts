@@ -21,3 +21,19 @@ export const getStatistics = async (
     next(error);
   }
 };
+
+export const getRequestTrend = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { period } = res.locals.validated.query;
+
+    const requestTrend = await adminDashboardService.getRequestTrend(period);
+
+    res.status(200).json({ data: requestTrend });
+  } catch (error) {
+    next(error);
+  }
+};
