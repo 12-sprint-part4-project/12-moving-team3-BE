@@ -40,7 +40,7 @@ import {
 } from '../schemas/quote.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
-import { toProfileImageUrl } from '../utils/profile-image.util';
+import { toPresignedViewUrl } from './s3.service';
 import { inferDistrictLabelFromAddress } from '../utils/region.util';
 
 // --- [기사님(MOVER)용 API] ---
@@ -514,12 +514,12 @@ const toAverageRating = (ratingSum: number, reviewCount: number): number => {
 /**
  * 기사님 카드 DTO 변환
  */
-const toCustomerQuoteMoverDto = (
+const toCustomerQuoteMoverDto = async (
   mover: CustomerQuoteMoverRow
-): CustomerQuoteMoverDto => ({
+): Promise<CustomerQuoteMoverDto> => ({
   moverId: mover.id,
   nickname: mover.nickname,
-  profileImage: toProfileImageUrl(mover.profileImageKey),
+  profileImage: await toPresignedViewUrl(mover.profileImageKey),
   rating: toAverageRating(mover.ratingSum, mover.reviewCount),
   reviewCount: mover.reviewCount,
   career: mover.career,
@@ -531,10 +531,10 @@ const toCustomerQuoteMoverDto = (
 /**
  * 고객 견적 아이템 DTO 변환
  */
-const toCustomerQuoteItemDto = (
+const toCustomerQuoteItemDto = async (
   quote: CustomerQuoteRow,
   moverMap: Map<string, CustomerQuoteMoverRow>
-): CustomerQuoteItemDto | null => {
+): Promise<CustomerQuoteItemDto | null> => {
   if (!quote.moverId) return null;
 
   const mover = moverMap.get(quote.moverId);
@@ -545,20 +545,23 @@ const toCustomerQuoteItemDto = (
     price: quote.price,
     status: quote.status,
     isDesignated: quote.isDesignated,
-    mover: toCustomerQuoteMoverDto(mover),
+    mover: await toCustomerQuoteMoverDto(mover),
   };
 };
 
 /**
  * 견적 목록을 기사님 카드와 함께 DTO로 변환
  */
-const mapCustomerQuoteItems = (
+const mapCustomerQuoteItems = async (
   quotes: CustomerQuoteRow[],
   moverMap: Map<string, CustomerQuoteMoverRow>
-): CustomerQuoteItemDto[] =>
-  quotes
-    .map((quote) => toCustomerQuoteItemDto(quote, moverMap))
-    .filter((item): item is CustomerQuoteItemDto => item != null);
+): Promise<CustomerQuoteItemDto[]> => {
+  const items = await Promise.all(
+    quotes.map((quote) => toCustomerQuoteItemDto(quote, moverMap))
+  );
+
+  return items.filter((item): item is CustomerQuoteItemDto => item != null);
+};
 
 /**
  * 견적 목록에 필요한 기사님 카드 일괄 조회·매핑
@@ -582,17 +585,17 @@ const buildCustomerQuoteItems = async (
 /**
  * 과거 견적 요청 그룹 DTO 변환
  */
-const toPastQuoteGroupDto = (
+const toPastQuoteGroupDto = async (
   row: CustomerPastEstimateRequestRow,
   moverMap: Map<string, CustomerQuoteMoverRow>
-): CustomerPastQuoteGroupDto => ({
+): Promise<CustomerPastQuoteGroupDto> => ({
   estimateRequestId: row.id,
   submittedAt: row.submittedAt,
   serviceType: row.moveType,
   moveDate: row.moveDate,
   fromAddress: inferDistrictLabelFromAddress(row.departureAddress),
   toAddress: inferDistrictLabelFromAddress(row.arrivalAddress),
-  quotes: mapCustomerQuoteItems(row.quotes, moverMap),
+  quotes: await mapCustomerQuoteItems(row.quotes, moverMap),
 });
 
 /**
@@ -612,7 +615,7 @@ const buildPastQuoteGroups = async (
     customerId
   );
 
-  return rows.map((row) => toPastQuoteGroupDto(row, moverMap));
+  return Promise.all(rows.map((row) => toPastQuoteGroupDto(row, moverMap)));
 };
 
 /**
@@ -739,7 +742,7 @@ export const getCustomerQuoteDetail = async (
     moveDate: quote.estimateRequest.moveDate,
     fromAddress: quote.estimateRequest.departureAddress,
     toAddress: quote.estimateRequest.arrivalAddress,
-    mover: toCustomerQuoteMoverDto(mover),
+    mover: await toCustomerQuoteMoverDto(mover),
   };
 };
 

@@ -3,7 +3,7 @@ import * as commentRepository from '../repositories/comment.repository';
 import type { CommentCursor } from '../repositories/comment.repository';
 import * as postRepository from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
-import { toProfileImageUrl } from '../utils/profile-image.util';
+import { toPresignedViewUrl } from './s3.service';
 
 const isCommentCursor = (value: unknown): value is CommentCursor => {
   if (typeof value !== 'object' || value === null) {
@@ -49,17 +49,17 @@ const decodeCursor = (cursor: string): CommentCursor => {
   return decoded;
 };
 
-const mapAuthor = (user: {
+const mapAuthor = async (user: {
   id: string;
   nickname: string;
   profileImageKey: string | null;
 }) => ({
   id: user.id,
   nickname: user.nickname,
-  profileImageUrl: toProfileImageUrl(user.profileImageKey),
+  profileImageUrl: await toPresignedViewUrl(user.profileImageKey),
 });
 
-const mapCommentItem = (
+const mapCommentItem = async (
   comment: {
     id: number;
     userId: string;
@@ -75,7 +75,7 @@ const mapCommentItem = (
 ) => ({
   id: comment.id,
   content: comment.content,
-  author: mapAuthor(comment.user),
+  author: await mapAuthor(comment.user),
   isMine: userId ? comment.userId === userId : null,
   createdAt: comment.createdAt,
 });
@@ -122,12 +122,16 @@ export const getComments = async (
     repliesByParentId.set(reply.parentId, existing);
   }
 
-  const items = topLevel.map((comment) => ({
-    ...mapCommentItem(comment, userId),
-    replies: (repliesByParentId.get(comment.id) ?? []).map((reply) =>
-      mapCommentItem(reply, userId)
-    ),
-  }));
+  const items = await Promise.all(
+    topLevel.map(async (comment) => ({
+      ...(await mapCommentItem(comment, userId)),
+      replies: await Promise.all(
+        (repliesByParentId.get(comment.id) ?? []).map((reply) =>
+          mapCommentItem(reply, userId)
+        )
+      ),
+    }))
+  );
 
   const lastRow =
     topLevel.length > 0 ? topLevel[topLevel.length - 1] : undefined;
@@ -234,10 +238,7 @@ export const deleteComment = async (
     throw new AppError('COMMENT_FORBIDDEN');
   }
 
-  const result = await commentRepository.softDeleteComment(
-    commentId,
-    postId
-  );
+  const result = await commentRepository.softDeleteComment(commentId, postId);
 
   if (result.count === 0) {
     throw new AppError('COMMENT_NOT_FOUND');

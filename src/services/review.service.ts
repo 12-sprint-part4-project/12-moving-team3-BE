@@ -6,7 +6,7 @@ import reviewRepository from '../repositories/review.repository';
 import type { ReviewBody } from '../schemas/review.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateReached } from '../utils/date.util';
-import { toProfileImageUrl } from '../utils/profile-image.util';
+import { toPresignedViewUrl } from './s3.service';
 
 /** 목록 조회 공통 페이지네이션 메타 */
 export interface ReviewPaginationMeta {
@@ -226,8 +226,8 @@ export const getCustomerWritableQuotes = async (
     { page, limit }
   );
 
-  const writableQuotes: WritableQuoteListItem[] = listResult.items.map(
-    (quote) => ({
+  const writableQuotes: WritableQuoteListItem[] = await Promise.all(
+    listResult.items.map(async (quote) => ({
       quoteId: quote.id,
       moveType: quote.estimateRequest.moveType,
       isDesignated: quote.isDesignated,
@@ -237,10 +237,12 @@ export const getCustomerWritableQuotes = async (
         ? {
             id: quote.mover.id,
             name: quote.mover.name,
-            profileImageUrl: toProfileImageUrl(quote.mover.profileImageKey),
+            profileImageUrl: await toPresignedViewUrl(
+              quote.mover.profileImageKey
+            ),
           }
         : null,
-    })
+    }))
   );
 
   return {
@@ -266,32 +268,36 @@ export const getCustomerReviews = async (
     limit,
   });
 
-  const reviews: CustomerReviewListItem[] = listResult.items.map((review) => {
-    const quote = review.quote;
+  const reviews: CustomerReviewListItem[] = await Promise.all(
+    listResult.items.map(async (review) => {
+      const quote = review.quote;
 
-    return {
-      id: review.id,
-      rating: review.rating,
-      content: review.content,
-      createdAt: review.createdAt,
-      mover: quote?.mover
-        ? {
-            id: quote.mover.id,
-            name: quote.mover.name,
-            profileImageUrl: toProfileImageUrl(quote.mover.profileImageKey),
-          }
-        : null,
-      quote: quote
-        ? {
-            id: quote.id,
-            moveType: quote.estimateRequest.moveType,
-            moveDate: formatDateOnly(quote.estimateRequest.moveDate),
-            price: quote.price,
-            isDesignated: quote.isDesignated,
-          }
-        : null,
-    };
-  });
+      return {
+        id: review.id,
+        rating: review.rating,
+        content: review.content,
+        createdAt: review.createdAt,
+        mover: quote?.mover
+          ? {
+              id: quote.mover.id,
+              name: quote.mover.name,
+              profileImageUrl: await toPresignedViewUrl(
+                quote.mover.profileImageKey
+              ),
+            }
+          : null,
+        quote: quote
+          ? {
+              id: quote.id,
+              moveType: quote.estimateRequest.moveType,
+              moveDate: formatDateOnly(quote.estimateRequest.moveDate),
+              price: quote.price,
+              isDesignated: quote.isDesignated,
+            }
+          : null,
+      };
+    })
+  );
 
   return {
     reviews,
