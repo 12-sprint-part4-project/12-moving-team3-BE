@@ -160,6 +160,31 @@ export const ERROR_CODES = {
     status: 400,
     message: '이메일과 비밀번호를 모두 입력해 주세요.',
   },
+  KAKAO_CODE_REQUIRED: {
+    status: 400,
+    message: '카카오 인가 코드가 필요합니다.',
+  },
+  KAKAO_CONFIG_MISSING: {
+    status: 500,
+    message: '카카오 로그인 설정이 올바르지 않습니다.',
+  },
+  KAKAO_TOKEN_EXCHANGE_FAILED: {
+    status: 401,
+    message: '카카오 인가 코드로 토큰을 발급받지 못했습니다.',
+  },
+  KAKAO_USER_INFO_FAILED: {
+    status: 401,
+    message: '카카오 사용자 정보를 조회하지 못했습니다.',
+  },
+  KAKAO_EMAIL_REQUIRED: {
+    status: 400,
+    message: '카카오 계정에 이메일이 필요합니다. 카카오에서 이메일 제공에 동의해 주세요.',
+  },
+  KAKAO_EMAIL_NOT_VERIFIED: {
+    status: 400,
+    message:
+      '카카오에서 인증되지 않은 이메일은 사용할 수 없습니다. 카카오 계정에서 이메일을 인증해 주세요.',
+  },
   INVALID_CREDENTIALS: {
     status: 401,
     message: '이메일 또는 비밀번호가 일치하지 않습니다.',
