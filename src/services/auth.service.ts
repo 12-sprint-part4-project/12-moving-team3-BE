@@ -73,7 +73,7 @@ export interface KakaoLoginServiceResult extends LoginServiceResult {
   isNewUser: boolean;
 }
 
-type KakaoAuthUser = {
+interface KakaoAuthUser {
   id: string;
   userType: UserType;
   nickname: string;
@@ -81,7 +81,7 @@ type KakaoAuthUser = {
   phoneNumber: string | null;
   customerProfile: { id: number; service: unknown[] } | null;
   moverProfile: { id: number; service: unknown[] } | null;
-};
+}
 
 const toPrismaUserType = (userType: ApiUserType): UserType => {
   return userType === 'MOVER' ? UserType.MOVER : UserType.CUSTOMER;
