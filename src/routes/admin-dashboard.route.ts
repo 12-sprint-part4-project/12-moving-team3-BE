@@ -17,6 +17,7 @@ router.get(
   adminDashboardController.getStatistics
 );
 
+// 견적 요청 건수 추이 조회 (Swagger: src/docs/admin-dashboard.swagger.yaml)
 router.get(
   '/charts/request-trend',
   requireAdminAuth,
@@ -34,6 +35,7 @@ router.get(
   adminDashboardController.getRequestStatus
 );
 
+// 최근 활동 조회 (Swagger: src/docs/admin-dashboard.swagger.yaml)
 router.get(
   '/recent-activities',
   requireAdminAuth,
