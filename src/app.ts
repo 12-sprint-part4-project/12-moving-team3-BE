@@ -1,33 +1,36 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
+import http from 'http';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
-import { swaggerSpec } from './config/swagger';
-import { errorHandler } from './middlewares/error.handler';
-import favoritesRouter from './routes/favorites.route';
-import adminAuthRouter from './routes/admin-auth.route';
-import adminDashboardRouter from './routes/admin-dashboard.route';
-import moversRouter from './routes/movers.route';
-import moverRouter from './routes/mover.route';
-import customerRouter from './routes/customer.route';
-import chatRouter from './routes/chat.route';
-import authRouter from './routes/auth.route';
-import estimateRequestRouter from './routes/estimate-request.route';
-import testRouter from './routes/test.route';
-import communityRouter from './routes/community.route';
-import reviewRouter from './routes/review.route';
-import reportRouter from './routes/report.route';
-import presignedUrlRouter from './routes/presigned-url.route';
-import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
-import adminReviewRouter from './routes/admin-review.route';
-import adminReportRouter from './routes/admin-report.route';
-import notificationRouter from './routes/notification.route';
-import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
-import adminCompletedRouter from './routes/admin-completed.route';
 import env from './config/env';
+import { swaggerSpec } from './config/swagger';
+import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
+import { errorHandler } from './middlewares/error.handler';
+import adminAuthRouter from './routes/admin-auth.route';
+import adminCompletedRouter from './routes/admin-completed.route';
+import adminDashboardRouter from './routes/admin-dashboard.route';
+import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
+import adminReportRouter from './routes/admin-report.route';
+import adminReviewRouter from './routes/admin-review.route';
+import authRouter from './routes/auth.route';
+import chatRouter from './routes/chat.route';
+import communityRouter from './routes/community.route';
+import customerRouter from './routes/customer.route';
+import estimateRequestRouter from './routes/estimate-request.route';
+import favoritesRouter from './routes/favorites.route';
+import moverRouter from './routes/mover.route';
+import moversRouter from './routes/movers.route';
+import notificationRouter from './routes/notification.route';
+import presignedUrlRouter from './routes/presigned-url.route';
+import reportRouter from './routes/report.route';
+import reviewRouter from './routes/review.route';
+import testRouter from './routes/test.route';
+import { initChatSocket } from './sockets';
 
 const app = express();
+const httpServer = http.createServer(app);
 
 const corsOrigins = (env.corsOrigin ?? '')
   .split(',')
@@ -95,7 +98,9 @@ app.use('/api', presignedUrlRouter);
 
 app.use(errorHandler);
 
-app.listen(env.port, () => {
+initChatSocket(httpServer);
+
+httpServer.listen(env.port, () => {
   console.log(`Server is running on port ${env.port}`);
   if (env.nodeEnv !== 'production') {
     console.log(`Swagger docs: ${env.apiBaseUrl}/api-docs`);
