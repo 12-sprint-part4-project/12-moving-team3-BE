@@ -5,6 +5,7 @@ import {
   toUserSocketRoom,
 } from '../constants/chat-socket.constants';
 import * as chatRepository from '../repositories/chat.repository';
+import { resolveUnreadPayload } from '../utils/chat-unread.util';
 import type { ChatSocket } from './socket.types';
 
 const isPositiveInt = (value: unknown): value is number =>
@@ -47,23 +48,11 @@ export const registerChatSocketHandlers = (socket: ChatSocket) => {
       await socket.join(toChatSocketRoom(roomId));
 
       // 방 진입 시 해당 방 미읽음 UI를 0으로 맞춘다. DB 읽음은 REST /read가 담당한다.
-      const roomFilters =
-        await chatRepository.findActiveRoomFiltersByUserId(userId);
-        
-      const unreadByRoom = await chatRepository.findUnreadCountsByRooms(
-        userId,
-        roomFilters
-      );
-
-      let unreadCount = 0;
-      for (const count of unreadByRoom.values()) {
-        unreadCount += count;
-      }
-
+      const base = await resolveUnreadPayload(userId, roomId);
       socket.emit(CHAT_SOCKET_SERVER_EVENTS.UNREAD, {
         roomId,
         roomUnreadCount: 0,
-        unreadCount: Math.max(0, unreadCount - (unreadByRoom.get(roomId) ?? 0)),
+        unreadCount: Math.max(0, base.unreadCount - base.roomUnreadCount),
       });
 
       ack?.({ ok: true });
