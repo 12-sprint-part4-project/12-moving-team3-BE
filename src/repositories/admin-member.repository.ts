@@ -89,7 +89,8 @@ export const findAdminMembersWithCount = async (
     prisma.user.findMany({
       where,
       select: adminMemberListSelect,
-      orderBy: { createdAt: 'desc' },
+      // createdAt이 같으면 id로 tie-break해 offset 페이지네이션 순서를 안정화한다.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip,
       take: params.pageSize,
     }),
