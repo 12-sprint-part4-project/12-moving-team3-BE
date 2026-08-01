@@ -8,13 +8,20 @@ import {
   createDateRange,
   getDashboardChartDateRange,
 } from '../utils/admin-date-range.util';
-import { getUserCount } from '../repositories/admin-user.repository';
 import {
+  getUserCount,
+  getUserRecentActivities,
+} from '../repositories/admin-user.repository';
+import {
+  getCompletedEstimateRequestRecentActivities,
   getEstimateRequestCount,
   getRequestTrendRows,
 } from '../repositories/admin-estimate-request.repository';
 import { getQuoteCount } from '../repositories/admin-quote.repository';
-import { getTotalReportCount } from '../repositories/admin-report.repository';
+import {
+  getTotalReportCount,
+  getUserReportRecentActivities,
+} from '../repositories/admin-report.repository';
 import { AdminDashboardRequestTrendFilter } from '../schemas/admin-dashboard.schema';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -133,4 +140,61 @@ export const getRequestTrend = async (
   }));
 
   return result;
+};
+
+export const getRequestStatus = async () => {
+  const { start, end } = getDashboardChartDateRange('MONTH');
+  const dateRange = { gte: start, lte: end };
+
+  const [total, requested, matched, completed] = await Promise.all([
+    getEstimateRequestCount({
+      status: { not: EstimateRequestStatus.DRAFT },
+      submittedAt: dateRange,
+    }),
+    getEstimateRequestCount({
+      status: EstimateRequestStatus.SUBMITTED,
+      submittedAt: dateRange,
+    }),
+    getEstimateRequestCount({
+      status: EstimateRequestStatus.CONFIRMED,
+      submittedAt: dateRange,
+    }),
+    getEstimateRequestCount({
+      status: EstimateRequestStatus.COMPLETED,
+      submittedAt: dateRange,
+    }),
+  ]);
+
+  return {
+    total,
+    requested,
+    matched,
+    completed,
+  };
+};
+
+export const getRecentActivities = async () => {
+  const { start, end } = getDashboardChartDateRange('WEEK');
+  const dateRange = { gte: start, lte: end };
+
+  const [recentReports, recentUsers, recentCompletedRequests] =
+    await Promise.all([
+      getUserReportRecentActivities({
+        createdAt: dateRange,
+      }),
+      getUserRecentActivities({
+        createdAt: dateRange,
+        deletedAt: null,
+      }),
+      getCompletedEstimateRequestRecentActivities({
+        status: EstimateRequestStatus.COMPLETED,
+        moveDate: dateRange,
+      }),
+    ]);
+
+  return {
+    recentReports,
+    recentUsers,
+    recentCompletedRequests,
+  };
 };

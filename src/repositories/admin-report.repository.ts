@@ -6,3 +6,21 @@ export const getTotalReportCount = async (
 ) => {
   return prisma.userReport.count({ where });
 };
+
+export const getUserReportRecentActivities = async (
+  where: Prisma.UserReportWhereInput
+) => {
+  return prisma.userReport.findMany({
+    where,
+    select: {
+      createdAt: true,
+      target: true,
+      category: true,
+      status: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: 5,
+  });
+};
