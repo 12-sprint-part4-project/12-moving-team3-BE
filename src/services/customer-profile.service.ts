@@ -7,9 +7,8 @@ import {
   hashAuthPassword,
 } from '../utils/auth-password.util';
 import { AppError } from '../utils/app.error';
-import { toProfileImageUrl } from '../utils/profile-image.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
-import { deleteImage } from './s3.service';
+import { deleteImage, toPresignedViewUrl } from './s3.service';
 
 export interface RegisterCustomerProfileInput {
   userId: string;
@@ -112,7 +111,7 @@ export const getCustomerProfile = async (userId: string) => {
     name: profile.user.name,
     email: profile.user.email,
     phoneNumber: profile.user.phoneNumber,
-    profileImageUrl: toProfileImageUrl(profile.user.profileImageKey),
+    profileImageUrl: await toPresignedViewUrl(profile.user.profileImageKey),
     service: profile.service,
     region: profile.region,
     createdAt: profile.createdAt,
@@ -203,7 +202,7 @@ const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
       phoneNumber: profile.phoneNumber,
       region: profile.region,
       service: profile.service,
-      profileImageUrl: toProfileImageUrl(profile.profileImageKey),
+      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
       updatedAt: profile.updatedAt,
     };
   } catch (error) {
@@ -308,7 +307,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
       phoneNumber: profile.phoneNumber,
       region: profile.region,
       service: profile.service,
-      profileImageUrl: toProfileImageUrl(profile.profileImageKey),
+      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
       updatedAt: profile.updatedAt,
     };
   } catch (error) {
