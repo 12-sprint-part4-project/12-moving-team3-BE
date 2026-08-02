@@ -10,6 +10,7 @@ import {
   type AdminMemberListRow,
 } from '../repositories/admin-member.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
+import { AppError } from '../utils/app.error';
 
 /**
  * Repository row → 목록 아이템 DTO.
@@ -51,6 +52,13 @@ export const getAdminMemberList = async (
 /** 관리자 회원 상세 조회 */
 export const getAdminMemberDetail = async (
   memberId: string
-): Promise<AdminMemberDetailRow | null> => {
-  return findAdminMemberDetail(memberId);
+): Promise<AdminMemberDetailRow> => {
+  const member = await findAdminMemberDetail(memberId);
+
+  // 없거나 삭제된 회원은 Repository에서 null이므로 관리자 상세 조회 404로 처리한다.
+  if (!member) {
+    throw new AppError('ADMIN_MEMBER_NOT_FOUND');
+  }
+
+  return member;
 };
