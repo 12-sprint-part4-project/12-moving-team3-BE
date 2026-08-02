@@ -1,4 +1,4 @@
-import { UserStatus } from '@prisma/client';
+import { UserStatus, UserType } from '@prisma/client';
 import type {
   AdminMemberListItemDto,
   AdminMemberListResultDto,
@@ -9,6 +9,7 @@ import {
   type AdminMemberDetailRow,
   type AdminMemberListRow,
 } from '../repositories/admin-member.repository';
+import reviewRepository from '../repositories/review.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { AppError } from '../utils/app.error';
 
@@ -18,7 +19,8 @@ import { AppError } from '../utils/app.error';
  * 정지 시각은 관계가 없으므로 null을 유지한다.
  */
 const toAdminMemberListItem = (
-  row: AdminMemberListRow
+  row: AdminMemberListRow,
+  averageRating: number | null
 ): AdminMemberListItemDto => ({
   id: row.id,
   name: row.name,
@@ -30,6 +32,7 @@ const toAdminMemberListItem = (
   suspendedAt: row.userStatus?.suspendedAt ?? null,
   suspendedUntil: row.userStatus?.suspendedUntil ?? null,
   createdAt: row.createdAt,
+  averageRating,
 });
 
 /** 관리자 회원 목록 조회 */
@@ -38,8 +41,22 @@ export const getAdminMemberList = async (
 ): Promise<AdminMemberListResultDto> => {
   const { items, totalCount } = await findAdminMembersWithCount(params);
 
+  // 기사 관리 목록의 평점 컬럼용 — 페이지 내 MOVER만 배치 집계한다.
+  const moverIds = items
+    .filter((item) => item.userType === UserType.MOVER)
+    .map((item) => item.id);
+  const reviewStatsByMoverId =
+    await reviewRepository.getReviewStatsByMoverIds(moverIds);
+
   return {
-    items: items.map(toAdminMemberListItem),
+    items: items.map((row) =>
+      toAdminMemberListItem(
+        row,
+        row.userType === UserType.MOVER
+          ? (reviewStatsByMoverId.get(row.id)?.averageRating ?? null)
+          : null
+      )
+    ),
     pagination: {
       page: params.page,
       pageSize: params.pageSize,

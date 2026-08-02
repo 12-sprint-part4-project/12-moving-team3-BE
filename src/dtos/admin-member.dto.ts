@@ -17,6 +17,8 @@ export interface AdminMemberListItemDto {
   suspendedAt: Date | null;
   suspendedUntil: Date | null;
   createdAt: Date;
+  /** MOVER 평균 평점. CUSTOMER이거나 리뷰가 없으면 null */
+  averageRating: number | null;
 }
 
 /** 관리자 회원 목록 페이지네이션 DTO */

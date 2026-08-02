@@ -1,7 +1,14 @@
-import { Prisma, UserReportTarget, UserStatus } from '@prisma/client';
+import {
+  Prisma,
+  QuoteStatus,
+  UserReportTarget,
+  UserStatus,
+  UserType,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
+import reviewRepository from './review.repository';
 
 /** 관리자 회원 목록 select — DTO 매핑에 필요한 필드만 조회 */
 const adminMemberListSelect = {
@@ -73,6 +80,12 @@ export type AdminMemberDetailRow = Prisma.UserGetPayload<{
   select: typeof adminMemberDetailSelect;
 }> & {
   reportCount: number;
+  /** MOVER만 집계. CUSTOMER는 null */
+  averageRating: number | null;
+  /** MOVER만 집계. CUSTOMER는 0 */
+  reviewCount: number;
+  /** MOVER의 CONFIRMED 견적 수. CUSTOMER는 0 */
+  confirmedQuoteCount: number;
 };
 
 /**
@@ -158,7 +171,7 @@ export const findAdminMembersWithCount = async (
   return { items, totalCount };
 };
 
-/** 관리자 회원 상세 조회 (삭제되지 않은 회원만) + 해당 회원 대상 신고 건수 */
+/** 관리자 회원 상세 조회 (삭제되지 않은 회원만) + 신고/리뷰/완료 건수 */
 export const findAdminMemberDetail = async (
   memberId: string
 ): Promise<AdminMemberDetailRow | null> => {
@@ -183,8 +196,33 @@ export const findAdminMemberDetail = async (
     return null;
   }
 
+  // 기사 통계는 공개 movers API와 동일 소스(reviewRepository / CONFIRMED Quote count)를 재사용한다.
+  if (member.userType !== UserType.MOVER) {
+    return {
+      ...member,
+      reportCount,
+      averageRating: null,
+      reviewCount: 0,
+      confirmedQuoteCount: 0,
+    };
+  }
+
+  const [reviewStats, confirmedQuoteCount] = await Promise.all([
+    reviewRepository.getReviewStatsByMoverId(memberId),
+    prisma.quote.count({
+      where: {
+        moverId: memberId,
+        status: QuoteStatus.CONFIRMED,
+        deletedAt: null,
+      },
+    }),
+  ]);
+
   return {
     ...member,
     reportCount,
+    averageRating: reviewStats.averageRating,
+    reviewCount: reviewStats.totalCount,
+    confirmedQuoteCount,
   };
 };

@@ -11,6 +11,7 @@ paths:
         startDate만 있으면 해당 일(KST 00:00:00 ~ 23:59:59.999), endDate까지 있으면 그 기간으로 조회합니다.
         endDate만 전달하는 경우는 허용하지 않습니다.
         UserStatusInfo 관계가 없는 회원은 응답 status를 ACTIVE로 정규화합니다.
+        MOVER 항목에는 averageRating(리뷰 평균 평점)을 포함하고, CUSTOMER이거나 리뷰가 없으면 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -106,6 +107,7 @@ paths:
                             - suspendedAt
                             - suspendedUntil
                             - createdAt
+                            - averageRating
                           properties:
                             id:
                               type: string
@@ -148,6 +150,11 @@ paths:
                               type: string
                               format: date-time
                               example: '2026-08-01T00:00:00.000Z'
+                            averageRating:
+                              type: number
+                              nullable: true
+                              description: MOVER 평균 평점. CUSTOMER이거나 리뷰가 없으면 null
+                              example: 4.8
                       pagination:
                         type: object
                         required: [page, pageSize, totalCount, totalPages]
@@ -164,24 +171,49 @@ paths:
                           totalPages:
                             type: integer
                             example: 1
-              example:
-                data:
-                  items:
-                    - id: '550e8400-e29b-41d4-a716-446655440000'
-                      name: 홍길동
-                      nickname: 길동이
-                      email: user@example.com
-                      phoneNumber: '010-0000-0000'
-                      userType: CUSTOMER
-                      status: ACTIVE
-                      suspendedAt: null
-                      suspendedUntil: null
-                      createdAt: '2026-08-01T00:00:00.000Z'
-                  pagination:
-                    page: 1
-                    pageSize: 10
-                    totalCount: 1
-                    totalPages: 1
+              examples:
+                customer:
+                  summary: CUSTOMER 목록
+                  value:
+                    data:
+                      items:
+                        - id: '550e8400-e29b-41d4-a716-446655440000'
+                          name: 홍길동
+                          nickname: 길동이
+                          email: user@example.com
+                          phoneNumber: '010-0000-0000'
+                          userType: CUSTOMER
+                          status: ACTIVE
+                          suspendedAt: null
+                          suspendedUntil: null
+                          createdAt: '2026-08-01T00:00:00.000Z'
+                          averageRating: null
+                      pagination:
+                        page: 1
+                        pageSize: 10
+                        totalCount: 1
+                        totalPages: 1
+                mover:
+                  summary: MOVER 목록 (기사 관리)
+                  value:
+                    data:
+                      items:
+                        - id: '660e8400-e29b-41d4-a716-446655440111'
+                          name: 김기사
+                          nickname: 빠른이사맨
+                          email: mover@example.com
+                          phoneNumber: '010-1111-2222'
+                          userType: MOVER
+                          status: ACTIVE
+                          suspendedAt: null
+                          suspendedUntil: null
+                          createdAt: '2024-07-01T05:25:00.000Z'
+                          averageRating: 4.8
+                      pagination:
+                        page: 1
+                        pageSize: 10
+                        totalCount: 1
+                        totalPages: 1
         '400':
           description: |
             쿼리 파라미터 유효성 검사 실패.
@@ -223,6 +255,8 @@ paths:
         삭제되지 않은 회원의 상세 정보를 조회합니다.
         기본 회원 정보, userType에 따른 프로필(customerProfile/moverProfile),
         userStatus(계정 상태), reportCount(해당 회원 대상 신고 건수)를 반환합니다.
+        MOVER인 경우 averageRating·reviewCount·confirmedQuoteCount를 함께 반환합니다.
+        CUSTOMER는 averageRating=null, reviewCount=0, confirmedQuoteCount=0입니다.
         UserStatusInfo가 없으면 userStatus는 null입니다.
         신고가 없으면 reportCount는 0입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
@@ -261,6 +295,9 @@ paths:
                       - customerProfile
                       - moverProfile
                       - reportCount
+                      - averageRating
+                      - reviewCount
+                      - confirmedQuoteCount
                     properties:
                       id:
                         type: string
@@ -434,6 +471,21 @@ paths:
                         minimum: 0
                         description: target=USER 이고 targetId가 해당 회원 id인 신고 건수
                         example: 0
+                      averageRating:
+                        type: number
+                        nullable: true
+                        description: MOVER 평균 평점. CUSTOMER이거나 리뷰가 없으면 null
+                        example: 4.8
+                      reviewCount:
+                        type: integer
+                        minimum: 0
+                        description: MOVER 리뷰 수. CUSTOMER는 0
+                        example: 20
+                      confirmedQuoteCount:
+                        type: integer
+                        minimum: 0
+                        description: MOVER의 CONFIRMED 견적(완료 건) 수. CUSTOMER는 0
+                        example: 15
               examples:
                 customer:
                   summary: CUSTOMER 회원
@@ -459,6 +511,9 @@ paths:
                         updatedAt: '2026-08-01T00:00:00.000Z'
                       moverProfile: null
                       reportCount: 0
+                      averageRating: null
+                      reviewCount: 0
+                      confirmedQuoteCount: 0
                 mover:
                   summary: MOVER 회원
                   value:
@@ -485,6 +540,9 @@ paths:
                           - region: SEOUL
                           - region: GYEONGGI
                       reportCount: 2
+                      averageRating: 4.8
+                      reviewCount: 20
+                      confirmedQuoteCount: 15
         '400':
           description: Path Parameter(memberId) UUID 형식 검증 실패
           content:
