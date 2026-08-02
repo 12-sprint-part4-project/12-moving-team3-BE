@@ -25,7 +25,7 @@ export type AdminMemberListRow = Prisma.UserGetPayload<{
   select: typeof adminMemberListSelect;
 }>;
 
-/** 관리자 회원 상세 select — 기본 정보 + 유형별 프로필만 조회 */
+/** 관리자 회원 상세 select — 기본 정보 + 유형별 프로필 + 계정 상태 */
 const adminMemberDetailSelect = {
   id: true,
   name: true,
@@ -35,6 +35,13 @@ const adminMemberDetailSelect = {
   profileImageKey: true,
   userType: true,
   createdAt: true,
+  userStatus: {
+    select: {
+      status: true,
+      suspendedAt: true,
+      suspendedUntil: true,
+    },
+  },
   customerProfile: {
     select: {
       id: true,
