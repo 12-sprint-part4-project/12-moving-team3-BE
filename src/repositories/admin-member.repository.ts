@@ -1,4 +1,4 @@
-import { Prisma, UserStatus } from '@prisma/client';
+import { Prisma, UserReportTarget, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
@@ -71,7 +71,9 @@ const adminMemberDetailSelect = {
 
 export type AdminMemberDetailRow = Prisma.UserGetPayload<{
   select: typeof adminMemberDetailSelect;
-}>;
+}> & {
+  reportCount: number;
+};
 
 /**
  * 목록/카운트에 공통으로 쓰는 where.
@@ -156,15 +158,33 @@ export const findAdminMembersWithCount = async (
   return { items, totalCount };
 };
 
-/** 관리자 회원 상세 조회 (삭제되지 않은 회원만) */
+/** 관리자 회원 상세 조회 (삭제되지 않은 회원만) + 해당 회원 대상 신고 건수 */
 export const findAdminMemberDetail = async (
   memberId: string
 ): Promise<AdminMemberDetailRow | null> => {
-  return prisma.user.findFirst({
-    where: {
-      id: memberId,
-      deletedAt: null,
-    },
-    select: adminMemberDetailSelect,
-  });
+  // UserReport.targetId는 폴리모픽이라 User 관계(_count)로 집계할 수 없다.
+  const [member, reportCount] = await prisma.$transaction([
+    prisma.user.findFirst({
+      where: {
+        id: memberId,
+        deletedAt: null,
+      },
+      select: adminMemberDetailSelect,
+    }),
+    prisma.userReport.count({
+      where: {
+        target: UserReportTarget.USER,
+        targetId: memberId,
+      },
+    }),
+  ]);
+
+  if (!member) {
+    return null;
+  }
+
+  return {
+    ...member,
+    reportCount,
+  };
 };
