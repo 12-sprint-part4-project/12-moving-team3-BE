@@ -1,17 +1,14 @@
 import { Prisma, QuoteStatus, type MoveType, type Region } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
+import { MOVER_SORT_FIELDS } from '../schemas/movers.schema';
 import type {
   FavoriteListCursor,
   MoverListCursor,
 } from '../utils/movers-cursor.util';
 
-/** 기사 목록 정렬 — 모두 내림차순(많은/높은 순) */
-export type MoverListSort =
-  | 'reviewCount'
-  | 'averageRating'
-  | 'career'
-  | 'confirmedCount';
+/** 기사 목록 정렬 — 모두 내림차순(많은/높은 순). SSOT: MOVER_SORT_FIELDS */
+export type MoverListSort = (typeof MOVER_SORT_FIELDS)[number];
 
 const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'reviewCount';
 
