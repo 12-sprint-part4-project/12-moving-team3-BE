@@ -264,6 +264,10 @@ export const ERROR_CODES = {
     status: 400,
     message: '조회 조건이 올바르지 않습니다.',
   },
+  ADMIN_MEMBER_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 회원입니다.',
+  },
 
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
   ADMIN_INVALID_LOGIN_BODY: {
