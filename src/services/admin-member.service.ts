@@ -2,18 +2,24 @@ import { UserStatus, UserType } from '@prisma/client';
 import type {
   AdminMemberListItemDto,
   AdminMemberListResultDto,
+  AdminMemberStatusResultDto,
 } from '../dtos/admin-member.dto';
 import {
   countAdminMemberReports,
   countConfirmedQuotesByMoverId,
   findAdminMemberDetail,
+  findAdminMemberId,
   findAdminMembersWithCount,
+  upsertAdminMemberStatus,
   type AdminMemberDetailRow,
   type AdminMemberListRow,
 } from '../repositories/admin-member.repository';
 import reviewRepository from '../repositories/review.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { AppError } from '../utils/app.error';
+
+/** 관리자 수동 정지 기간 — 정책상 7일 고정 */
+const ADMIN_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** 관리자 회원 상세 응답 — Repository row + Service에서 조합한 집계 필드 */
 export type AdminMemberDetailResult = AdminMemberDetailRow & {
@@ -111,26 +117,64 @@ export const getAdminMemberDetail = async (
   };
 };
 
+/** 없거나 삭제된 회원이면 상세 조회와 동일하게 404 처리 */
+const assertAdminMemberExists = async (memberId: string): Promise<void> => {
+  const existingId = await findAdminMemberId(memberId);
+
+  if (!existingId) {
+    throw new AppError('ADMIN_MEMBER_NOT_FOUND');
+  }
+};
+
+const toAdminMemberStatusResult = (row: {
+  userId: string;
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+}): AdminMemberStatusResultDto => ({
+  memberId: row.userId,
+  status: row.status,
+  suspendedAt: row.suspendedAt,
+  suspendedUntil: row.suspendedUntil,
+});
+
 /**
- * 관리자 회원 정지 stub.
- * 다음 작업에서 UserStatusInfo 업데이트·History 저장을 구현한다.
- * 지금은 라우트/컨트롤러 연결용으로 상세 조회 결과만 반환한다.
+ * 관리자 회원 7일 정지.
+ * adminId는 다음 History 저장 작업에서 actor로 사용하며, 지금은 시그니처만 유지한다.
  */
 export const suspendAdminMember = async (
   memberId: string,
   _adminId: number
-): Promise<AdminMemberDetailResult> => {
-  return getAdminMemberDetail(memberId);
+): Promise<AdminMemberStatusResultDto> => {
+  await assertAdminMemberExists(memberId);
+
+  const now = new Date();
+  const statusInfo = await upsertAdminMemberStatus(memberId, {
+    status: UserStatus.SUSPENDED,
+    suspendedAt: now,
+    // 정지 종료 시각을 서버 기준으로 고정해 클라이언트 시계 편차를 피한다.
+    suspendedUntil: new Date(now.getTime() + ADMIN_SUSPEND_DURATION_MS),
+  });
+
+  return toAdminMemberStatusResult(statusInfo);
 };
 
 /**
- * 관리자 회원 활성화 stub.
- * 다음 작업에서 UserStatusInfo 업데이트·History 저장을 구현한다.
- * 지금은 라우트/컨트롤러 연결용으로 상세 조회 결과만 반환한다.
+ * 관리자 회원 활성화.
+ * 정지 시각을 null로 비워 ACTIVE와 함께 상태가 일관되게 보이도록 한다.
+ * adminId는 다음 History 저장 작업에서 actor로 사용하며, 지금은 시그니처만 유지한다.
  */
 export const activateAdminMember = async (
   memberId: string,
   _adminId: number
-): Promise<AdminMemberDetailResult> => {
-  return getAdminMemberDetail(memberId);
+): Promise<AdminMemberStatusResultDto> => {
+  await assertAdminMemberExists(memberId);
+
+  const statusInfo = await upsertAdminMemberStatus(memberId, {
+    status: UserStatus.ACTIVE,
+    suspendedAt: null,
+    suspendedUntil: null,
+  });
+
+  return toAdminMemberStatusResult(statusInfo);
 };

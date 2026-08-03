@@ -34,3 +34,11 @@ export interface AdminMemberListResultDto {
   items: AdminMemberListItemDto[];
   pagination: PaginationDto;
 }
+
+/** 관리자 회원 계정 상태 변경(정지/활성화) 응답 DTO */
+export interface AdminMemberStatusResultDto {
+  memberId: string;
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+}

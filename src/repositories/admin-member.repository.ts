@@ -169,6 +169,66 @@ export const findAdminMemberDetail = async (
   });
 };
 
+/**
+ * 상태 변경 전 회원 존재 확인용 — 상세 select 없이 id만 조회한다.
+ * 없거나 삭제된 회원이면 null을 반환해 Service에서 ADMIN_MEMBER_NOT_FOUND로 처리한다.
+ */
+export const findAdminMemberId = async (
+  memberId: string
+): Promise<string | null> => {
+  const member = await prisma.user.findFirst({
+    where: {
+      id: memberId,
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+
+  return member?.id ?? null;
+};
+
+/** UserStatusInfo upsert 결과 — 상태 변경 API 응답에 필요한 필드만 */
+export type AdminMemberStatusRow = {
+  userId: string;
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+};
+
+/**
+ * 회원 계정 상태 upsert.
+ * UserStatusInfo row가 없는 회원도 첫 정지/활성화 시 row를 생성해야 하므로 upsert를 쓴다.
+ */
+export const upsertAdminMemberStatus = async (
+  memberId: string,
+  data: {
+    status: UserStatus;
+    suspendedAt: Date | null;
+    suspendedUntil: Date | null;
+  }
+): Promise<AdminMemberStatusRow> => {
+  return prisma.userStatusInfo.upsert({
+    where: { userId: memberId },
+    create: {
+      userId: memberId,
+      status: data.status,
+      suspendedAt: data.suspendedAt,
+      suspendedUntil: data.suspendedUntil,
+    },
+    update: {
+      status: data.status,
+      suspendedAt: data.suspendedAt,
+      suspendedUntil: data.suspendedUntil,
+    },
+    select: {
+      userId: true,
+      status: true,
+      suspendedAt: true,
+      suspendedUntil: true,
+    },
+  });
+};
+
 /** 해당 회원(target=USER)을 대상으로 한 신고 건수 */
 export const countAdminMemberReports = async (
   memberId: string
