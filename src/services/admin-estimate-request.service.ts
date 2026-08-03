@@ -58,18 +58,32 @@ export const createEstimateRequestCommonWhere = ({
 }): Prisma.EstimateRequestWhereInput => {
   const dateRange = createDateRange(startDate, endDate);
   const orConditions: Prisma.EstimateRequestWhereInput[] = [];
+  const normalizedPhoneNumber = search?.replace(/\D/g, '');
 
   if (search) {
     const id = Number(search);
 
-    if (Number.isInteger(id)) {
+    if (Number.isInteger(id) && id >= -2147483648 && id <= 2147483647) {
       orConditions.push({ id });
     }
 
-    orConditions.push(
-      { user: { name: { contains: search } } },
-      { user: { phoneNumber: { contains: search } } }
-    );
+    orConditions.push({
+      user: {
+        name: {
+          contains: search,
+        },
+      },
+    });
+
+    if (normalizedPhoneNumber) {
+      orConditions.push({
+        user: {
+          phoneNumber: {
+            contains: normalizedPhoneNumber,
+          },
+        },
+      });
+    }
   }
 
   return {
@@ -110,7 +124,7 @@ export const getEstimateRequestList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      { submittedAt: 'desc' },
+      [{ submittedAt: 'desc' }, { id: 'desc' }],
       pageSize,
       skip,
       select
