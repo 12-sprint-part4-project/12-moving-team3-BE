@@ -17,10 +17,12 @@ export interface AdminMemberListItemDto {
   suspendedAt: Date | null;
   suspendedUntil: Date | null;
   createdAt: Date;
+  /** MOVER 평균 평점. CUSTOMER이거나 리뷰가 없으면 null */
+  averageRating: number | null;
 }
 
-/** 관리자 회원 목록 페이지네이션 DTO */
-export interface AdminMemberListPaginationDto {
+/** page 기반 목록 공통 페이지네이션 DTO */
+export interface PaginationDto {
   page: number;
   pageSize: number;
   totalCount: number;
@@ -30,5 +32,5 @@ export interface AdminMemberListPaginationDto {
 /** 관리자 회원 목록 조회 응답 DTO */
 export interface AdminMemberListResultDto {
   items: AdminMemberListItemDto[];
-  pagination: AdminMemberListPaginationDto;
+  pagination: PaginationDto;
 }

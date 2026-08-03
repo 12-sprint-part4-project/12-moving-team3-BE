@@ -15,3 +15,12 @@ export const adminMemberListQuerySchema = listQuerySchema
   .and(adminStatisticsFilterSchema);
 
 export type AdminMemberListQuery = z.infer<typeof adminMemberListQuerySchema>;
+
+/** 관리자 회원 상세 조회 Path Params — User.id(@db.Uuid)와 동일한 UUID 형식만 허용 */
+export const adminMemberDetailParamsSchema = z.object({
+  memberId: z.uuid(),
+});
+
+export type AdminMemberDetailParams = z.infer<
+  typeof adminMemberDetailParamsSchema
+>;

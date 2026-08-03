@@ -11,6 +11,7 @@ paths:
         startDate만 있으면 해당 일(KST 00:00:00 ~ 23:59:59.999), endDate까지 있으면 그 기간으로 조회합니다.
         endDate만 전달하는 경우는 허용하지 않습니다.
         UserStatusInfo 관계가 없는 회원은 응답 status를 ACTIVE로 정규화합니다.
+        MOVER 항목에는 averageRating(리뷰 평균 평점)을 포함하고, CUSTOMER이거나 리뷰가 없으면 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -106,6 +107,7 @@ paths:
                             - suspendedAt
                             - suspendedUntil
                             - createdAt
+                            - averageRating
                           properties:
                             id:
                               type: string
@@ -148,6 +150,11 @@ paths:
                               type: string
                               format: date-time
                               example: '2026-08-01T00:00:00.000Z'
+                            averageRating:
+                              type: number
+                              nullable: true
+                              description: MOVER 평균 평점. CUSTOMER이거나 리뷰가 없으면 null
+                              example: 4.8
                       pagination:
                         type: object
                         required: [page, pageSize, totalCount, totalPages]
@@ -164,24 +171,49 @@ paths:
                           totalPages:
                             type: integer
                             example: 1
-              example:
-                data:
-                  items:
-                    - id: '550e8400-e29b-41d4-a716-446655440000'
-                      name: 홍길동
-                      nickname: 길동이
-                      email: user@example.com
-                      phoneNumber: '010-0000-0000'
-                      userType: CUSTOMER
-                      status: ACTIVE
-                      suspendedAt: null
-                      suspendedUntil: null
-                      createdAt: '2026-08-01T00:00:00.000Z'
-                  pagination:
-                    page: 1
-                    pageSize: 10
-                    totalCount: 1
-                    totalPages: 1
+              examples:
+                customer:
+                  summary: CUSTOMER 목록
+                  value:
+                    data:
+                      items:
+                        - id: '550e8400-e29b-41d4-a716-446655440000'
+                          name: 홍길동
+                          nickname: 길동이
+                          email: user@example.com
+                          phoneNumber: '010-0000-0000'
+                          userType: CUSTOMER
+                          status: ACTIVE
+                          suspendedAt: null
+                          suspendedUntil: null
+                          createdAt: '2026-08-01T00:00:00.000Z'
+                          averageRating: null
+                      pagination:
+                        page: 1
+                        pageSize: 10
+                        totalCount: 1
+                        totalPages: 1
+                mover:
+                  summary: MOVER 목록 (기사 관리)
+                  value:
+                    data:
+                      items:
+                        - id: '660e8400-e29b-41d4-a716-446655440111'
+                          name: 김기사
+                          nickname: 빠른이사맨
+                          email: mover@example.com
+                          phoneNumber: '010-1111-2222'
+                          userType: MOVER
+                          status: ACTIVE
+                          suspendedAt: null
+                          suspendedUntil: null
+                          createdAt: '2024-07-01T05:25:00.000Z'
+                          averageRating: 4.8
+                      pagination:
+                        page: 1
+                        pageSize: 10
+                        totalCount: 1
+                        totalPages: 1
         '400':
           description: |
             쿼리 파라미터 유효성 검사 실패.
@@ -204,6 +236,343 @@ paths:
                 error:
                   code: ADMIN_UNAUTHORIZED
                   message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/members/{memberId}:
+    get:
+      tags: [Admin Members]
+      summary: 관리자 회원 상세 조회
+      description: |
+        삭제되지 않은 회원의 상세 정보를 조회합니다.
+        기본 회원 정보, userType에 따른 프로필(customerProfile/moverProfile),
+        userStatus(계정 상태), reportCount(해당 회원 대상 신고 건수)를 반환합니다.
+        MOVER인 경우 averageRating·reviewCount·confirmedQuoteCount를 함께 반환합니다.
+        CUSTOMER는 averageRating=null, reviewCount=0, confirmedQuoteCount=0입니다.
+        UserStatusInfo가 없으면 userStatus는 null입니다.
+        신고가 없으면 reportCount는 0입니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          description: 조회할 회원의 User.id (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: '550e8400-e29b-41d4-a716-446655440000'
+      responses:
+        '200':
+          description: 회원 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - name
+                      - nickname
+                      - email
+                      - phoneNumber
+                      - profileImageKey
+                      - userType
+                      - createdAt
+                      - userStatus
+                      - customerProfile
+                      - moverProfile
+                      - reportCount
+                      - averageRating
+                      - reviewCount
+                      - confirmedQuoteCount
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: '550e8400-e29b-41d4-a716-446655440000'
+                      name:
+                        type: string
+                        example: 홍길동
+                      nickname:
+                        type: string
+                        example: 길동이
+                      email:
+                        type: string
+                        format: email
+                        example: user@example.com
+                      phoneNumber:
+                        type: string
+                        nullable: true
+                        example: '010-0000-0000'
+                      profileImageKey:
+                        type: string
+                        nullable: true
+                        example: profiles/user-550e8400.jpg
+                      userType:
+                        type: string
+                        enum: [CUSTOMER, MOVER]
+                        example: CUSTOMER
+                      createdAt:
+                        type: string
+                        format: date-time
+                        example: '2026-08-01T00:00:00.000Z'
+                      userStatus:
+                        type: object
+                        nullable: true
+                        description: UserStatusInfo가 없으면 null
+                        required: [status, suspendedAt, suspendedUntil]
+                        properties:
+                          status:
+                            type: string
+                            enum: [ACTIVE, SUSPENDED]
+                            example: ACTIVE
+                          suspendedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            example: null
+                          suspendedUntil:
+                            type: string
+                            format: date-time
+                            nullable: true
+                            example: null
+                      customerProfile:
+                        type: object
+                        nullable: true
+                        description: CUSTOMER가 아니거나 프로필이 없으면 null
+                        required: [id, region, service, createdAt, updatedAt]
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          region:
+                            type: string
+                            nullable: true
+                            enum:
+                              [
+                                SEOUL,
+                                GYEONGGI,
+                                INCHEON,
+                                GANGWON,
+                                CHUNGBUK,
+                                CHUNGNAM,
+                                SEJONG,
+                                DAEJEON,
+                                JEONBUK,
+                                GWANGJU_JEONNAM,
+                                GYEONGBUK,
+                                DAEGU,
+                                ULSAN,
+                                GYEONGNAM,
+                                BUSAN,
+                                JEJU,
+                              ]
+                            example: SEOUL
+                          service:
+                            type: array
+                            items:
+                              type: string
+                              enum: [SMALL, HOME, OFFICE]
+                            example: [HOME, SMALL]
+                          createdAt:
+                            type: string
+                            format: date-time
+                            example: '2026-08-01T00:00:00.000Z'
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            example: '2026-08-01T00:00:00.000Z'
+                      moverProfile:
+                        type: object
+                        nullable: true
+                        description: MOVER가 아니거나 프로필이 없으면 null
+                        required:
+                          - id
+                          - service
+                          - career
+                          - shortDescription
+                          - description
+                          - createdAt
+                          - updatedAt
+                          - serviceRegions
+                        properties:
+                          id:
+                            type: integer
+                            example: 12
+                          service:
+                            type: array
+                            items:
+                              type: string
+                              enum: [SMALL, HOME, OFFICE]
+                            example: [HOME, OFFICE]
+                          career:
+                            type: integer
+                            nullable: true
+                            example: 5
+                          shortDescription:
+                            type: string
+                            nullable: true
+                            example: 경력 5년 이사 전문가
+                          description:
+                            type: string
+                            nullable: true
+                            example: 안전하고 꼼꼼한 이사 도와드립니다.
+                          createdAt:
+                            type: string
+                            format: date-time
+                            example: '2026-01-10T08:00:00.000Z'
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            example: '2026-07-20T12:30:00.000Z'
+                          serviceRegions:
+                            type: array
+                            items:
+                              type: object
+                              required: [region]
+                              properties:
+                                region:
+                                  type: string
+                                  enum:
+                                    [
+                                      SEOUL,
+                                      GYEONGGI,
+                                      INCHEON,
+                                      GANGWON,
+                                      CHUNGBUK,
+                                      CHUNGNAM,
+                                      SEJONG,
+                                      DAEJEON,
+                                      JEONBUK,
+                                      GWANGJU_JEONNAM,
+                                      GYEONGBUK,
+                                      DAEGU,
+                                      ULSAN,
+                                      GYEONGNAM,
+                                      BUSAN,
+                                      JEJU,
+                                    ]
+                                  example: SEOUL
+                      reportCount:
+                        type: integer
+                        minimum: 0
+                        description: target=USER 이고 targetId가 해당 회원 id인 신고 건수
+                        example: 0
+                      averageRating:
+                        type: number
+                        nullable: true
+                        description: MOVER 평균 평점. CUSTOMER이거나 리뷰가 없으면 null
+                        example: 4.8
+                      reviewCount:
+                        type: integer
+                        minimum: 0
+                        description: MOVER 리뷰 수. CUSTOMER는 0
+                        example: 20
+                      confirmedQuoteCount:
+                        type: integer
+                        minimum: 0
+                        description: MOVER의 CONFIRMED 견적(완료 건) 수. CUSTOMER는 0
+                        example: 15
+              examples:
+                customer:
+                  summary: CUSTOMER 회원
+                  value:
+                    data:
+                      id: '550e8400-e29b-41d4-a716-446655440000'
+                      name: 홍길동
+                      nickname: 길동이
+                      email: user@example.com
+                      phoneNumber: '010-0000-0000'
+                      profileImageKey: profiles/user-550e8400.jpg
+                      userType: CUSTOMER
+                      createdAt: '2026-08-01T00:00:00.000Z'
+                      userStatus:
+                        status: ACTIVE
+                        suspendedAt: null
+                        suspendedUntil: null
+                      customerProfile:
+                        id: 1
+                        region: SEOUL
+                        service: [HOME, SMALL]
+                        createdAt: '2026-08-01T00:00:00.000Z'
+                        updatedAt: '2026-08-01T00:00:00.000Z'
+                      moverProfile: null
+                      reportCount: 0
+                      averageRating: null
+                      reviewCount: 0
+                      confirmedQuoteCount: 0
+                mover:
+                  summary: MOVER 회원
+                  value:
+                    data:
+                      id: '660e8400-e29b-41d4-a716-446655440111'
+                      name: 김기사
+                      nickname: 빠른이사맨
+                      email: mover@example.com
+                      phoneNumber: '010-1111-2222'
+                      profileImageKey: null
+                      userType: MOVER
+                      createdAt: '2026-01-10T08:00:00.000Z'
+                      userStatus: null
+                      customerProfile: null
+                      moverProfile:
+                        id: 12
+                        service: [HOME, OFFICE]
+                        career: 5
+                        shortDescription: 경력 5년 이사 전문가
+                        description: 안전하고 꼼꼼한 이사 도와드립니다.
+                        createdAt: '2026-01-10T08:00:00.000Z'
+                        updatedAt: '2026-07-20T12:30:00.000Z'
+                        serviceRegions:
+                          - region: SEOUL
+                          - region: GYEONGGI
+                      reportCount: 2
+                      averageRating: 4.8
+                      reviewCount: 20
+                      confirmedQuoteCount: 15
+        '400':
+          description: Path Parameter(memberId) UUID 형식 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 회원이 없거나 삭제된 회원
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_MEMBER_NOT_FOUND
+                  message: 존재하지 않는 회원입니다.
         '500':
           description: 서버 내부 오류
           content:

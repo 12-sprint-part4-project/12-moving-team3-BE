@@ -1,13 +1,27 @@
-import { UserStatus } from '@prisma/client';
+import { UserStatus, UserType } from '@prisma/client';
 import type {
   AdminMemberListItemDto,
   AdminMemberListResultDto,
 } from '../dtos/admin-member.dto';
 import {
+  countAdminMemberReports,
+  countConfirmedQuotesByMoverId,
+  findAdminMemberDetail,
   findAdminMembersWithCount,
+  type AdminMemberDetailRow,
   type AdminMemberListRow,
 } from '../repositories/admin-member.repository';
+import reviewRepository from '../repositories/review.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
+import { AppError } from '../utils/app.error';
+
+/** 관리자 회원 상세 응답 — Repository row + Service에서 조합한 집계 필드 */
+export type AdminMemberDetailResult = AdminMemberDetailRow & {
+  reportCount: number;
+  averageRating: number | null;
+  reviewCount: number;
+  confirmedQuoteCount: number;
+};
 
 /**
  * Repository row → 목록 아이템 DTO.
@@ -15,7 +29,8 @@ import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
  * 정지 시각은 관계가 없으므로 null을 유지한다.
  */
 const toAdminMemberListItem = (
-  row: AdminMemberListRow
+  row: AdminMemberListRow,
+  averageRating: number | null
 ): AdminMemberListItemDto => ({
   id: row.id,
   name: row.name,
@@ -27,6 +42,7 @@ const toAdminMemberListItem = (
   suspendedAt: row.userStatus?.suspendedAt ?? null,
   suspendedUntil: row.userStatus?.suspendedUntil ?? null,
   createdAt: row.createdAt,
+  averageRating,
 });
 
 /** 관리자 회원 목록 조회 */
@@ -35,13 +51,62 @@ export const getAdminMemberList = async (
 ): Promise<AdminMemberListResultDto> => {
   const { items, totalCount } = await findAdminMembersWithCount(params);
 
+  // 기사 관리 목록의 평점 컬럼용 — 페이지 내 MOVER만 배치 집계한다.
+  const moverIds = items
+    .filter((item) => item.userType === UserType.MOVER)
+    .map((item) => item.id);
+  const reviewStatsByMoverId =
+    await reviewRepository.getReviewStatsByMoverIds(moverIds);
+
   return {
-    items: items.map(toAdminMemberListItem),
+    items: items.map((row) =>
+      toAdminMemberListItem(
+        row,
+        row.userType === UserType.MOVER
+          ? (reviewStatsByMoverId.get(row.id)?.averageRating ?? null)
+          : null
+      )
+    ),
     pagination: {
       page: params.page,
       pageSize: params.pageSize,
       totalCount,
       totalPages: Math.ceil(totalCount / params.pageSize),
     },
+  };
+};
+
+/**
+ * 관리자 회원 상세 조회.
+ * movers.service.getMoverDetail와 같이 Repository 조회 후 Service에서 집계를 조합한다.
+ */
+export const getAdminMemberDetail = async (
+  memberId: string
+): Promise<AdminMemberDetailResult> => {
+  const member = await findAdminMemberDetail(memberId);
+
+  // 없거나 삭제된 회원은 Repository에서 null이므로 관리자 상세 조회 404로 처리한다.
+  if (!member) {
+    throw new AppError('ADMIN_MEMBER_NOT_FOUND');
+  }
+
+  const isMover = member.userType === UserType.MOVER;
+
+  const [reportCount, reviewStats, confirmedQuoteCount] = await Promise.all([
+    countAdminMemberReports(memberId),
+    isMover
+      ? reviewRepository.getReviewStatsByMoverId(memberId)
+      : Promise.resolve(null),
+    isMover
+      ? countConfirmedQuotesByMoverId(memberId)
+      : Promise.resolve(0),
+  ]);
+
+  return {
+    ...member,
+    reportCount,
+    averageRating: reviewStats?.averageRating ?? null,
+    reviewCount: reviewStats?.totalCount ?? 0,
+    confirmedQuoteCount,
   };
 };

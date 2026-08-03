@@ -1,4 +1,4 @@
-import { Prisma, UserStatus } from '@prisma/client';
+import { Prisma, QuoteStatus, UserReportTarget, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
@@ -23,6 +23,54 @@ const adminMemberListSelect = {
 
 export type AdminMemberListRow = Prisma.UserGetPayload<{
   select: typeof adminMemberListSelect;
+}>;
+
+/** 관리자 회원 상세 select — 기본 정보 + 유형별 프로필 + 계정 상태 */
+const adminMemberDetailSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  email: true,
+  phoneNumber: true,
+  profileImageKey: true,
+  userType: true,
+  createdAt: true,
+  userStatus: {
+    select: {
+      status: true,
+      suspendedAt: true,
+      suspendedUntil: true,
+    },
+  },
+  customerProfile: {
+    select: {
+      id: true,
+      region: true,
+      service: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+  moverProfile: {
+    select: {
+      id: true,
+      service: true,
+      career: true,
+      shortDescription: true,
+      description: true,
+      createdAt: true,
+      updatedAt: true,
+      serviceRegions: {
+        select: {
+          region: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+export type AdminMemberDetailRow = Prisma.UserGetPayload<{
+  select: typeof adminMemberDetailSelect;
 }>;
 
 /**
@@ -106,4 +154,43 @@ export const findAdminMembersWithCount = async (
   ]);
 
   return { items, totalCount };
+};
+
+/** 관리자 회원 상세 조회 (삭제되지 않은 회원만) */
+export const findAdminMemberDetail = async (
+  memberId: string
+): Promise<AdminMemberDetailRow | null> => {
+  return prisma.user.findFirst({
+    where: {
+      id: memberId,
+      deletedAt: null,
+    },
+    select: adminMemberDetailSelect,
+  });
+};
+
+/** 해당 회원(target=USER)을 대상으로 한 신고 건수 */
+export const countAdminMemberReports = async (
+  memberId: string
+): Promise<number> => {
+  // UserReport.targetId는 폴리모픽이라 User 관계(_count)로 집계할 수 없다.
+  return prisma.userReport.count({
+    where: {
+      target: UserReportTarget.USER,
+      targetId: memberId,
+    },
+  });
+};
+
+/** 기사의 CONFIRMED 견적(완료 건) 수 */
+export const countConfirmedQuotesByMoverId = async (
+  moverId: string
+): Promise<number> => {
+  return prisma.quote.count({
+    where: {
+      moverId,
+      status: QuoteStatus.CONFIRMED,
+      deletedAt: null,
+    },
+  });
 };

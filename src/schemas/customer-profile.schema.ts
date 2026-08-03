@@ -6,6 +6,7 @@ import { moveTypeArraySchema } from './profile.schema';
 /** 등록/수정 공통 body. 비밀번호는 수정 시 newPassword가 있을 때만 service에서 조건부 검증 */
 export const customerProfileBodySchema = z.object({
   name: z.string().trim().min(2).max(20).optional(),
+  nickname: z.string().trim().min(2).max(20),
   phoneNumber: z
     .string()
     .regex(/^\d{11}$/)
