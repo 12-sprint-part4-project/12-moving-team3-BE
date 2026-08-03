@@ -1,4 +1,5 @@
 import {
+  countMoverFavorited,
   countMoverFavoritedByMoverIds,
   findFavoriteByUserAndMover,
   findFavoritedMoverIdsByUser,
@@ -8,7 +9,12 @@ import type {
   MoverListSort,
 } from '../repositories/movers.repository';
 import moversRepository from '../repositories/movers.repository';
+import {
+  countConfirmedQuotesByMoverId,
+  countConfirmedQuotesByMoverIds,
+} from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
+import * as reviewService from './review.service';
 import type {
   FavoriteMoversQuery,
   MoversListQuery,
@@ -24,23 +30,10 @@ import {
   getMoverListCursorValue,
 } from '../utils/movers-cursor.util';
 
-const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'createdAt_desc';
-
-const toMoverListSort = (
-  sort?: MoversListQuery['sort'],
-  order?: MoversListQuery['order']
-): MoverListSort => {
-  if (!sort) {
-    return DEFAULT_MOVER_LIST_SORT;
-  }
-
-  const resolvedOrder = order ?? (sort === 'career' ? 'asc' : 'desc');
-
-  return `${sort}_${resolvedOrder}` as MoverListSort;
-};
+const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'reviewCount';
 
 const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
-  const sort = toMoverListSort(query.sort, query.order);
+  const sort = query.sort ?? DEFAULT_MOVER_LIST_SORT;
 
   return {
     keyword: query.keyword,
@@ -62,7 +55,9 @@ const EMPTY_REVIEW_STATS = {
 };
 
 /** profileImageKey → profileImageUrl (클라이언트용) */
-const mapUserProfileImage = async <T extends { profileImageKey: string | null }>(
+const mapUserProfileImage = async <
+  T extends { profileImageKey: string | null },
+>(
   user: T
 ): Promise<Omit<T, 'profileImageKey'> & { profileImageUrl: string | null }> => {
   const { profileImageKey, ...rest } = user;
@@ -77,7 +72,8 @@ const moversService = {
   /**
    * 기사 목록
    * - 항상 isFavorited(boolean) 포함
-   * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 전부
+   * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 거짓
+   * - 항상 favoritedCount / confirmedCount 포함 (로그인 여부와 무관)
    */
   getMovers: async ({
     query,
@@ -93,14 +89,21 @@ const moversService = {
       sort,
     } = await moversRepository.findMovers(filters);
 
+    // 이후 배치 조회용으로 이번 페이지 기사들의 User UUID만 모은다.
     const moverIds = movers.map((mover) => mover.user.id);
 
-    // 찜 여부·리뷰 통계를 병렬 배치 조회
-    const [favoritedMoverIds, reviewStatsByMoverId] = await Promise.all([
+    const [
+      favoritedMoverIds,
+      reviewStatsByMoverId,
+      favoritedCountByMoverId,
+      confirmedCountByMoverId,
+    ] = await Promise.all([
       customerId
         ? findFavoritedMoverIdsByUser(customerId, moverIds)
         : Promise.resolve(new Set<string>()),
       reviewRepository.getReviewStatsByMoverIds(moverIds),
+      countMoverFavoritedByMoverIds(moverIds),
+      countConfirmedQuotesByMoverIds(moverIds),
     ]);
 
     const moversWithReviews = await Promise.all(
@@ -109,6 +112,8 @@ const moversService = {
         user: await mapUserProfileImage(mover.user),
         review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
         isFavorited: favoritedMoverIds.has(mover.user.id),
+        favoritedCount: favoritedCountByMoverId.get(mover.user.id) ?? 0,
+        confirmedCount: confirmedCountByMoverId.get(mover.user.id) ?? 0,
       }))
     );
 
@@ -129,6 +134,7 @@ const moversService = {
   /**
    * 기사 상세
    * - 항상 isFavorited(boolean) 포함 (비회원·비고객은 false)
+   * - 항상 favoritedCount / confirmedCount 포함 (로그인 여부와 무관)
    */
   getMoverDetail: async ({
     moverId,
@@ -146,12 +152,16 @@ const moversService = {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
-    const [reviewStats, favorite] = await Promise.all([
-      reviewRepository.getReviewStatsByMoverId(moverId),
-      customerId
-        ? findFavoriteByUserAndMover(customerId, moverId)
-        : Promise.resolve(null),
-    ]);
+    // ── favoritedCount / confirmedCount 추가 ────────────────────────
+    const [reviewStats, favorite, favoritedCount, confirmedCount] =
+      await Promise.all([
+        reviewRepository.getReviewStatsByMoverId(moverId),
+        customerId
+          ? findFavoriteByUserAndMover(customerId, moverId)
+          : Promise.resolve(null),
+        countMoverFavorited(moverId),
+        countConfirmedQuotesByMoverId(moverId),
+      ]);
 
     return {
       data: {
@@ -161,10 +171,19 @@ const moversService = {
         },
         reviewStats,
         isFavorited: favorite != null,
+        // FE toMoverCardModelFromDetail → favoritedCount/confirmedCount ?? null
+        favoritedCount,
+        confirmedCount,
       },
     };
   },
 
+  /**
+   * 찜한 기사님 목록 (CUSTOMER)
+   * - reviewStats, favoritedCount
+   * - service: 이사유형 배열 (MoveType[])
+   * - confirmedCount: 확정 견적 건수
+   */
   getFavoriteMovers: async ({
     userId,
     query,
@@ -186,13 +205,21 @@ const moversService = {
       .map((favorite) => favorite.moverId)
       .filter((moverId): moverId is string => moverId != null);
 
-    const [reviewStatsByMoverId, favoritedCountByMoverId] = await Promise.all([
+    const [
+      reviewStatsByMoverId,
+      favoritedCountByMoverId,
+      confirmedCountByMoverId,
+    ] = await Promise.all([
       reviewRepository.getReviewStatsByMoverIds(moverIds),
       countMoverFavoritedByMoverIds(moverIds),
+      countConfirmedQuotesByMoverIds(moverIds),
     ]);
 
     const favoritesWithDetails = await Promise.all(
       favorites.map(async (favorite) => {
+        // 프로필에 등록된 이사유형. 없으면 빈 배열 → FE 「서비스 미등록」
+        const service = favorite.mover?.moverProfile?.service ?? [];
+
         if (!favorite.moverId) {
           return {
             ...favorite,
@@ -201,6 +228,8 @@ const moversService = {
               : favorite.mover,
             reviewStats: EMPTY_REVIEW_STATS,
             favoritedCount: 0,
+            service,
+            confirmedCount: 0,
           };
         }
 
@@ -212,6 +241,9 @@ const moversService = {
           reviewStats:
             reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
           favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
+          // FE toMoverCardModelFromFavorite: item.service ?? moverProfile.service
+          service,
+          confirmedCount: confirmedCountByMoverId.get(favorite.moverId) ?? 0,
         };
       })
     );
@@ -229,6 +261,34 @@ const moversService = {
         hasNextPage,
       },
     };
+  },
+
+  /**
+   * 기사 상세용 공개 리뷰 목록
+   * - path의 moverId(User UUID)로 조회. 인증 불필요.
+   * - 응답 형태는 본인용 GET /api/review/mover 와 동일 (reviewService 재사용).
+   */
+  getMoverPublicReviews: async ({
+    moverId,
+    page,
+    limit,
+  }: {
+    moverId: string;
+    page: number;
+    limit: number;
+  }) => {
+    // ── 공개 리뷰 API 과정 ───────────────────────────────────────────────
+    //getMoverReviews와의차이점은 moverId 출처뿐: 본인 API=토큰 userId, 공개 API=path :id
+    const moverDetail = await moversRepository.findMoverProfileById({
+      moverId,
+      onlyActiveMovers: true,
+    });
+
+    if (!moverDetail) {
+      throw new AppError('MOVER_NOT_FOUND');
+    }
+
+    return reviewService.getMoverReviews({ moverId, page, limit });
   },
 };
 
