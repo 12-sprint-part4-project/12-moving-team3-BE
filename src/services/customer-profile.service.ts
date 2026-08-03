@@ -105,6 +105,9 @@ export const getCustomerProfile = async (userId: string) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
+  const localAuth =
+    await customerProfileRepository.findLocalPasswordHashByUserId(userId);
+
   return {
     profileId: profile.id,
     userId: profile.user.id,
@@ -115,6 +118,7 @@ export const getCustomerProfile = async (userId: string) => {
     profileImageUrl: await toPresignedViewUrl(profile.user.profileImageKey),
     service: profile.service,
     region: profile.region,
+    hasPassword: Boolean(localAuth?.passwordHash),
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   };

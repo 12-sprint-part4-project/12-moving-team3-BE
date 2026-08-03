@@ -92,6 +92,7 @@ components:
             - profileImageUrl
             - service
             - region
+            - hasPassword
             - createdAt
             - updatedAt
           properties:
@@ -148,6 +149,12 @@ components:
                 - BUSAN
                 - JEJU
               example: SEOUL
+            hasPassword:
+              type: boolean
+              description: |
+                LOCAL 비밀번호 존재 여부.
+                false면 소셜 전용 가입자로 비밀번호 변경 UI를 숨기면 됩니다.
+              example: true
             createdAt:
               type: string
               format: date-time
