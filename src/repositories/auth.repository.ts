@@ -159,7 +159,6 @@ export interface CreateUserWithLocalAuthInput {
   name: string;
   nickname: string;
   email: string;
-  phoneNumber: string;
   userType: UserType;
   passwordHash: string;
 }
@@ -173,7 +172,6 @@ export const createUserWithLocalAuth = async (
       name: input.name,
       nickname: input.nickname,
       email: input.email,
-      phoneNumber: input.phoneNumber,
       userType: input.userType,
       authAccounts: {
         create: {

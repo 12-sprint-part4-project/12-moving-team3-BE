@@ -204,8 +204,8 @@ paths:
       description: |
         일반 유저(CUSTOMER)가 프로필 정보를 등록하거나 수정합니다.
         - Content-Type: `application/json`
-        - **등록**(아직 service 미설정): `nickname`, `region`, `service` 필수. 비밀번호 변경 필드는 무시됩니다.
-        - **수정**(이미 등록됨): `nickname`은 필수이며, 나머지 필드는 전달한 항목만 부분 수정합니다. 변경 항목이 없으면 `NO_CHANGE`.
+        - **등록**(아직 service 미설정): `nickname`, `phoneNumber`, `region`, `service` 필수. 비밀번호 변경 필드는 무시됩니다.
+        - **수정**(이미 등록됨): `nickname`, `phoneNumber`는 필수이며, 나머지 필드는 전달한 항목만 부분 수정합니다. 변경 항목이 없으면 `NO_CHANGE`.
         - 비밀번호 변경 시 `newPassword`와 함께 `currentPassword`, `newPasswordConfirm`이 필요합니다.
         - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
       security:
@@ -218,6 +218,7 @@ paths:
               type: object
               required:
                 - nickname
+                - phoneNumber
               properties:
                 name:
                   type: string
@@ -231,7 +232,8 @@ paths:
                   example: sojeong
                 phoneNumber:
                   type: string
-                  description: 변경할 전화번호 (숫자 11자리)
+                  pattern: '^\d{11}$'
+                  description: 전화번호 (숫자 11자리, 필수)
                   example: '01098765432'
                 currentPassword:
                   type: string
@@ -283,6 +285,7 @@ paths:
                 summary: 프로필 등록 예시
                 value:
                   nickname: sojeong
+                  phoneNumber: '01098765432'
                   region: SEOUL
                   service: [HOME, SMALL]
                   s3Key: profile-images/1710000000000_profile.jpg
@@ -298,6 +301,7 @@ paths:
                 summary: 비밀번호 변경 포함 수정 예시
                 value:
                   nickname: sojeong
+                  phoneNumber: '01098765432'
                   currentPassword: OldPass123!
                   newPassword: NewPass123!
                   newPasswordConfirm: NewPass123!

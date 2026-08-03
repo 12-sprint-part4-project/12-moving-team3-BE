@@ -19,7 +19,6 @@ export interface SignupBody {
   name: string;
   nickname: string;
   email: string;
-  phoneNumber: string;
   password: string;
   passwordConfirmation: string;
 }
@@ -29,7 +28,6 @@ const SIGNUP_REQUIRED_FIELDS = [
   'name',
   'nickname',
   'email',
-  'phoneNumber',
   'password',
   'passwordConfirmation',
 ] as const;
@@ -38,8 +36,6 @@ const API_USER_TYPES: readonly ApiUserType[] = ['CUSTOMER', 'MOVER'];
 
 // INVALID_NEW_PASSWORD와 동일한 정책(8~20자, 영문·숫자·특수문자)을 재사용
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
-
-const PHONE_NUMBER_REGEX = /^\d{11}$/;
 
 const isBlank = (value: unknown): boolean => {
   if (value === undefined || value === null) {
@@ -162,13 +158,6 @@ export const parseSignupBody = (body: unknown): SignupBody => {
   const normalizedEmail = emailResult.data.trim().toLowerCase();
 
   if (
-    typeof data.phoneNumber !== 'string' ||
-    !PHONE_NUMBER_REGEX.test(data.phoneNumber)
-  ) {
-    throw new AppError('INVALID_PHONE_NUMBER_FORMAT');
-  }
-
-  if (
     typeof data.password !== 'string' ||
     !PASSWORD_REGEX.test(data.password)
   ) {
@@ -184,7 +173,6 @@ export const parseSignupBody = (body: unknown): SignupBody => {
     name: data.name,
     nickname: data.nickname,
     email: normalizedEmail,
-    phoneNumber: data.phoneNumber,
     password: data.password,
     passwordConfirmation: String(data.passwordConfirmation),
   };

@@ -62,7 +62,6 @@ const options: swaggerJSDoc.Options = {
             'name',
             'nickname',
             'email',
-            'phoneNumber',
             'password',
             'passwordConfirmation',
           ],
@@ -78,11 +77,6 @@ const options: swaggerJSDoc.Options = {
               type: 'string',
               format: 'email',
               example: 'customer@example.com',
-            },
-            phoneNumber: {
-              type: 'string',
-              example: '01012345678',
-              description: '숫자 11자리',
             },
             password: {
               type: 'string',
@@ -137,7 +131,9 @@ const options: swaggerJSDoc.Options = {
                     },
                     phoneNumber: {
                       type: 'string',
-                      example: '01012345678',
+                      example: '',
+                      description:
+                        '프로필 등록 전엔 비어 있음. 회원가입에서는 수집하지 않습니다.',
                     },
                     isProfileCompleted: {
                       type: 'boolean',

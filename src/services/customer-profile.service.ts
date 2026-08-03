@@ -171,14 +171,12 @@ const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
     throw new AppError('NICKNAME_ALREADY_EXISTS');
   }
 
-  if (body.phoneNumber !== undefined) {
-    const existingPhoneUser = await authRepository.findUserByPhoneNumber(
-      body.phoneNumber
-    );
+  const existingPhoneUser = await authRepository.findUserByPhoneNumber(
+    body.phoneNumber
+  );
 
-    if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
-      throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
-    }
+  if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
+    throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
   }
 
   const nextProfileImageKey = body.s3Key ?? null;
@@ -191,10 +189,8 @@ const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
       service: body.service,
       profileImageKey: nextProfileImageKey,
       nickname: body.nickname,
+      phoneNumber: body.phoneNumber,
       ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.phoneNumber !== undefined
-        ? { phoneNumber: body.phoneNumber }
-        : {}),
     });
 
     if (
@@ -249,7 +245,6 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
   const hasNicknameChange =
     body.nickname !== existingProfile.user.nickname;
   const hasPhoneChange =
-    body.phoneNumber !== undefined &&
     body.phoneNumber !== existingProfile.user.phoneNumber;
   const hasRegionChange =
     body.region !== undefined && body.region !== existingProfile.region;
@@ -282,7 +277,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
     }
   }
 
-  if (hasPhoneChange && body.phoneNumber) {
+  if (hasPhoneChange) {
     const existingPhoneUser = await authRepository.findUserByPhoneNumber(
       body.phoneNumber
     );

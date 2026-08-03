@@ -1,3 +1,4 @@
+import * as authRepository from '../repositories/auth.repository';
 import * as moverProfileRepository from '../repositories/mover-profile.repository';
 import type { MoverProfileBody } from '../schemas/mover-profile.schema';
 import { deleteImage, toPresignedViewUrl } from './s3.service';
@@ -47,6 +48,14 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
+  const existingPhoneUser = await authRepository.findUserByPhoneNumber(
+    input.body.phoneNumber
+  );
+
+  if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
+    throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
+  }
+
   const previousProfileImageKey = existingProfile.user.profileImageKey;
   const nextProfileImageKey = input.body.s3Key;
 
@@ -54,6 +63,7 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
     const profile = await moverProfileRepository.saveMoverProfile({
       userId: input.userId,
       nickname: input.body.nickname,
+      phoneNumber: input.body.phoneNumber,
       career: input.body.career,
       shortDescription: input.body.shortDescription,
       description: input.body.description,
@@ -76,6 +86,7 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
 
     return {
       nickname: profile.nickname,
+      phoneNumber: profile.phoneNumber,
       career: profile.career,
       shortDescription: profile.shortDescription,
       description: profile.description,
