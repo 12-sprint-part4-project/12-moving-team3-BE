@@ -48,3 +48,25 @@ export const getCompletedEstimateRequestRecentActivities = async (
     take: 5,
   });
 };
+
+export const findEstimateRequestList = async <
+  T extends Prisma.EstimateRequestSelect,
+>(
+  where: Prisma.EstimateRequestWhereInput,
+  orderBy: Prisma.EstimateRequestOrderByWithRelationInput,
+  take: number,
+  skip: number,
+  select: T
+): Promise<
+  Prisma.EstimateRequestGetPayload<{
+    select: T;
+  }>[]
+> => {
+  return prisma.estimateRequest.findMany({
+    where,
+    orderBy,
+    take,
+    skip,
+    select,
+  });
+};

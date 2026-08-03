@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import * as adminEstimateRequestService from '../services/admin-estimate-request.service';
+import { AdminEstimateRequestListQuery } from '../schemas/admin-estimate-request.schema';
+import { getValidated } from '../utils/validated.util';
 
 export const getEstimateRequestStatistics = async (
   _req: Request,
@@ -17,6 +19,25 @@ export const getEstimateRequestStatistics = async (
 
     res.status(200).json({
       data: statistics,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getEstimateRequestList = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const query = getValidated<AdminEstimateRequestListQuery>(res, 'query');
+    const { data, meta } =
+      await adminEstimateRequestService.getEstimateRequestList(query);
+
+    res.status(200).json({
+      data,
+      meta,
     });
   } catch (error) {
     next(error);
