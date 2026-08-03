@@ -372,6 +372,7 @@ export interface CustomerQuoteRow {
 export interface CustomerPendingEstimateRequestRow {
   id: number;
   status: EstimateRequestStatus;
+  submittedAt: Date | null;
   moveType: MoveType | null;
   moveDate: Date | null;
   departureAddress: string | null;
@@ -402,6 +403,7 @@ export interface CustomerQuoteDetailRow {
   estimateRequest: {
     moveType: MoveType | null;
     moveDate: Date | null;
+    submittedAt: Date | null;
     departureAddress: string | null;
     arrivalAddress: string | null;
   };
@@ -530,6 +532,7 @@ export const findPendingEstimateRequestWithQuotes = async (
     select: {
       id: true,
       status: true,
+      submittedAt: true,
       moveType: true,
       moveDate: true,
       departureAddress: true,
@@ -659,6 +662,7 @@ export const findCustomerQuoteById = async (
         select: {
           moveType: true,
           moveDate: true,
+          submittedAt: true,
           departureAddress: true,
           arrivalAddress: true,
         },

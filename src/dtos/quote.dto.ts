@@ -93,6 +93,7 @@ export interface CustomerQuoteItemDto {
 export interface CustomerPendingQuotesDto {
   estimateRequestId: number;
   status: EstimateRequestStatus;
+  submittedAt: Date | null;
   serviceType: MoveType | null;
   moveDate: Date | null;
   fromAddress: string | null;
@@ -134,6 +135,7 @@ export interface CustomerQuoteDetailDto {
   isDesignated: boolean;
   serviceType: MoveType | null;
   moveDate: Date | null;
+  submittedAt: Date | null;
   fromAddress: string | null;
   toAddress: string | null;
   mover: CustomerQuoteMoverDto;

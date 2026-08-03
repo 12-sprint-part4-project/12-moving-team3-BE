@@ -72,6 +72,12 @@ components:
               enum: [SUBMITTED]
               example: SUBMITTED
               description: 대기 중 견적 요청 상태 (SUBMITTED)
+            submittedAt:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-06-24T10:00:00.000Z'
+              description: 견적 요청 제출 시각
             serviceType:
               type: string
               enum: [SMALL, HOME, OFFICE]
@@ -198,6 +204,12 @@ components:
               format: date-time
               nullable: true
               example: '2024-05-10T00:00:00.000Z'
+            submittedAt:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-08-26T10:00:00.000Z'
+              description: 견적 요청 제출 시각
             fromAddress:
               type: string
               nullable: true
@@ -247,6 +259,7 @@ paths:
                     data:
                       estimateRequestId: 101
                       status: SUBMITTED
+                      submittedAt: '2024-06-24T10:00:00.000Z'
                       serviceType: HOME
                       moveDate: '2024-05-10T00:00:00.000Z'
                       fromAddress: 서울 강남구
@@ -463,6 +476,7 @@ paths:
                   isDesignated: true
                   serviceType: HOME
                   moveDate: '2024-05-10T00:00:00.000Z'
+                  submittedAt: '2024-08-26T10:00:00.000Z'
                   fromAddress: 서울시 강남구 테헤란로 123
                   toAddress: 서울시 서초구 서초대로 456
                   mover:
