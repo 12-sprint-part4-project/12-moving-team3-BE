@@ -3,9 +3,7 @@ import { adminStatisticsFilterSchema } from './admin-statistics.schema';
 import { listQuerySchema } from './admin-list-query.schema';
 import { EstimateRequestStatus, MoveType } from '@prisma/client';
 
-export const moveTypeSchema = z.enum(
-  Object.values(MoveType) as [MoveType, ...MoveType[]]
-);
+export const moveTypeSchema = z.enum(MoveType);
 
 export const estimateRequestManageStatusSchema = z.enum([
   EstimateRequestStatus.SUBMITTED,
