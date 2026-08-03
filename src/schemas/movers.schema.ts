@@ -1,8 +1,13 @@
 import { MoveType, Region } from '@prisma/client';
 import { z } from 'zod';
 
-export const MOVER_SORT_FIELDS = ['career', 'createdAt'] as const;
-export const MOVER_SORT_ORDERS = ['asc', 'desc'] as const;
+/** 기사 목록 정렬 — 모두 내림차순(리뷰·평점·경력·확정 많은/높은 순) */
+export const MOVER_SORT_FIELDS = [
+  'reviewCount',
+  'averageRating',
+  'career',
+  'confirmedCount',
+] as const;
 
 /**
  * 쿼리 파라미터를 문자열 배열로 정규화
@@ -34,7 +39,6 @@ export const moversListQuerySchema = z.object({
   region: regionArraySchema.optional(),
   moveType: moveTypeArraySchema.optional(),
   sort: z.enum(MOVER_SORT_FIELDS).optional(),
-  order: z.enum(MOVER_SORT_ORDERS).optional(),
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(10).optional().default(10),
 });

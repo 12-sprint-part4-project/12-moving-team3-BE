@@ -1,7 +1,7 @@
 import type { MoverListSort } from '../repositories/movers.repository';
 import { AppError } from './app.error';
 
-/** 기사 목록 커서 (정렬 기준값 + id) */
+/** 기사 목록 커서 (정렬 기준값 + id) — 정렬은 모두 숫자·내림차순 */
 export interface MoverListCursor {
   sort: MoverListSort;
   value: string;
@@ -42,6 +42,15 @@ const isFavoriteListCursor = (value: unknown): value is FavoriteListCursor =>
   typeof (value as FavoriteListCursor).value === 'string' &&
   typeof (value as FavoriteListCursor).id === 'number';
 
+/** 커서에 넣을 숫자 정렬값 (평점은 소수 1자리) */
+const formatNumericCursorValue = (value: number): string => {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+
+  return String(Math.round(value * 10) / 10);
+};
+
 export const encodeMoverListCursor = (cursor: MoverListCursor): string =>
   encode(cursor);
 
@@ -55,11 +64,7 @@ export const decodeMoverListCursor = (
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  const isValidValue = decoded.sort.startsWith('career')
-    ? /^\d+$/.test(decoded.value)
-    : new Date(decoded.value).toISOString() === decoded.value;
-
-  if (!isValidValue) {
+  if (!/^\d+(\.\d+)?$/.test(decoded.value)) {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
@@ -87,9 +92,14 @@ export const decodeFavoriteListCursor = (
 
 export const getMoverListCursorValue = (
   sort: MoverListSort,
-  mover: { id: number; createdAt: Date; career: number | null }
+  mover: {
+    id: number;
+    career: number | null;
+    /** 집계 정렬(reviewCount/averageRating/confirmedCount)용 */
+    listSortValue?: number;
+  }
 ): MoverListCursor => {
-  if (sort.startsWith('career')) {
+  if (sort === 'career') {
     return {
       sort,
       value: String(mover.career ?? 0),
@@ -99,7 +109,7 @@ export const getMoverListCursorValue = (
 
   return {
     sort,
-    value: mover.createdAt.toISOString(),
+    value: formatNumericCursorValue(mover.listSortValue ?? 0),
     id: mover.id,
   };
 };
