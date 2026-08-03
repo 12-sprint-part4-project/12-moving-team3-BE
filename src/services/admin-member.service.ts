@@ -4,6 +4,8 @@ import type {
   AdminMemberListResultDto,
 } from '../dtos/admin-member.dto';
 import {
+  countAdminMemberReports,
+  countConfirmedQuotesByMoverId,
   findAdminMemberDetail,
   findAdminMembersWithCount,
   type AdminMemberDetailRow,
@@ -12,6 +14,14 @@ import {
 import reviewRepository from '../repositories/review.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { AppError } from '../utils/app.error';
+
+/** 관리자 회원 상세 응답 — Repository row + Service에서 조합한 집계 필드 */
+export type AdminMemberDetailResult = AdminMemberDetailRow & {
+  reportCount: number;
+  averageRating: number | null;
+  reviewCount: number;
+  confirmedQuoteCount: number;
+};
 
 /**
  * Repository row → 목록 아이템 DTO.
@@ -66,10 +76,13 @@ export const getAdminMemberList = async (
   };
 };
 
-/** 관리자 회원 상세 조회 */
+/**
+ * 관리자 회원 상세 조회.
+ * movers.service.getMoverDetail와 같이 Repository 조회 후 Service에서 집계를 조합한다.
+ */
 export const getAdminMemberDetail = async (
   memberId: string
-): Promise<AdminMemberDetailRow> => {
+): Promise<AdminMemberDetailResult> => {
   const member = await findAdminMemberDetail(memberId);
 
   // 없거나 삭제된 회원은 Repository에서 null이므로 관리자 상세 조회 404로 처리한다.
@@ -77,5 +90,23 @@ export const getAdminMemberDetail = async (
     throw new AppError('ADMIN_MEMBER_NOT_FOUND');
   }
 
-  return member;
+  const isMover = member.userType === UserType.MOVER;
+
+  const [reportCount, reviewStats, confirmedQuoteCount] = await Promise.all([
+    countAdminMemberReports(memberId),
+    isMover
+      ? reviewRepository.getReviewStatsByMoverId(memberId)
+      : Promise.resolve(null),
+    isMover
+      ? countConfirmedQuotesByMoverId(memberId)
+      : Promise.resolve(0),
+  ]);
+
+  return {
+    ...member,
+    reportCount,
+    averageRating: reviewStats?.averageRating ?? null,
+    reviewCount: reviewStats?.totalCount ?? 0,
+    confirmedQuoteCount,
+  };
 };
