@@ -658,6 +658,7 @@ export const getCustomerPendingQuotes = async (
   return {
     estimateRequestId: estimateRequest.id,
     status: estimateRequest.status,
+    submittedAt: estimateRequest.submittedAt,
     serviceType: estimateRequest.moveType,
     moveDate: estimateRequest.moveDate,
     fromAddress: inferDistrictLabelFromAddress(
@@ -740,6 +741,7 @@ export const getCustomerQuoteDetail = async (
     isDesignated: quote.isDesignated,
     serviceType: quote.estimateRequest.moveType,
     moveDate: quote.estimateRequest.moveDate,
+    submittedAt: quote.estimateRequest.submittedAt,
     fromAddress: quote.estimateRequest.departureAddress,
     toAddress: quote.estimateRequest.arrivalAddress,
     mover: await toCustomerQuoteMoverDto(mover),
