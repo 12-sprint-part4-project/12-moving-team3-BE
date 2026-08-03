@@ -3,6 +3,7 @@ import * as adminCompletedController from '../controllers/admin-completed.contro
 import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 import { validateRequest } from '../middlewares/validate.middleware';
+import { adminCompletedListQuerySchema } from '../schemas/admin-estimate-request.schema';
 
 const router = Router();
 
@@ -15,6 +16,16 @@ router.get(
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminCompletedController.getCompletedStatistics
+);
+
+router.get(
+  '/',
+  requireAdminAuth,
+  validateRequest({
+    query: adminCompletedListQuerySchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminCompletedController.getCompletedList
 );
 
 export default router;
