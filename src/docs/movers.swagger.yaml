@@ -11,6 +11,7 @@ paths:
         Authorization Bearer가 있고 CUSTOMER이면 각 항목의 isFavorited에 찜 여부를 반영합니다.
         비회원·기사·미찜은 모두 isFavorited: false 입니다.
         각 항목의 favoritedCount는 해당 기사가 받은 총 찜 수이며, 로그인 여부와 무관하게 포함됩니다.
+        각 항목의 confirmedCount는 확정 견적 건수이며, 로그인 여부와 무관하게 포함됩니다.
       parameters:
         - name: keyword
           in: query
@@ -86,7 +87,7 @@ paths:
                         type: array
                         items:
                           type: object
-                          description: MoverProfile + review 통계 + isFavorited + favoritedCount
+                          description: MoverProfile + review 통계 + isFavorited + favoritedCount + confirmedCount
                   meta:
                     type: object
                     properties:
@@ -127,8 +128,9 @@ paths:
                         averageRating: 4.4
                       isFavorited: false
                       favoritedCount: 128
+                      confirmedCount: 334
                 meta:
-                  nextCursor: eyJzb3J0IjoiY3JlYXRlZEF0X2Rlc2MiLCJ2YWx1ZSI6IjIwMjYtMDEtMTBUMDg6MDA6MDAuMDAwWiIsImlkIjoxMn0
+                  nextCursor: eyJzb3J0IjoicmV2aWV3Q291bnQiLCJ2YWx1ZSI6IjIwIiwiaWQiOjEyfQ
                   hasNextPage: true
         '400':
           description: 잘못된 쿼리 파라미터

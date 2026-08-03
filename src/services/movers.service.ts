@@ -73,7 +73,7 @@ const moversService = {
    * 기사 목록
    * - 항상 isFavorited(boolean) 포함
    * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 거짓
-   * - 항상 favoritedCount(number) 포함 — 해당 기사가 받은 총 찜 수 (로그인 여부와 무관)
+   * - 항상 favoritedCount / confirmedCount 포함 (로그인 여부와 무관)
    */
   getMovers: async ({
     query,
@@ -92,14 +92,19 @@ const moversService = {
     // 이후 배치 조회용으로 이번 페이지 기사들의 User UUID만 모은다.
     const moverIds = movers.map((mover) => mover.user.id);
 
-    const [favoritedMoverIds, reviewStatsByMoverId, favoritedCountByMoverId] =
-      await Promise.all([
-        customerId
-          ? findFavoritedMoverIdsByUser(customerId, moverIds)
-          : Promise.resolve(new Set<string>()),
-        reviewRepository.getReviewStatsByMoverIds(moverIds),
-        countMoverFavoritedByMoverIds(moverIds),
-      ]);
+    const [
+      favoritedMoverIds,
+      reviewStatsByMoverId,
+      favoritedCountByMoverId,
+      confirmedCountByMoverId,
+    ] = await Promise.all([
+      customerId
+        ? findFavoritedMoverIdsByUser(customerId, moverIds)
+        : Promise.resolve(new Set<string>()),
+      reviewRepository.getReviewStatsByMoverIds(moverIds),
+      countMoverFavoritedByMoverIds(moverIds),
+      countConfirmedQuotesByMoverIds(moverIds),
+    ]);
 
     const moversWithReviews = await Promise.all(
       movers.map(async (mover) => ({
@@ -108,6 +113,7 @@ const moversService = {
         review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
         isFavorited: favoritedMoverIds.has(mover.user.id),
         favoritedCount: favoritedCountByMoverId.get(mover.user.id) ?? 0,
+        confirmedCount: confirmedCountByMoverId.get(mover.user.id) ?? 0,
       }))
     );
 
