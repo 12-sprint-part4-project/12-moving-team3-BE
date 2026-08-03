@@ -300,6 +300,8 @@ const moversRepository = {
             moverProfile: {
               select: {
                 career: true,
+                // 이사유형 Chip용 — FE favorites 매퍼가 item.service 또는 moverProfile.service 사용
+                service: true,
                 serviceRegions: {
                   select: { id: true, region: true },
                 },

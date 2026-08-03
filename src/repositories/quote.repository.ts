@@ -851,3 +851,42 @@ export const countConfirmedQuotesByMoverId = async (
     },
   });
 };
+
+/**
+ * 여러 기사의 확정 견적 건수를 1회 groupBy로 집계 (찜 목록 N+1 방지).
+ * 결과에 없는 moverId는 호출측에서 0으로 처리.
+ */
+export const countConfirmedQuotesByMoverIds = async (
+  moverIds: string[],
+  tx?: Prisma.TransactionClient
+): Promise<Map<string, number>> => {
+  const uniqueMoverIds = [...new Set(moverIds.filter(Boolean))];
+  const result = new Map<string, number>();
+
+  if (uniqueMoverIds.length === 0) {
+    return result;
+  }
+
+  for (const moverId of uniqueMoverIds) {
+    result.set(moverId, 0);
+  }
+
+  const dbClient = tx ?? prisma;
+  const rows = await dbClient.quote.groupBy({
+    by: ['moverId'],
+    where: {
+      moverId: { in: uniqueMoverIds },
+      status: QuoteStatus.CONFIRMED,
+      deletedAt: null,
+    },
+    _count: { _all: true },
+  });
+
+  for (const row of rows) {
+    if (row.moverId != null) {
+      result.set(row.moverId, row._count._all);
+    }
+  }
+
+  return result;
+};

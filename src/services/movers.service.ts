@@ -9,7 +9,10 @@ import type {
   MoverListSort,
 } from '../repositories/movers.repository';
 import moversRepository from '../repositories/movers.repository';
-import { countConfirmedQuotesByMoverId } from '../repositories/quote.repository';
+import {
+  countConfirmedQuotesByMoverId,
+  countConfirmedQuotesByMoverIds,
+} from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
 import type {
   FavoriteMoversQuery,
@@ -181,6 +184,12 @@ const moversService = {
     };
   },
 
+  /**
+   * 찜한 기사님 목록 (CUSTOMER)
+   * - reviewStats, favoritedCount
+   * - service: 이사유형 배열 (MoveType[])
+   * - confirmedCount: 확정 견적 건수
+   */
   getFavoriteMovers: async ({
     userId,
     query,
@@ -202,13 +211,27 @@ const moversService = {
       .map((favorite) => favorite.moverId)
       .filter((moverId): moverId is string => moverId != null);
 
-    const [reviewStatsByMoverId, favoritedCountByMoverId] = await Promise.all([
+    // ── service / confirmedCount 추가 과정 ───────────────────────────────
+    // 1) service: DB include에서 moverProfile.service를 이미 가져온다.
+    //    응답 top-level에 service를 올려 FE(item.service)가 바로 쓰게 한다.
+    // 2) confirmedCount: 기사마다 count하면 N+1 → countConfirmedQuotesByMoverIds
+    //    로 moverIds를 한 번에 groupBy (favoritedCount와 같은 패턴).
+    // 3) reviewStats / favoritedCount / confirmedCount는 독립 → Promise.all.
+    const [
+      reviewStatsByMoverId,
+      favoritedCountByMoverId,
+      confirmedCountByMoverId,
+    ] = await Promise.all([
       reviewRepository.getReviewStatsByMoverIds(moverIds),
       countMoverFavoritedByMoverIds(moverIds),
+      countConfirmedQuotesByMoverIds(moverIds),
     ]);
 
     const favoritesWithDetails = await Promise.all(
       favorites.map(async (favorite) => {
+        // 프로필에 등록된 이사유형. 없으면 빈 배열 → FE 「서비스 미등록」
+        const service = favorite.mover?.moverProfile?.service ?? [];
+
         if (!favorite.moverId) {
           return {
             ...favorite,
@@ -217,6 +240,8 @@ const moversService = {
               : favorite.mover,
             reviewStats: EMPTY_REVIEW_STATS,
             favoritedCount: 0,
+            service,
+            confirmedCount: 0,
           };
         }
 
@@ -228,6 +253,9 @@ const moversService = {
           reviewStats:
             reviewStatsByMoverId.get(favorite.moverId) ?? EMPTY_REVIEW_STATS,
           favoritedCount: favoritedCountByMoverId.get(favorite.moverId) ?? 0,
+          // FE toMoverCardModelFromFavorite: item.service ?? moverProfile.service
+          service,
+          confirmedCount: confirmedCountByMoverId.get(favorite.moverId) ?? 0,
         };
       })
     );

@@ -158,7 +158,8 @@ paths:
       summary: 찜한 기사님 목록 조회
       description: |
         로그인한 고객(CUSTOMER)이 찜한 기사님 목록을 조회합니다.
-        각 항목에 리뷰 통계(reviewStats)와 해당 기사가 받은 총 찜 수(favoritedCount)가 포함됩니다.
+        각 항목에 리뷰 통계(reviewStats), 총 찜 수(favoritedCount),
+        이사유형(service), 확정 견적 건수(confirmedCount)가 포함됩니다.
         moverId는 기사님의 User id(UUID)입니다.
       security:
         - bearerAuth: []
@@ -193,7 +194,7 @@ paths:
                         type: array
                         items:
                           type: object
-                          description: Favorite + mover + reviewStats + favoritedCount
+                          description: Favorite + mover + reviewStats + favoritedCount + service + confirmedCount
                   meta:
                     type: object
                     properties:
@@ -216,6 +217,7 @@ paths:
                         profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                         moverProfile:
                           career: 5
+                          service: [HOME, SMALL]
                           serviceRegions:
                             - id: 1
                               region: SEOUL
@@ -229,6 +231,8 @@ paths:
                         totalCount: 20
                         averageRating: 4.4
                       favoritedCount: 128
+                      service: [HOME, SMALL]
+                      confirmedCount: 334
                 meta:
                   nextCursor: null
                   hasNextPage: false
