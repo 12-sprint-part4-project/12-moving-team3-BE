@@ -14,6 +14,7 @@ import {
   countConfirmedQuotesByMoverIds,
 } from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
+import * as reviewService from './review.service';
 import type {
   FavoriteMoversQuery,
   MoversListQuery,
@@ -211,12 +212,6 @@ const moversService = {
       .map((favorite) => favorite.moverId)
       .filter((moverId): moverId is string => moverId != null);
 
-    // ── service / confirmedCount 추가 과정 ───────────────────────────────
-    // 1) service: DB include에서 moverProfile.service를 이미 가져온다.
-    //    응답 top-level에 service를 올려 FE(item.service)가 바로 쓰게 한다.
-    // 2) confirmedCount: 기사마다 count하면 N+1 → countConfirmedQuotesByMoverIds
-    //    로 moverIds를 한 번에 groupBy (favoritedCount와 같은 패턴).
-    // 3) reviewStats / favoritedCount / confirmedCount는 독립 → Promise.all.
     const [
       reviewStatsByMoverId,
       favoritedCountByMoverId,
@@ -273,6 +268,34 @@ const moversService = {
         hasNextPage,
       },
     };
+  },
+
+  /**
+   * 기사 상세용 공개 리뷰 목록
+   * - path의 moverId(User UUID)로 조회. 인증 불필요.
+   * - 응답 형태는 본인용 GET /api/review/mover 와 동일 (reviewService 재사용).
+   */
+  getMoverPublicReviews: async ({
+    moverId,
+    page,
+    limit,
+  }: {
+    moverId: string;
+    page: number;
+    limit: number;
+  }) => {
+    // ── 공개 리뷰 API 과정 ───────────────────────────────────────────────
+    //getMoverReviews와의차이점은 moverId 출처뿐: 본인 API=토큰 userId, 공개 API=path :id
+    const moverDetail = await moversRepository.findMoverProfileById({
+      moverId,
+      onlyActiveMovers: true,
+    });
+
+    if (!moverDetail) {
+      throw new AppError('MOVER_NOT_FOUND');
+    }
+
+    return reviewService.getMoverReviews({ moverId, page, limit });
   },
 };
 
