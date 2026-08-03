@@ -18,3 +18,20 @@ export interface AdminEstimateRequestListDto {
   data: AdminEstimateRequestListItemResponse[];
   meta: PaginationDto;
 }
+
+export interface AdminCompletedListItemResponse {
+  id: number;
+  userName: string;
+  phoneNumber: string | null;
+  moveType: MoveType;
+  departureAddress: string;
+  arrivalAddress: string;
+  moveDate: Date;
+  mover: string;
+  price: number;
+}
+
+export interface AdminCompletedListDto {
+  data: AdminCompletedListItemResponse[];
+  meta: PaginationDto;
+}
