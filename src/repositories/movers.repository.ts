@@ -1,4 +1,9 @@
-import { Prisma, QuoteStatus, type MoveType, type Region } from '@prisma/client';
+import {
+  Prisma,
+  QuoteStatus,
+  type MoveType,
+  type Region,
+} from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
 import { MOVER_SORT_FIELDS } from '../schemas/movers.schema';
@@ -206,11 +211,11 @@ const buildFavoriteListCursorCondition = (
   };
 };
 
-type RankedCandidate = {
+interface RankedCandidate {
   id: number;
   userId: string;
   sortValue: number;
-};
+}
 
 const compareRankedDesc = (a: RankedCandidate, b: RankedCandidate): number => {
   if (b.sortValue !== a.sortValue) {
@@ -362,12 +367,8 @@ const findMoversByAggregateSort = async (
     where: { id: { in: ids } },
     include: moverListInclude,
   });
-  const profileById = new Map(
-    profiles.map((profile) => [profile.id, profile])
-  );
-  const sortValueById = new Map(
-    pageRows.map((row) => [row.id, row.sortValue])
-  );
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const sortValueById = new Map(pageRows.map((row) => [row.id, row.sortValue]));
 
   const items: MoverListRow[] = [];
   for (const id of ids) {
