@@ -62,7 +62,9 @@ const EMPTY_REVIEW_STATS = {
 };
 
 /** profileImageKey → profileImageUrl (클라이언트용) */
-const mapUserProfileImage = async <T extends { profileImageKey: string | null }>(
+const mapUserProfileImage = async <
+  T extends { profileImageKey: string | null },
+>(
   user: T
 ): Promise<Omit<T, 'profileImageKey'> & { profileImageUrl: string | null }> => {
   const { profileImageKey, ...rest } = user;
@@ -77,7 +79,8 @@ const moversService = {
   /**
    * 기사 목록
    * - 항상 isFavorited(boolean) 포함
-   * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 전부
+   * - customerId가 있을 때만 DB에서 찜 여부 조회, 없으면 거짓
+   * - 항상 favoritedCount(number) 포함 — 해당 기사가 받은 총 찜 수 (로그인 여부와 무관)
    */
   getMovers: async ({
     query,
@@ -93,15 +96,17 @@ const moversService = {
       sort,
     } = await moversRepository.findMovers(filters);
 
+    // 이후 배치 조회용으로 이번 페이지 기사들의 User UUID만 모은다.
     const moverIds = movers.map((mover) => mover.user.id);
 
-    // 찜 여부·리뷰 통계를 병렬 배치 조회
-    const [favoritedMoverIds, reviewStatsByMoverId] = await Promise.all([
-      customerId
-        ? findFavoritedMoverIdsByUser(customerId, moverIds)
-        : Promise.resolve(new Set<string>()),
-      reviewRepository.getReviewStatsByMoverIds(moverIds),
-    ]);
+    const [favoritedMoverIds, reviewStatsByMoverId, favoritedCountByMoverId] =
+      await Promise.all([
+        customerId
+          ? findFavoritedMoverIdsByUser(customerId, moverIds)
+          : Promise.resolve(new Set<string>()),
+        reviewRepository.getReviewStatsByMoverIds(moverIds),
+        countMoverFavoritedByMoverIds(moverIds),
+      ]);
 
     const moversWithReviews = await Promise.all(
       movers.map(async (mover) => ({
@@ -109,6 +114,7 @@ const moversService = {
         user: await mapUserProfileImage(mover.user),
         review: reviewStatsByMoverId.get(mover.user.id) ?? EMPTY_REVIEW_STATS,
         isFavorited: favoritedMoverIds.has(mover.user.id),
+        favoritedCount: favoritedCountByMoverId.get(mover.user.id) ?? 0,
       }))
     );
 
