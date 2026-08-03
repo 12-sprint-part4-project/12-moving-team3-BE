@@ -583,3 +583,209 @@ paths:
                 error:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/members/{memberId}/suspend:
+    patch:
+      tags: [Admin Members]
+      summary: 관리자 회원 7일 정지
+      description: |
+        삭제되지 않은 회원의 계정 상태를 7일 정지(SUSPENDED)로 변경합니다.
+        UserStatusInfo가 없으면 생성하고, 있으면 갱신합니다.
+        suspendedAt는 요청 처리 시각, suspendedUntil는 그로부터 7일 후입니다.
+        변경 전/후 상태는 공용 History 테이블에 함께 저장됩니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          description: 정지할 회원의 User.id (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: '550e8400-e29b-41d4-a716-446655440000'
+      responses:
+        '200':
+          description: 회원 7일 정지 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - memberId
+                      - status
+                      - suspendedAt
+                      - suspendedUntil
+                    properties:
+                      memberId:
+                        type: string
+                        format: uuid
+                        example: '550e8400-e29b-41d4-a716-446655440000'
+                      status:
+                        type: string
+                        enum: [ACTIVE, SUSPENDED]
+                        example: SUSPENDED
+                      suspendedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: '2026-08-03T09:00:00.000Z'
+                      suspendedUntil:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: '2026-08-10T09:00:00.000Z'
+              example:
+                data:
+                  memberId: '550e8400-e29b-41d4-a716-446655440000'
+                  status: SUSPENDED
+                  suspendedAt: '2026-08-03T09:00:00.000Z'
+                  suspendedUntil: '2026-08-10T09:00:00.000Z'
+        '400':
+          description: Path Parameter(memberId) UUID 형식 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 회원이 없거나 삭제된 회원
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_MEMBER_NOT_FOUND
+                  message: 존재하지 않는 회원입니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/members/{memberId}/activate:
+    patch:
+      tags: [Admin Members]
+      summary: 관리자 회원 계정 활성화
+      description: |
+        삭제되지 않은 회원의 계정 상태를 활성(ACTIVE)으로 변경합니다.
+        UserStatusInfo가 없으면 생성하고, 있으면 갱신합니다.
+        suspendedAt와 suspendedUntil는 null로 초기화합니다.
+        변경 전/후 상태는 공용 History 테이블에 함께 저장됩니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          description: 활성화할 회원의 User.id (UUID)
+          schema:
+            type: string
+            format: uuid
+            example: '550e8400-e29b-41d4-a716-446655440000'
+      responses:
+        '200':
+          description: 회원 계정 활성화 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - memberId
+                      - status
+                      - suspendedAt
+                      - suspendedUntil
+                    properties:
+                      memberId:
+                        type: string
+                        format: uuid
+                        example: '550e8400-e29b-41d4-a716-446655440000'
+                      status:
+                        type: string
+                        enum: [ACTIVE, SUSPENDED]
+                        example: ACTIVE
+                      suspendedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: null
+                      suspendedUntil:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: null
+              example:
+                data:
+                  memberId: '550e8400-e29b-41d4-a716-446655440000'
+                  status: ACTIVE
+                  suspendedAt: null
+                  suspendedUntil: null
+        '400':
+          description: Path Parameter(memberId) UUID 형식 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 회원이 없거나 삭제된 회원
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_MEMBER_NOT_FOUND
+                  message: 존재하지 않는 회원입니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
