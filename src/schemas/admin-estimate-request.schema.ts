@@ -1,8 +1,11 @@
 import { z } from 'zod';
 import { adminStatisticsFilterSchema } from './admin-statistics.schema';
 import { listQuerySchema } from './admin-list-query.schema';
-import { EstimateRequestStatus } from '@prisma/client';
-import { moveTypeArraySchema } from './profile.schema';
+import { EstimateRequestStatus, MoveType } from '@prisma/client';
+
+export const moveTypeSchema = z.enum(
+  Object.values(MoveType) as [MoveType, ...MoveType[]]
+);
 
 export const estimateRequestManageStatusSchema = z.enum([
   EstimateRequestStatus.SUBMITTED,
@@ -21,7 +24,7 @@ export type AdminEstimateRequestListQuery = z.infer<
 
 export const adminCompletedListQuerySchema = listQuerySchema
   .extend({
-    moveType: moveTypeArraySchema.optional(),
+    moveType: moveTypeSchema.optional(),
   })
   .and(adminStatisticsFilterSchema);
 
