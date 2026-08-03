@@ -5,6 +5,7 @@ import type {
   MoverDetailParams,
   MoversListQuery,
 } from '../schemas/movers.schema';
+import type { ReviewListQuery } from '../schemas/review.schema';
 import moversService from '../services/movers.service';
 import { AppError } from '../utils/app.error';
 import {
@@ -42,6 +43,9 @@ const getValidatedDetailParams = (res: Response): MoverDetailParams =>
 
 const getValidatedFavoriteMoversQuery = (res: Response): FavoriteMoversQuery =>
   getValidatedData<FavoriteMoversQuery>(res, 'query');
+
+const getValidatedReviewListQuery = (res: Response): ReviewListQuery =>
+  getValidatedData<ReviewListQuery>(res, 'query');
 
 export const getMovers = async (
   _req: Request,
@@ -100,6 +104,34 @@ export const getFavoriteMovers = async (
     res.status(200).json({
       data: response.data,
       meta: response.meta,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/movers/:id/reviews
+ * 기사 상세용 공개 리뷰 목록 — 응답은 GET /api/review/mover 와 동일.
+ */
+export const getMoverPublicReviews = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id: moverId } = getValidatedDetailParams(res);
+    const { page, limit } = getValidatedReviewListQuery(res);
+
+    const result = await moversService.getMoverPublicReviews({
+      moverId,
+      page,
+      limit,
+    });
+
+    res.status(200).json({
+      data: { reviews: result.reviews },
+      meta: result.meta,
     });
   } catch (error) {
     next(error);
