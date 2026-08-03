@@ -10,7 +10,7 @@ import {
   findAdminMemberDetail,
   findAdminMemberId,
   findAdminMembersWithCount,
-  upsertAdminMemberStatus,
+  updateAdminMemberStatusWithHistory,
   type AdminMemberDetailRow,
   type AdminMemberListRow,
 } from '../repositories/admin-member.repository';
@@ -140,16 +140,18 @@ const toAdminMemberStatusResult = (row: {
 
 /**
  * 관리자 회원 7일 정지.
- * adminId는 다음 History 저장 작업에서 actor로 사용하며, 지금은 시그니처만 유지한다.
+ * 상태 변경과 History는 repository 트랜잭션에서 함께 처리한다.
  */
 export const suspendAdminMember = async (
   memberId: string,
-  _adminId: number
+  adminId: number
 ): Promise<AdminMemberStatusResultDto> => {
   await assertAdminMemberExists(memberId);
 
   const now = new Date();
-  const statusInfo = await upsertAdminMemberStatus(memberId, {
+  const statusInfo = await updateAdminMemberStatusWithHistory({
+    memberId,
+    adminId,
     status: UserStatus.SUSPENDED,
     suspendedAt: now,
     // 정지 종료 시각을 서버 기준으로 고정해 클라이언트 시계 편차를 피한다.
@@ -162,15 +164,16 @@ export const suspendAdminMember = async (
 /**
  * 관리자 회원 활성화.
  * 정지 시각을 null로 비워 ACTIVE와 함께 상태가 일관되게 보이도록 한다.
- * adminId는 다음 History 저장 작업에서 actor로 사용하며, 지금은 시그니처만 유지한다.
  */
 export const activateAdminMember = async (
   memberId: string,
-  _adminId: number
+  adminId: number
 ): Promise<AdminMemberStatusResultDto> => {
   await assertAdminMemberExists(memberId);
 
-  const statusInfo = await upsertAdminMemberStatus(memberId, {
+  const statusInfo = await updateAdminMemberStatusWithHistory({
+    memberId,
+    adminId,
     status: UserStatus.ACTIVE,
     suspendedAt: null,
     suspendedUntil: null,
