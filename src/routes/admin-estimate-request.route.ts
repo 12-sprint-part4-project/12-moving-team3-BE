@@ -18,6 +18,7 @@ router.get(
   adminEstimateRequestController.getEstimateRequestStatistics
 );
 
+// 견적 요청 목록 조회 (Swagger: src/docs/admin-estimate-request.swagger.yaml)
 router.get(
   '/',
   requireAdminAuth,
