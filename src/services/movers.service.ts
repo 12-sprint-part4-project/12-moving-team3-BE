@@ -30,23 +30,10 @@ import {
   getMoverListCursorValue,
 } from '../utils/movers-cursor.util';
 
-const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'createdAt_desc';
-
-const toMoverListSort = (
-  sort?: MoversListQuery['sort'],
-  order?: MoversListQuery['order']
-): MoverListSort => {
-  if (!sort) {
-    return DEFAULT_MOVER_LIST_SORT;
-  }
-
-  const resolvedOrder = order ?? (sort === 'career' ? 'asc' : 'desc');
-
-  return `${sort}_${resolvedOrder}` as MoverListSort;
-};
+const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'reviewCount';
 
 const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
-  const sort = toMoverListSort(query.sort, query.order);
+  const sort = query.sort ?? DEFAULT_MOVER_LIST_SORT;
 
   return {
     keyword: query.keyword,
