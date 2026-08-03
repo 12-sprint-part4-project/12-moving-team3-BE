@@ -5,6 +5,7 @@ import { validateRequest } from '../middlewares/validate.middleware';
 import {
   adminMemberDetailParamsSchema,
   adminMemberListQuerySchema,
+  adminMemberStatusParamsSchema,
 } from '../schemas/admin-member.schema';
 
 const router = Router();
@@ -18,6 +19,28 @@ router.get(
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminMemberController.getAdminMemberList
+);
+
+// 관리자 회원 정지 — `/:memberId`보다 먼저 등록해 경로가 상세 조회로 잡히지 않게 한다
+router.patch(
+  '/:memberId/suspend',
+  requireAdminAuth,
+  validateRequest({
+    params: adminMemberStatusParamsSchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminMemberController.suspendAdminMember
+);
+
+// 관리자 회원 활성화 — `/:memberId`보다 먼저 등록해 경로가 상세 조회로 잡히지 않게 한다
+router.patch(
+  '/:memberId/activate',
+  requireAdminAuth,
+  validateRequest({
+    params: adminMemberStatusParamsSchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminMemberController.activateAdminMember
 );
 
 // 관리자 회원 상세 조회

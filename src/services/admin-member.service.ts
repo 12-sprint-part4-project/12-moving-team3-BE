@@ -110,3 +110,27 @@ export const getAdminMemberDetail = async (
     confirmedQuoteCount,
   };
 };
+
+/**
+ * 관리자 회원 정지 stub.
+ * 다음 작업에서 UserStatusInfo 업데이트·History 저장을 구현한다.
+ * 지금은 라우트/컨트롤러 연결용으로 상세 조회 결과만 반환한다.
+ */
+export const suspendAdminMember = async (
+  memberId: string,
+  _adminId: number
+): Promise<AdminMemberDetailResult> => {
+  return getAdminMemberDetail(memberId);
+};
+
+/**
+ * 관리자 회원 활성화 stub.
+ * 다음 작업에서 UserStatusInfo 업데이트·History 저장을 구현한다.
+ * 지금은 라우트/컨트롤러 연결용으로 상세 조회 결과만 반환한다.
+ */
+export const activateAdminMember = async (
+  memberId: string,
+  _adminId: number
+): Promise<AdminMemberDetailResult> => {
+  return getAdminMemberDetail(memberId);
+};
