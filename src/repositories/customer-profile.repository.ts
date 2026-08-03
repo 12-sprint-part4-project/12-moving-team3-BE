@@ -13,6 +13,7 @@ export const findCustomerProfileByUserId = async (userId: string) => {
       user: {
         select: {
           name: true,
+          nickname: true,
           email: true,
           phoneNumber: true,
           profileImageKey: true,
@@ -36,6 +37,7 @@ export const findCustomerProfileDetailByUserId = async (userId: string) => {
         select: {
           id: true,
           name: true,
+          nickname: true,
           email: true,
           phoneNumber: true,
           profileImageKey: true,
@@ -68,6 +70,7 @@ export interface RegisterCustomerProfileInput {
   service?: MoveType[];
   profileImageKey?: string | null;
   name?: string;
+  nickname?: string;
   phoneNumber?: string;
   passwordHash?: string;
 }
@@ -91,6 +94,7 @@ export const registerCustomerProfile = async (
 
     const hasUserUpdate =
       input.name !== undefined ||
+      input.nickname !== undefined ||
       input.phoneNumber !== undefined ||
       input.profileImageKey !== undefined;
 
@@ -99,6 +103,7 @@ export const registerCustomerProfile = async (
         where: { id: input.userId },
         data: {
           ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.nickname !== undefined ? { nickname: input.nickname } : {}),
           ...(input.phoneNumber !== undefined
             ? { phoneNumber: input.phoneNumber }
             : {}),
@@ -134,6 +139,7 @@ export const registerCustomerProfile = async (
           select: {
             id: true,
             name: true,
+            nickname: true,
             email: true,
             phoneNumber: true,
             profileImageKey: true,
@@ -146,6 +152,7 @@ export const registerCustomerProfile = async (
       profileId: profile.id,
       userId: profile.user.id,
       name: profile.user.name,
+      nickname: profile.user.nickname,
       email: profile.user.email,
       phoneNumber: profile.user.phoneNumber,
       region: profile.region,
