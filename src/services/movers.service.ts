@@ -1,4 +1,5 @@
 import {
+  countMoverFavorited,
   countMoverFavoritedByMoverIds,
   findFavoriteByUserAndMover,
   findFavoritedMoverIdsByUser,
@@ -8,6 +9,7 @@ import type {
   MoverListSort,
 } from '../repositories/movers.repository';
 import moversRepository from '../repositories/movers.repository';
+import { countConfirmedQuotesByMoverId } from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
 import type {
   FavoriteMoversQuery,
@@ -135,6 +137,7 @@ const moversService = {
   /**
    * 기사 상세
    * - 항상 isFavorited(boolean) 포함 (비회원·비고객은 false)
+   * - 항상 favoritedCount / confirmedCount 포함 (로그인 여부와 무관)
    */
   getMoverDetail: async ({
     moverId,
@@ -152,12 +155,16 @@ const moversService = {
       throw new AppError('MOVER_NOT_FOUND');
     }
 
-    const [reviewStats, favorite] = await Promise.all([
-      reviewRepository.getReviewStatsByMoverId(moverId),
-      customerId
-        ? findFavoriteByUserAndMover(customerId, moverId)
-        : Promise.resolve(null),
-    ]);
+    // ── favoritedCount / confirmedCount 추가 ────────────────────────
+    const [reviewStats, favorite, favoritedCount, confirmedCount] =
+      await Promise.all([
+        reviewRepository.getReviewStatsByMoverId(moverId),
+        customerId
+          ? findFavoriteByUserAndMover(customerId, moverId)
+          : Promise.resolve(null),
+        countMoverFavorited(moverId),
+        countConfirmedQuotesByMoverId(moverId),
+      ]);
 
     return {
       data: {
@@ -167,6 +174,9 @@ const moversService = {
         },
         reviewStats,
         isFavorited: favorite != null,
+        // FE toMoverCardModelFromDetail → favoritedCount/confirmedCount ?? null
+        favoritedCount,
+        confirmedCount,
       },
     };
   },

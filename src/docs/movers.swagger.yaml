@@ -283,6 +283,8 @@ paths:
         회원/비회원 모두 접근 가능합니다.
         Authorization Bearer가 있고 CUSTOMER이면 isFavorited에 찜 여부를 반영합니다.
         비회원·기사·미찜은 모두 isFavorited: false 입니다.
+        favoritedCount는 해당 기사가 받은 총 찜 수, confirmedCount는 확정 견적 건수이며
+        로그인 여부와 무관하게 포함됩니다.
       parameters:
         - name: id
           in: path
@@ -320,6 +322,12 @@ paths:
                         description: |
                           로그인한 CUSTOMER가 해당 기사를 찜했는지 여부.
                           비회원·기사이거나 미찜이면 false.
+                      favoritedCount:
+                        type: integer
+                        description: 해당 기사가 받은 총 찜 수
+                      confirmedCount:
+                        type: integer
+                        description: 해당 기사의 확정 견적(CONFIRMED) 건수
               example:
                 data:
                   moverDetail:
@@ -349,6 +357,8 @@ paths:
                     totalCount: 20
                     averageRating: 4.4
                   isFavorited: false
+                  favoritedCount: 128
+                  confirmedCount: 334
         '400':
           description: 잘못된 ID (UUID 형식 아님)
           content:

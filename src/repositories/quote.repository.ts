@@ -835,3 +835,19 @@ export const findWritableQuotesByCustomerId = async (
 
   return { items, totalCount };
 };
+
+/**
+ * 기사가 받은 확정 견적(CONFIRMED) 건수.
+ * soft-delete 제외. 상세·목록 카드의 confirmedCount에 사용.
+ */
+export const countConfirmedQuotesByMoverId = async (
+  moverId: string
+): Promise<number> => {
+  return prisma.quote.count({
+    where: {
+      moverId,
+      status: QuoteStatus.CONFIRMED,
+      deletedAt: null,
+    },
+  });
+};
