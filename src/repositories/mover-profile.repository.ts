@@ -50,6 +50,7 @@ export const findMoverProfileDetailByUserId = async (userId: string) => {
 export interface SaveMoverProfileInput {
   userId: string;
   nickname: string;
+  phoneNumber: string;
   career: number;
   shortDescription: string;
   description: string;
@@ -78,12 +79,14 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       where: { id: input.userId },
       data: {
         nickname: input.nickname,
+        phoneNumber: input.phoneNumber,
         ...(input.profileImageKey !== undefined
           ? { profileImageKey: input.profileImageKey }
           : {}),
       },
       select: {
         nickname: true,
+        phoneNumber: true,
         profileImageKey: true,
       },
     });
@@ -106,6 +109,7 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
 
     return {
       nickname: user.nickname,
+      phoneNumber: user.phoneNumber,
       career: profile.career,
       shortDescription: profile.shortDescription,
       description: profile.description,

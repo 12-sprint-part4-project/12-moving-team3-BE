@@ -7,10 +7,7 @@ import { moveTypeArraySchema } from './profile.schema';
 export const customerProfileBodySchema = z.object({
   name: z.string().trim().min(2).max(20).optional(),
   nickname: z.string().trim().min(2).max(20),
-  phoneNumber: z
-    .string()
-    .regex(/^\d{11}$/)
-    .optional(),
+  phoneNumber: z.string().regex(/^\d{11}$/),
   currentPassword: z.string().min(1).optional(),
   newPassword: z.string().min(1).optional(),
   newPasswordConfirm: z.string().min(1).optional(),

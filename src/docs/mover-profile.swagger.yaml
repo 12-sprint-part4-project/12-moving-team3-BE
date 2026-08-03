@@ -8,6 +8,7 @@ components:
           type: object
           required:
             - nickname
+            - phoneNumber
             - career
             - shortDescription
             - description
@@ -19,6 +20,9 @@ components:
             nickname:
               type: string
               example: 김코드
+            phoneNumber:
+              type: string
+              example: '01012345678'
             career:
               type: integer
               example: 8
@@ -203,6 +207,7 @@ paths:
       description: |
         기사님(MOVER)이 프로필 정보를 등록하거나 수정합니다.
         - Content-Type: `application/json`
+        - `nickname`, `phoneNumber` 포함 필수 필드를 모두 전달합니다.
         - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
         - `s3Key`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
       security:
@@ -215,6 +220,7 @@ paths:
               type: object
               required:
                 - nickname
+                - phoneNumber
                 - career
                 - shortDescription
                 - description
@@ -223,8 +229,15 @@ paths:
               properties:
                 nickname:
                   type: string
+                  minLength: 2
+                  maxLength: 20
                   description: 사이트에 노출될 기사 별명 (2~20자)
                   example: 김코드
+                phoneNumber:
+                  type: string
+                  pattern: '^\d{11}$'
+                  description: 전화번호 (숫자 11자리, 필수)
+                  example: '01012345678'
                 career:
                   type: integer
                   description: 경력(년)
@@ -280,6 +293,7 @@ paths:
                 summary: 기사님 프로필 등록/수정 예시
                 value:
                   nickname: 김코드
+                  phoneNumber: '01012345678'
                   career: 8
                   shortDescription: 꼼꼼한이사
                   description: 포장부터 정리까지 책임지고 진행합니다.
@@ -318,7 +332,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: 닉네임 중복
+          description: 닉네임/전화번호 중복
           content:
             application/json:
               schema:

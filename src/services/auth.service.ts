@@ -387,14 +387,6 @@ export const signup = async (
     throw new AppError('NICKNAME_ALREADY_EXISTS');
   }
 
-  const existingPhoneNumber = await authRepository.findUserByPhoneNumber(
-    input.phoneNumber
-  );
-
-  if (existingPhoneNumber) {
-    throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
-  }
-
   const passwordHash = await hashAuthPassword(input.password);
 
   try {
@@ -404,7 +396,6 @@ export const signup = async (
           name: input.name,
           nickname: input.nickname,
           email: input.email,
-          phoneNumber: input.phoneNumber,
           userType: toPrismaUserType(input.userType),
           passwordHash,
         },
@@ -441,7 +432,7 @@ export const signup = async (
         name: result.user.name,
         nickname: result.user.nickname,
         email: result.user.email,
-        phoneNumber: result.user.phoneNumber ?? input.phoneNumber,
+        phoneNumber: result.user.phoneNumber ?? '',
         isProfileCompleted: resolveIsProfileCompleted(
           result.user.userType,
           result.user.customerProfile,
