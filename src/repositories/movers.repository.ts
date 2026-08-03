@@ -351,8 +351,9 @@ const findMoversByAggregateSort = async (
 
   ranked.sort(compareRankedDesc);
 
-  if (filters.cursor) {
-    ranked = ranked.filter((item) => isAfterDescCursor(item, filters.cursor!));
+  const { cursor } = filters;
+  if (cursor) {
+    ranked = ranked.filter((item) => isAfterDescCursor(item, cursor));
   }
 
   const hasNextPage = ranked.length > limit;
