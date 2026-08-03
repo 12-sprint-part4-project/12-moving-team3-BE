@@ -18,6 +18,7 @@ router.get(
   adminCompletedController.getCompletedStatistics
 );
 
+// 완료 견적 요청 목록 조회 (Swagger: src/docs/admin-completed.swagger.yaml)
 router.get(
   '/',
   requireAdminAuth,
