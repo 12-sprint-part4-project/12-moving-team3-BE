@@ -52,12 +52,10 @@ export const getEstimateRequestDetail = async (
 ) => {
   try {
     const params = getValidated<EstimateRequestIdParams>(res, 'params');
-    const data =
+    const result =
       await adminEstimateRequestService.getEstimateRequestDetail(params);
 
-    res.status(200).json({
-      data,
-    });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }

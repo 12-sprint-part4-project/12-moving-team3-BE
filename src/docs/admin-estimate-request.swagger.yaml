@@ -284,3 +284,189 @@ paths:
                 error:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/estimate-request/{estimateRequestId}:
+    get:
+      tags: [Admin Estimate Requests]
+      summary: 관리자 견적 요청 상세 조회
+      description: |
+        견적 요청 ID로 상세 정보와 연결된 견적(quotes) 목록을 조회합니다.
+        출발지·도착지 주소 상세(우편번호, 상세주소)와 요청에 등록된 견적 목록을 함께 반환합니다.
+        quotes는 생성일 최신순(createdAt desc, id desc)으로 정렬됩니다.
+        반려(REJECTED) 견적은 price가 null일 수 있습니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: estimateRequestId
+          in: path
+          required: true
+          description: 조회할 견적 요청 ID
+          schema:
+            type: integer
+            minimum: 1
+            example: 123
+      responses:
+        '200':
+          description: 견적 요청 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - userName
+                      - moveType
+                      - departureAddress
+                      - departureDetailAddress
+                      - departureZipCode
+                      - arrivalAddress
+                      - arrivalZipCode
+                      - arrivalDetailAddress
+                      - submittedAt
+                      - status
+                      - estimateCount
+                      - quotes
+                    properties:
+                      id:
+                        type: integer
+                        example: 123
+                      userName:
+                        type: string
+                        example: 홍길동
+                      moveType:
+                        type: string
+                        enum: [SMALL, HOME, OFFICE]
+                        example: HOME
+                      departureAddress:
+                        type: string
+                        example: 서울특별시 강남구 테헤란로 123
+                      departureDetailAddress:
+                        type: string
+                        example: 101동 1001호
+                      departureZipCode:
+                        type: string
+                        example: '06236'
+                      arrivalAddress:
+                        type: string
+                        example: 서울특별시 송파구 올림픽로 456
+                      arrivalZipCode:
+                        type: string
+                        example: '05551'
+                      arrivalDetailAddress:
+                        type: string
+                        example: A동 502호
+                      submittedAt:
+                        type: string
+                        format: date-time
+                        example: '2026-07-15T09:30:00.000Z'
+                      status:
+                        type: string
+                        enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED]
+                        example: SUBMITTED
+                      estimateCount:
+                        type: integer
+                        minimum: 0
+                        description: 해당 견적 요청에 등록된 견적 수
+                        example: 2
+                      quotes:
+                        type: array
+                        description: 연결된 견적 목록 (생성일 최신순)
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - moverName
+                            - price
+                            - status
+                            - createdAt
+                          properties:
+                            id:
+                              type: integer
+                              example: 10
+                            moverName:
+                              type: string
+                              example: 빠른이사
+                            price:
+                              type: integer
+                              nullable: true
+                              description: 견적 금액. 반려 견적 등에서는 null일 수 있음
+                              example: 150000
+                            status:
+                              type: string
+                              enum: [PENDING, CONFIRMED, REJECTED]
+                              example: PENDING
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: '2026-07-16T11:00:00.000Z'
+              example:
+                data:
+                  id: 123
+                  userName: 홍길동
+                  moveType: HOME
+                  departureAddress: 서울특별시 강남구 테헤란로 123
+                  departureDetailAddress: 101동 1001호
+                  departureZipCode: '06236'
+                  arrivalAddress: 서울특별시 송파구 올림픽로 456
+                  arrivalZipCode: '05551'
+                  arrivalDetailAddress: A동 502호
+                  submittedAt: '2026-07-15T09:30:00.000Z'
+                  status: SUBMITTED
+                  estimateCount: 2
+                  quotes:
+                    - id: 11
+                      moverName: 안전이사
+                      price: 180000
+                      status: PENDING
+                      createdAt: '2026-07-16T14:00:00.000Z'
+                    - id: 10
+                      moverName: 빠른이사
+                      price: null
+                      status: REJECTED
+                      createdAt: '2026-07-16T11:00:00.000Z'
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: |
+            Path Parameter가 유효하지 않거나(ADMIN_ESTIMATE_REQUEST_NOT_FOUND),
+            해당 ID의 견적 요청이 없음(ESTIMATE_REQUEST_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidParam:
+                  summary: Path Parameter 검증 실패
+                  value:
+                    error:
+                      code: ADMIN_ESTIMATE_REQUEST_NOT_FOUND
+                      message: 존재하지 않는 견적 요청입니다.
+                notFound:
+                  summary: 견적 요청 없음
+                  value:
+                    error:
+                      code: ESTIMATE_REQUEST_NOT_FOUND
+                      message: 존재하지 않는 견적 요청입니다.
+        '500':
+          description: 서버 내부 오류 (제출된 견적 요청에 필수 주소·이사 유형 등이 누락된 경우 포함)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

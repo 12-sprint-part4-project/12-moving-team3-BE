@@ -30,6 +30,7 @@ router.get(
   adminEstimateRequestController.getEstimateRequestList
 );
 
+// 견적 요청 상세 조회 (Swagger: src/docs/admin-estimate-request.swagger.yaml)
 router.get(
   '/:estimateRequestId',
   requireAdminAuth,
