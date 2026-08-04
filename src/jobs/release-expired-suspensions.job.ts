@@ -7,10 +7,7 @@ import { releaseExpiredSuspensions } from '../services/user-status.service';
  */
 export const runReleaseExpiredSuspensionsJob = async (): Promise<void> => {
   try {
-    const result = await releaseExpiredSuspensions();
-    console.log(
-      `[release-expired-suspensions] released=${result.releasedCount}`
-    );
+    await releaseExpiredSuspensions();
   } catch (error) {
     // job 실패가 서버 프로세스까지 죽이지 않도록 여기서 흡수한다.
     console.error('[release-expired-suspensions] failed', error);
