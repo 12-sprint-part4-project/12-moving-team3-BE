@@ -182,7 +182,8 @@ export const ERROR_CODES = {
   },
   KAKAO_EMAIL_REQUIRED: {
     status: 400,
-    message: '카카오 계정에 이메일이 필요합니다. 카카오에서 이메일 제공에 동의해 주세요.',
+    message:
+      '카카오 계정에 이메일이 필요합니다. 카카오에서 이메일 제공에 동의해 주세요.',
   },
   KAKAO_EMAIL_NOT_VERIFIED: {
     status: 400,
@@ -271,6 +272,10 @@ export const ERROR_CODES = {
   ADMIN_MEMBER_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 회원입니다.',
+  },
+  ADMIN_ESTIMATE_REQUEST_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 견적 요청입니다.',
   },
 
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
