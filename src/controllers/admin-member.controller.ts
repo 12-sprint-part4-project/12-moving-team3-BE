@@ -1,11 +1,11 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { AuthenticatedAdmin } from '../middlewares/admin-auth.middleware';
 import type {
   AdminMemberDetailParams,
   AdminMemberListQuery,
   AdminMemberStatusParams,
 } from '../schemas/admin-member.schema';
 import * as adminMemberService from '../services/admin-member.service';
+import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
 import { getValidated } from '../utils/validated.util';
 
 /** 관리자 회원 목록 조회 */
@@ -50,8 +50,7 @@ export const suspendAdminMember = async (
 ) => {
   try {
     const { memberId } = getValidated<AdminMemberStatusParams>(res, 'params');
-    // requireAdminAuth가 검증한 관리자 신원 — 이후 History 기록 시 actor로 사용한다
-    const { adminId } = res.locals.admin as AuthenticatedAdmin;
+    const { adminId } = getAuthenticatedAdmin(res);
 
     const data = await adminMemberService.suspendAdminMember(
       memberId,
@@ -72,8 +71,7 @@ export const activateAdminMember = async (
 ) => {
   try {
     const { memberId } = getValidated<AdminMemberStatusParams>(res, 'params');
-    // requireAdminAuth가 검증한 관리자 신원 — 이후 History 기록 시 actor로 사용한다
-    const { adminId } = res.locals.admin as AuthenticatedAdmin;
+    const { adminId } = getAuthenticatedAdmin(res);
 
     const data = await adminMemberService.activateAdminMember(
       memberId,

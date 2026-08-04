@@ -8,6 +8,8 @@ import {
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
+import { AppError } from '../utils/app.error';
+import { createHistory } from './history.repository';
 
 /** History.tableName — UserStatusInfo @@map("user_statuses")와 동일하게 맞춘다 */
 const USER_STATUS_TABLE_NAME = 'user_statuses';
@@ -186,24 +188,6 @@ export const findAdminMemberDetail = async (
   });
 };
 
-/**
- * 상태 변경 전 회원 존재 확인용 — 상세 select 없이 id만 조회한다.
- * 없거나 삭제된 회원이면 null을 반환해 Service에서 ADMIN_MEMBER_NOT_FOUND로 처리한다.
- */
-export const findAdminMemberId = async (
-  memberId: string
-): Promise<string | null> => {
-  const member = await prisma.user.findFirst({
-    where: {
-      id: memberId,
-      deletedAt: null,
-    },
-    select: { id: true },
-  });
-
-  return member?.id ?? null;
-};
-
 /** UserStatusInfo upsert 결과 — 상태 변경 API 응답·History 스냅샷에 필요한 필드만 */
 export type AdminMemberStatusRow = {
   userId: string;
@@ -240,8 +224,8 @@ const toStatusHistoryJson = (
 };
 
 /**
- * UserStatusInfo upsert와 History 저장을 한 트랜잭션으로 처리한다.
- * 한쪽만 성공하면 감사 추적과 실제 상태가 어긋나므로 반드시 함께 커밋/롤백한다.
+ * 회원 존재 확인·UserStatusInfo upsert·History 저장을 한 트랜잭션으로 처리한다.
+ * 존재 확인을 트랜잭션 밖에서 하면 그 사이 삭제가 끼어들 수 있어 안쪽에서 검증한다.
  */
 export const updateAdminMemberStatusWithHistory = async (
   params: UpdateAdminMemberStatusWithHistoryParams
@@ -249,6 +233,18 @@ export const updateAdminMemberStatusWithHistory = async (
   const { memberId, adminId, status, suspendedAt, suspendedUntil } = params;
 
   return prisma.$transaction(async (tx) => {
+    const member = await tx.user.findFirst({
+      where: {
+        id: memberId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!member) {
+      throw new AppError('ADMIN_MEMBER_NOT_FOUND');
+    }
+
     // row가 없으면 beforeData를 null로 남겨 "최초 상태 생성" 이력을 구분한다.
     const beforeData = await tx.userStatusInfo.findUnique({
       where: { userId: memberId },
@@ -271,17 +267,19 @@ export const updateAdminMemberStatusWithHistory = async (
       select: adminMemberStatusSelect,
     });
 
+    // 최초 row 생성은 CREATE, 기존 row 갱신은 UPDATE로 남겨 감사 의미를 맞춘다.
+    const operationType =
+      beforeData === null ? HistoryAction.CREATE : HistoryAction.UPDATE;
+
     // 관리자 작업이므로 actor는 adminUserId에 두고, 대상 회원은 tableRowId로 식별한다.
-    await tx.history.create({
-      data: {
-        userId: null,
-        adminUserId: adminId,
-        tableName: USER_STATUS_TABLE_NAME,
-        tableRowId: memberId,
-        operationType: HistoryAction.UPDATE,
-        beforeData: toStatusHistoryJson(beforeData),
-        afterData: toStatusHistoryJson(afterData),
-      },
+    await createHistory(tx, {
+      userId: null,
+      adminUserId: adminId,
+      tableName: USER_STATUS_TABLE_NAME,
+      tableRowId: memberId,
+      operationType,
+      beforeData: toStatusHistoryJson(beforeData),
+      afterData: toStatusHistoryJson(afterData),
     });
 
     return afterData;

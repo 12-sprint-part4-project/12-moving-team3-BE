@@ -8,7 +8,6 @@ import {
   countAdminMemberReports,
   countConfirmedQuotesByMoverId,
   findAdminMemberDetail,
-  findAdminMemberId,
   findAdminMembersWithCount,
   updateAdminMemberStatusWithHistory,
   type AdminMemberDetailRow,
@@ -117,15 +116,6 @@ export const getAdminMemberDetail = async (
   };
 };
 
-/** 없거나 삭제된 회원이면 상세 조회와 동일하게 404 처리 */
-const assertAdminMemberExists = async (memberId: string): Promise<void> => {
-  const existingId = await findAdminMemberId(memberId);
-
-  if (!existingId) {
-    throw new AppError('ADMIN_MEMBER_NOT_FOUND');
-  }
-};
-
 const toAdminMemberStatusResult = (row: {
   userId: string;
   status: UserStatus;
@@ -140,14 +130,12 @@ const toAdminMemberStatusResult = (row: {
 
 /**
  * 관리자 회원 7일 정지.
- * 상태 변경과 History는 repository 트랜잭션에서 함께 처리한다.
+ * 존재 확인·상태 변경·History는 repository 트랜잭션에서 함께 처리한다.
  */
 export const suspendAdminMember = async (
   memberId: string,
   adminId: number
 ): Promise<AdminMemberStatusResultDto> => {
-  await assertAdminMemberExists(memberId);
-
   const now = new Date();
   const statusInfo = await updateAdminMemberStatusWithHistory({
     memberId,
@@ -169,8 +157,6 @@ export const activateAdminMember = async (
   memberId: string,
   adminId: number
 ): Promise<AdminMemberStatusResultDto> => {
-  await assertAdminMemberExists(memberId);
-
   const statusInfo = await updateAdminMemberStatusWithHistory({
     memberId,
     adminId,
