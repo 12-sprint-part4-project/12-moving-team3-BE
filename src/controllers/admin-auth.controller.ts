@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
-import type { AuthenticatedAdmin } from '../middlewares/admin-auth.middleware';
 import type { AdminLoginBody } from '../schemas/admin-auth.schema';
 import * as adminAuthService from '../services/admin-auth.service';
+import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
 import {
   ADMIN_REFRESH_TOKEN_COOKIE_NAME,
   clearAdminRefreshTokenCookie,
@@ -67,7 +67,7 @@ export const logoutAdmin = async (req: Request, res: Response) => {
 };
 
 export const getAdminMe = async (_req: Request, res: Response) => {
-  const { adminId } = res.locals.admin as AuthenticatedAdmin;
+  const { adminId } = getAuthenticatedAdmin(res);
   const data = await adminAuthService.getAdminMe(adminId);
 
   res.status(200).json({ data });

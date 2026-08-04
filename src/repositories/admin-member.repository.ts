@@ -3,6 +3,16 @@ import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
+/** History before/after에 남길 UserStatusInfo 스냅샷 필드 */
+const adminMemberStatusSelect = {
+  userId: true,
+  status: true,
+  suspendedAt: true,
+  suspendedUntil: true,
+} satisfies Prisma.UserStatusInfoSelect;
+
 /** 관리자 회원 목록 select — DTO 매핑에 필요한 필드만 조회 */
 const adminMemberListSelect = {
   id: true,
@@ -166,6 +176,77 @@ export const findAdminMemberDetail = async (
       deletedAt: null,
     },
     select: adminMemberDetailSelect,
+  });
+};
+
+/** UserStatusInfo 조회/upsert 결과 — 상태 변경 API 응답·History 스냅샷에 필요한 필드만 */
+export interface AdminMemberStatusRow {
+  userId: string;
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+}
+
+/** 회원 계정 상태 변경 입력 */
+export interface AdminMemberStatusUpdate {
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+}
+
+/**
+ * 상태 변경 대상 회원 row를 FOR UPDATE로 잠근다.
+ * soft delete와 상태 변경이 겹치지 않도록 트랜잭션 안에서만 호출한다.
+ */
+export const lockAdminMemberForStatusChange = async (
+  memberId: string,
+  tx: Prisma.TransactionClient
+): Promise<{ id: string } | null> => {
+  const lockedMembers = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM users
+    WHERE id = ${memberId}::uuid
+      AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+
+  return lockedMembers[0] ?? null;
+};
+
+/** 변경 전 UserStatusInfo 조회 — row가 없으면 null */
+export const findAdminMemberStatus = async (
+  memberId: string,
+  db: DbClient = prisma
+): Promise<AdminMemberStatusRow | null> => {
+  return db.userStatusInfo.findUnique({
+    where: { userId: memberId },
+    select: adminMemberStatusSelect,
+  });
+};
+
+/**
+ * 회원 계정 상태 upsert.
+ * UserStatusInfo row가 없는 회원도 첫 정지/활성화 시 row를 생성해야 하므로 upsert를 쓴다.
+ */
+export const upsertAdminMemberStatus = async (
+  memberId: string,
+  data: AdminMemberStatusUpdate,
+  db: DbClient = prisma
+): Promise<AdminMemberStatusRow> => {
+  return db.userStatusInfo.upsert({
+    where: { userId: memberId },
+    create: {
+      userId: memberId,
+      status: data.status,
+      suspendedAt: data.suspendedAt,
+      suspendedUntil: data.suspendedUntil,
+    },
+    update: {
+      status: data.status,
+      suspendedAt: data.suspendedAt,
+      suspendedUntil: data.suspendedUntil,
+    },
+    select: adminMemberStatusSelect,
   });
 };
 

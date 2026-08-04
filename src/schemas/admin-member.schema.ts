@@ -24,3 +24,10 @@ export const adminMemberDetailParamsSchema = z.object({
 export type AdminMemberDetailParams = z.infer<
   typeof adminMemberDetailParamsSchema
 >;
+
+/** 회원 상태 변경(정지/활성화) Path Params — 상세 조회와 동일한 UUID 검증을 재사용한다 */
+export const adminMemberStatusParamsSchema = adminMemberDetailParamsSchema;
+
+export type AdminMemberStatusParams = z.infer<
+  typeof adminMemberStatusParamsSchema
+>;
