@@ -21,18 +21,20 @@ export const runExpireSubmittedEstimateRequestsJob =
 
 /**
  * 매일 00:00 Asia/Seoul 에 미확정(SUBMITTED) 견적 요청 만료 처리
+ * 서버 기동 시에도 한 번 실행
  */
 export const startExpireSubmittedEstimateRequestsCron = (): void => {
+  const runSafely = (): void => {
+    runExpireSubmittedEstimateRequestsJob().catch((error) => {
+      console.error('[expire-submitted-estimate-requests] job failed', error);
+    });
+  };
+
   // minute hour day-of-month month day-of-week
-  cron.schedule(
-    '0 0 * * *',
-    () => {
-      runExpireSubmittedEstimateRequestsJob().catch((error) => {
-        console.error('[expire-submitted-estimate-requests] job failed', error);
-      });
-    },
-    { timezone: 'Asia/Seoul' }
-  );
+  cron.schedule('0 0 * * *', runSafely, { timezone: 'Asia/Seoul' });
+
+  // 기동 직후 1회 실행
+  runSafely();
 
   console.log(
     '[cron] expire submitted estimate requests scheduled (00:00 Asia/Seoul)'
