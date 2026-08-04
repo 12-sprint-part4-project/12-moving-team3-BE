@@ -9,13 +9,14 @@ import {
   countAdminMemberReports,
   countConfirmedQuotesByMoverId,
   findAdminMemberDetail,
-  findAdminMemberId,
   findAdminMemberStatus,
   findAdminMembersWithCount,
+  lockAdminMemberForStatusChange,
   upsertAdminMemberStatus,
   type AdminMemberDetailRow,
   type AdminMemberListRow,
   type AdminMemberStatusRow,
+  type AdminMemberStatusUpdate,
 } from '../repositories/admin-member.repository';
 import { createHistory } from '../repositories/history.repository';
 import reviewRepository from '../repositories/review.repository';
@@ -154,19 +155,16 @@ const toStatusHistoryJson = (
 
 /**
  * 존재 확인·상태 변경·History를 한 트랜잭션으로 처리한다.
- * 에러 코드 결정은 Service 책임이며, Repository는 조회/저장만 수행한다.
+ * 에러 코드 결정은 Service 책임이며, Repository는 조회/잠금/저장만 수행한다.
  */
 const changeAdminMemberStatus = async (
   memberId: string,
   adminId: number,
-  data: {
-    status: UserStatus;
-    suspendedAt: Date | null;
-    suspendedUntil: Date | null;
-  }
+  data: AdminMemberStatusUpdate
 ): Promise<AdminMemberStatusResultDto> => {
   const statusInfo = await prisma.$transaction(async (tx) => {
-    const member = await findAdminMemberId(memberId, tx);
+    // soft delete와 상태 변경 race를 막기 위해 회원 row를 먼저 잠근다.
+    const member = await lockAdminMemberForStatusChange(memberId, tx);
 
     if (!member) {
       throw new AppError('ADMIN_MEMBER_NOT_FOUND');

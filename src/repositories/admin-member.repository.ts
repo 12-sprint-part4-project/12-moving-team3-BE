@@ -180,28 +180,37 @@ export const findAdminMemberDetail = async (
 };
 
 /** UserStatusInfo 조회/upsert 결과 — 상태 변경 API 응답·History 스냅샷에 필요한 필드만 */
-export type AdminMemberStatusRow = {
+export interface AdminMemberStatusRow {
   userId: string;
   status: UserStatus;
   suspendedAt: Date | null;
   suspendedUntil: Date | null;
-};
+}
+
+/** 회원 계정 상태 변경 입력 */
+export interface AdminMemberStatusUpdate {
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+}
 
 /**
- * 삭제되지 않은 회원 id 조회.
- * 트랜잭션 안에서는 db로 tx를 넘겨 존재 확인과 상태 변경 사이 race를 막는다.
+ * 상태 변경 대상 회원 row를 FOR UPDATE로 잠근다.
+ * soft delete와 상태 변경이 겹치지 않도록 트랜잭션 안에서만 호출한다.
  */
-export const findAdminMemberId = async (
+export const lockAdminMemberForStatusChange = async (
   memberId: string,
-  db: DbClient = prisma
+  tx: Prisma.TransactionClient
 ): Promise<{ id: string } | null> => {
-  return db.user.findFirst({
-    where: {
-      id: memberId,
-      deletedAt: null,
-    },
-    select: { id: true },
-  });
+  const lockedMembers = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM users
+    WHERE id = ${memberId}::uuid
+      AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+
+  return lockedMembers[0] ?? null;
 };
 
 /** 변경 전 UserStatusInfo 조회 — row가 없으면 null */
@@ -221,11 +230,7 @@ export const findAdminMemberStatus = async (
  */
 export const upsertAdminMemberStatus = async (
   memberId: string,
-  data: {
-    status: UserStatus;
-    suspendedAt: Date | null;
-    suspendedUntil: Date | null;
-  },
+  data: AdminMemberStatusUpdate,
   db: DbClient = prisma
 ): Promise<AdminMemberStatusRow> => {
   return db.userStatusInfo.upsert({
