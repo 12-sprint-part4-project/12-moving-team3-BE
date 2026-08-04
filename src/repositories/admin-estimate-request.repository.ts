@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { Prisma } from '@prisma/client';
+import { EstimateRequestStatus, Prisma } from '@prisma/client';
 import { DashboardChartDateRange } from '../utils/admin-date-range.util';
 
 interface RequestTrendRow {
@@ -7,10 +7,42 @@ interface RequestTrendRow {
   count: bigint;
 }
 
+interface EstimateRequestStatusStatisticsRow {
+  submitted: number;
+  confirmed: number;
+  completed: number;
+  expired: number;
+  canceled: number;
+}
+
 export const getEstimateRequestCount = async (
   where: Prisma.EstimateRequestWhereInput
 ) => {
   return prisma.estimateRequest.count({ where });
+};
+
+export const getEstimateRequestStatusStatistics = async (
+  start?: Date,
+  end?: Date
+) => {
+  const whereClause =
+    start == null
+      ? Prisma.empty
+      : Prisma.sql`
+        WHERE submitted_at >= ${start}
+          AND submitted_at < ${end}
+      `;
+  const [result] = await prisma.$queryRaw<EstimateRequestStatusStatisticsRow[]>`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'SUBMITTED')::int AS submitted,
+      COUNT(*) FILTER (WHERE status = 'CONFIRMED')::int AS confirmed,
+      COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed,
+      COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
+      COUNT(*) FILTER (WHERE status = 'CANCELED')::int AS canceled
+    FROM estimate_requests
+    ${whereClause}
+  `;
+  return result;
 };
 
 export const getRequestTrendRows = async ({
@@ -67,6 +99,21 @@ export const findEstimateRequestList = async <
     orderBy,
     take,
     skip,
+    select,
+  });
+};
+
+export const findEstimateRequestDetailById = async <
+  T extends Prisma.EstimateRequestSelect,
+>(
+  id: number,
+  select: T,
+  status?: EstimateRequestStatus
+): Promise<Prisma.EstimateRequestGetPayload<{
+  select: T;
+}> | null> => {
+  return prisma.estimateRequest.findUnique({
+    where: { id, ...(status !== undefined && { status }) },
     select,
   });
 };

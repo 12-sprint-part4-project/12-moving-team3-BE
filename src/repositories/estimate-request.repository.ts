@@ -511,3 +511,24 @@ export const expireSubmittedEstimateRequestsPastMoveDate = async (
 
   return count;
 };
+
+/**
+ * 이사일(moveDate)이 기준일 이전인 CONFIRMED 요청을 COMPLETED로 일괄 전환
+ * @returns 갱신된 행 수
+ */
+export const completeConfirmedEstimateRequestsPastMoveDate = async (
+  todayStartUtc: Date,
+  db: DbClient = prisma
+): Promise<number> => {
+  const { count } = await db.estimateRequest.updateMany({
+    where: {
+      status: EstimateRequestStatus.CONFIRMED,
+      moveDate: { lt: todayStartUtc },
+    },
+    data: {
+      status: EstimateRequestStatus.COMPLETED,
+    },
+  });
+
+  return count;
+};
