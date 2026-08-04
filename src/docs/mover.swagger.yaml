@@ -199,9 +199,15 @@ components:
               type: string
               nullable: true
               example: null
+            estimateRequestStatus:
+              type: string
+              enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+              description: 연결된 견적 요청 상태
+              example: COMPLETED
             isMoveCompleted:
               type: boolean
-              example: false
+              description: 완료·만료·취소 시 카드 종료 오버레이 표시
+              example: true
             customer:
               type: object
               properties:
@@ -314,9 +320,15 @@ components:
           type: integer
           nullable: true
           example: 180000
+        estimateRequestStatus:
+          type: string
+          enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+          description: 연결된 견적 요청 상태
+          example: COMPLETED
         isMoveCompleted:
           type: boolean
-          example: false
+          description: 완료·만료·취소 시 카드 종료 오버레이 표시
+          example: true
         createdAt:
           type: string
           format: date-time
@@ -632,7 +644,8 @@ paths:
         '409':
           description: |
             비즈니스 충돌
-            - REQUEST_EXPIRED: 이사일 경과
+            - REQUEST_EXPIRED: 만료(EXPIRED) 또는 이사일 경과
+            - REQUEST_CANCELED: 취소된 견적 요청
             - REQUEST_CLOSED: 견적 제출 인원 마감 (지정 3 / 일반 5)
             - QUOTE_ALREADY_SUBMITTED: 이미 견적 제출
             - ALREADY_REJECTED: 이미 반려
@@ -643,11 +656,17 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 expired:
-                  summary: 이사일 경과
+                  summary: 만료 또는 이사일 경과
                   value:
                     error:
                       code: REQUEST_EXPIRED
                       message: 이사일이 지나 견적 요청이 만료되었습니다.
+                canceled:
+                  summary: 취소된 견적 요청
+                  value:
+                    error:
+                      code: REQUEST_CANCELED
+                      message: 취소된 견적 요청입니다.
                 closed:
                   summary: 인원 마감
                   value:
