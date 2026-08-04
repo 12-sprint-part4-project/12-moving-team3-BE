@@ -1,5 +1,6 @@
 import * as authRepository from '../repositories/auth.repository';
 import * as moverProfileRepository from '../repositories/mover-profile.repository';
+import { countConfirmedQuotesByMoverId } from '../repositories/quote.repository';
 import type { MoverProfileBody } from '../schemas/mover-profile.schema';
 import { deleteImage, toPresignedViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
@@ -19,6 +20,11 @@ export const getMoverProfile = async (userId: string) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
+  const [profileImageUrl, confirmedCount] = await Promise.all([
+    toPresignedViewUrl(profile.user.profileImageKey),
+    countConfirmedQuotesByMoverId(userId),
+  ]);
+
   return {
     profileId: profile.id,
     userId: profile.user.id,
@@ -26,14 +32,13 @@ export const getMoverProfile = async (userId: string) => {
     nickname: profile.user.nickname,
     email: profile.user.email,
     phoneNumber: profile.user.phoneNumber,
-    profileImageUrl: await toPresignedViewUrl(
-      profile.user.profileImageKey
-    ),
+    profileImageUrl,
     career: profile.career,
     shortDescription: profile.shortDescription,
     description: profile.description,
     service: profile.service,
     serviceRegions: profile.serviceRegions.map((item) => item.region),
+    confirmedCount,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   };
