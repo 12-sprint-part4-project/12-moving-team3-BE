@@ -26,7 +26,7 @@ export const getUserReportRecentActivities = async (
   });
 };
 
-/** 신고 목록 기본 select — 상세 include 이전 최소 필드만 조회한다 */
+/** 신고 목록 select — reporter FK를 include해 N+1 없이 신고자 요약을 붙인다 */
 const adminReportListSelect = {
   id: true,
   reporterId: true,
@@ -35,6 +35,16 @@ const adminReportListSelect = {
   category: true,
   status: true,
   createdAt: true,
+  // 댓글 목록의 userId+user 패턴처럼 FK id와 요약 객체를 함께 내려준다.
+  reporter: {
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      email: true,
+      userType: true,
+    },
+  },
 } satisfies Prisma.UserReportSelect;
 
 export type AdminReportListRow = Prisma.UserReportGetPayload<{

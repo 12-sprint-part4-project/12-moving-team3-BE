@@ -7,7 +7,7 @@ paths:
         신고 목록을 최신순(createdAt desc, id desc)으로 조회합니다.
         status·target query로 필터할 수 있으며, 둘 다 있으면 AND 조건으로 조회합니다.
         page·pageSize로 페이지네이션하며, 응답은 회원 목록과 동일하게 items/pagination 구조입니다.
-        신고자/대상 상세는 포함하지 않습니다.
+        각 item에 신고자 요약(reporter)을 포함하며, 신고 대상 상세는 포함하지 않습니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -72,6 +72,7 @@ paths:
                             - category
                             - status
                             - createdAt
+                            - reporter
                           properties:
                             id:
                               type: integer
@@ -99,6 +100,28 @@ paths:
                               type: string
                               format: date-time
                               example: '2026-08-01T10:00:00.000Z'
+                            reporter:
+                              type: object
+                              required: [id, name, nickname, email, userType]
+                              properties:
+                                id:
+                                  type: string
+                                  format: uuid
+                                  example: '550e8400-e29b-41d4-a716-446655440000'
+                                name:
+                                  type: string
+                                  example: 홍길동
+                                nickname:
+                                  type: string
+                                  example: 길동이
+                                email:
+                                  type: string
+                                  format: email
+                                  example: reporter@example.com
+                                userType:
+                                  type: string
+                                  enum: [CUSTOMER, MOVER]
+                                  example: CUSTOMER
                       pagination:
                         type: object
                         required: [page, pageSize, totalCount, totalPages]
@@ -125,6 +148,12 @@ paths:
                       category: ABUSIVE_LANGUAGE
                       status: PENDING
                       createdAt: '2026-08-01T10:00:00.000Z'
+                      reporter:
+                        id: '550e8400-e29b-41d4-a716-446655440000'
+                        name: 홍길동
+                        nickname: 길동이
+                        email: reporter@example.com
+                        userType: CUSTOMER
                   pagination:
                     page: 1
                     pageSize: 10
