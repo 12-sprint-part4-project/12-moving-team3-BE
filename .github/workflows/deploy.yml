@@ -14,8 +14,8 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          script_stop: true
           script: |
+            set -e
             cd ~/server
             git fetch origin
             git checkout main
