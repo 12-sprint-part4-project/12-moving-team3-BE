@@ -49,9 +49,7 @@ export const getCompletedRequestDetail = async (
     const params = getValidated<EstimateRequestIdParams>(res, 'params');
     const result =
       await adminCompletedService.getCompletedRequestDetail(params);
-    res.status(200).json({
-      result,
-    });
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }

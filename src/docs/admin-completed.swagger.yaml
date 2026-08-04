@@ -301,3 +301,160 @@ paths:
                 error:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/completed/{estimateRequestId}:
+    get:
+      tags: [Admin Completed Estimate Requests]
+      summary: 관리자 완료 견적 요청 상세 조회
+      description: |
+        견적 요청 ID로 COMPLETED 상태의 완료 건 상세 정보를 조회합니다.
+        존재하지 않거나 COMPLETED가 아닌 상태면 404를 반환합니다.
+        출발지·도착지 주소 상세(우편번호, 상세주소)와 확정 견적(confirmedQuote) 정보를 함께 반환합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: estimateRequestId
+          in: path
+          required: true
+          description: 조회할 완료 견적 요청 ID
+          schema:
+            type: integer
+            minimum: 1
+            example: 123
+      responses:
+        '200':
+          description: 완료 견적 요청 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - userName
+                      - moveType
+                      - departureAddress
+                      - departureDetailAddress
+                      - departureZipCode
+                      - arrivalAddress
+                      - arrivalDetailAddress
+                      - arrivalZipCode
+                      - moveDate
+                      - confirmedQuote
+                    properties:
+                      id:
+                        type: integer
+                        example: 123
+                      userName:
+                        type: string
+                        example: 홍길동
+                      moveType:
+                        type: string
+                        enum: [SMALL, HOME, OFFICE]
+                        example: HOME
+                      departureAddress:
+                        type: string
+                        example: 서울특별시 강남구 테헤란로 123
+                      departureDetailAddress:
+                        type: string
+                        example: 101동 1001호
+                      departureZipCode:
+                        type: string
+                        example: '06236'
+                      arrivalAddress:
+                        type: string
+                        example: 서울특별시 송파구 올림픽로 456
+                      arrivalDetailAddress:
+                        type: string
+                        example: A동 502호
+                      arrivalZipCode:
+                        type: string
+                        example: '05551'
+                      moveDate:
+                        type: string
+                        format: date-time
+                        description: 실제 이사일
+                        example: '2026-07-15T00:00:00.000Z'
+                      confirmedQuote:
+                        type: object
+                        required: [moverName, price, comment, createdAt]
+                        description: 확정 견적 정보
+                        properties:
+                          moverName:
+                            type: string
+                            example: 빠른이사
+                          price:
+                            type: integer
+                            description: 확정 견적 금액
+                            example: 250000
+                          comment:
+                            type: string
+                            nullable: true
+                            description: 견적 코멘트
+                            example: 안전하게 모시겠습니다.
+                          createdAt:
+                            type: string
+                            format: date-time
+                            description: 견적 생성 일시
+                            example: '2026-07-10T11:00:00.000Z'
+              example:
+                data:
+                  id: 123
+                  userName: 홍길동
+                  moveType: HOME
+                  departureAddress: 서울특별시 강남구 테헤란로 123
+                  departureDetailAddress: 101동 1001호
+                  departureZipCode: '06236'
+                  arrivalAddress: 서울특별시 송파구 올림픽로 456
+                  arrivalDetailAddress: A동 502호
+                  arrivalZipCode: '05551'
+                  moveDate: '2026-07-15T00:00:00.000Z'
+                  confirmedQuote:
+                    moverName: 빠른이사
+                    price: 250000
+                    comment: 안전하게 모시겠습니다.
+                    createdAt: '2026-07-10T11:00:00.000Z'
+        '400':
+          description: Path Parameter(estimateRequestId) 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 견적 요청이 없거나 COMPLETED 상태가 아닌 경우
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_ESTIMATE_REQUEST_NOT_FOUND
+                  message: 존재하지 않는 견적 요청입니다.
+        '500':
+          description: 서버 내부 오류 (완료 건에 필수 주소·이사일·확정 견적 등이 누락된 경우 포함)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

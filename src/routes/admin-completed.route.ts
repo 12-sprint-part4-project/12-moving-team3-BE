@@ -30,7 +30,7 @@ router.get(
   adminCompletedController.getCompletedList
 );
 
-// 완료 견적 요청 상세 조회 (Swagger: src/docs/admin-completed-request.swagger.yaml)
+// 완료 견적 요청 상세 조회 (Swagger: src/docs/admin-completed.swagger.yaml)
 router.get(
   '/:estimateRequestId',
   requireAdminAuth,
