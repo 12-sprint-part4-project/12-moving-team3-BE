@@ -1,7 +1,11 @@
-import { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
-import { createDateRange } from '../utils/admin-date-range.util';
 import { Prisma, UserReportStatus } from '@prisma/client';
-import { getTotalReportCount } from '../repositories/admin-report.repository';
+import {
+  findAdminReports,
+  getTotalReportCount,
+  type AdminReportListRow,
+} from '../repositories/admin-report.repository';
+import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
+import { createDateRange } from '../utils/admin-date-range.util';
 
 export const getReportStatistics = async ({
   startDate,
@@ -30,4 +34,9 @@ export const getReportStatistics = async ({
     resolvedReportCount,
     rejectedReportCount,
   };
+};
+
+/** 관리자 신고 목록 조회 — 기본 필드만 반환한다 */
+export const getAdminReportList = async (): Promise<AdminReportListRow[]> => {
+  return findAdminReports();
 };

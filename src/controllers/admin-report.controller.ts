@@ -17,3 +17,19 @@ export const getReportStatistics = async (
     next(error);
   }
 };
+
+/** 관리자 신고 목록 조회 */
+export const getAdminReportList = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const data = await adminReportService.getAdminReportList();
+
+    // 관리자 API 공통 포맷: 성공 본문을 data로 감싼다.
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
