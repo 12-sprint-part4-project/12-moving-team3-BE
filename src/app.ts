@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import env from './config/env';
 import { swaggerSpec } from './config/swagger';
-import { startExpireSubmittedEstimateRequestsCron } from './jobs/expire-submitted-estimate-requests.job';
+import { startEstimateRequestStatusChangeCron } from './jobs/estimate-request-status-change.job';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
 import { startReleaseExpiredSuspensionsCron } from './jobs/release-expired-suspensions.job';
 import { errorHandler } from './middlewares/error.handler';
@@ -113,7 +113,7 @@ httpServer.listen(env.port, () => {
   startMoveDayReminderCron();
   // 만료된 정지 자동 해제 배치 (매일 00:05 Asia/Seoul)
   startReleaseExpiredSuspensionsCron();
-  // 미확정(SUBMITTED) 견적 요청 만료 배치 (매일 00:00 Asia/Seoul)
-  startExpireSubmittedEstimateRequestsCron();
+  // 이사일 경과 견적 요청 status 전환 배치 (매일 00:00 Asia/Seoul)
+  startEstimateRequestStatusChangeCron();
 });
 
