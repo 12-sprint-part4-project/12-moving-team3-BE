@@ -2,10 +2,12 @@ import type {
   ChatRoomType,
   MessageType,
   PostsCategory,
+  UserReportCategory,
+  UserReportStatus,
+  UserReportTarget,
   UserType,
 } from '@prisma/client';
 import type { PaginationDto } from './admin-member.dto';
-import type { AdminReportListRow } from '../repositories/admin-report.repository';
 
 /** 신고자 요약 — 관리자 회원 목록의 기본 유저 필드와 맞춘다 */
 export interface AdminReportReporterDto {
@@ -71,8 +73,8 @@ export interface AdminReportCommentTargetInfoDto {
 }
 
 /**
- * 신고 대상 요약.
- * 폴리모픽이므로 type으로 구분하고, 삭제·미존재 시 null이다.
+ * 신고 대상 요약 (존재할 때만).
+ * 삭제·미존재는 목록 item의 targetInfo를 null로 둔다.
  */
 export type AdminReportTargetInfoDto =
   | AdminReportUserTargetInfoDto
@@ -80,13 +82,20 @@ export type AdminReportTargetInfoDto =
   | AdminReportChatRoomTargetInfoDto
   | AdminReportMessageTargetInfoDto
   | AdminReportArticleTargetInfoDto
-  | AdminReportCommentTargetInfoDto
-  | null;
+  | AdminReportCommentTargetInfoDto;
 
-/** 관리자 신고 목록 아이템 — reporter와 targetInfo를 함께 내려준다 */
-export type AdminReportListItemDto = AdminReportListRow & {
-  targetInfo: AdminReportTargetInfoDto;
-};
+/** 관리자 신고 목록 아이템 — Prisma payload와 분리한 API 응답 형태 */
+export interface AdminReportListItemDto {
+  id: number;
+  reporterId: string;
+  reporter: AdminReportReporterDto;
+  target: UserReportTarget;
+  targetId: string;
+  targetInfo: AdminReportTargetInfoDto | null;
+  category: UserReportCategory;
+  status: UserReportStatus;
+  createdAt: Date;
+}
 
 /** 관리자 신고 목록 조회 응답 DTO — 회원 목록과 동일한 items/pagination 구조 */
 export interface AdminReportListResultDto {

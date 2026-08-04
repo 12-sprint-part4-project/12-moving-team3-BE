@@ -125,7 +125,6 @@ paths:
                                   enum: [CUSTOMER, MOVER]
                                   example: CUSTOMER
                             targetInfo:
-                              nullable: true
                               description: 대상 유형별 요약. 삭제·미존재 시 null
                               oneOf:
                                 - type: object

@@ -49,6 +49,12 @@ export const getReportStatistics = async ({
   };
 };
 
+/** 중복 제거 후 Int PK로 정규화. 잘못된 targetId는 제외한다. */
+const toUniqueNumericTargetIds = (targetIds: string[]): number[] =>
+  [...new Set(targetIds)]
+    .map(parseNumericTargetId)
+    .filter((id): id is number => id !== null);
+
 /**
  * 폴리모픽 targetId를 타입별로 모아 배치 조회한다.
  * Prisma relation이 없으므로 Service에서 target별 Map을 만든 뒤 매핑한다.
@@ -71,24 +77,12 @@ const loadTargetInfoMap = async (
     idsByTarget[item.target].push(item.targetId);
   }
 
-  const unique = (ids: string[]) => [...new Set(ids)];
-
-  const userIds = unique(idsByTarget.USER);
-  const reviewIds = unique(idsByTarget.REVIEW)
-    .map(parseNumericTargetId)
-    .filter((id): id is number => id !== null);
-  const chatRoomIds = unique(idsByTarget.CHAT_ROOM)
-    .map(parseNumericTargetId)
-    .filter((id): id is number => id !== null);
-  const messageIds = unique(idsByTarget.MESSAGE)
-    .map(parseNumericTargetId)
-    .filter((id): id is number => id !== null);
-  const articleIds = unique(idsByTarget.ARTICLE)
-    .map(parseNumericTargetId)
-    .filter((id): id is number => id !== null);
-  const commentIds = unique(idsByTarget.COMMENT)
-    .map(parseNumericTargetId)
-    .filter((id): id is number => id !== null);
+  const userIds = [...new Set(idsByTarget.USER)];
+  const reviewIds = toUniqueNumericTargetIds(idsByTarget.REVIEW);
+  const chatRoomIds = toUniqueNumericTargetIds(idsByTarget.CHAT_ROOM);
+  const messageIds = toUniqueNumericTargetIds(idsByTarget.MESSAGE);
+  const articleIds = toUniqueNumericTargetIds(idsByTarget.ARTICLE);
+  const commentIds = toUniqueNumericTargetIds(idsByTarget.COMMENT);
 
   const [users, reviews, chatRooms, messages, articles, comments] =
     await Promise.all([
@@ -198,14 +192,28 @@ const toTargetInfoKey = (target: UserReportTarget, targetId: string): string => 
     : `${target}:${numericId}`;
 };
 
+/** Repository row → API 응답 DTO. Prisma payload를 그대로 노출하지 않는다. */
 const toAdminReportListItem = (
   row: AdminReportListRow,
   targetInfoMap: Map<string, AdminReportTargetInfoDto>
 ): AdminReportListItemDto => ({
-  ...row,
+  id: row.id,
+  reporterId: row.reporterId,
+  reporter: {
+    id: row.reporter.id,
+    name: row.reporter.name,
+    nickname: row.reporter.nickname,
+    email: row.reporter.email,
+    userType: row.reporter.userType,
+  },
+  target: row.target,
+  targetId: row.targetId,
   // 삭제되었거나 targetId가 깨진 경우 null로 내려 목록 UI가 fallback 처리할 수 있게 한다.
   targetInfo:
     targetInfoMap.get(toTargetInfoKey(row.target, row.targetId)) ?? null,
+  category: row.category,
+  status: row.status,
+  createdAt: row.createdAt,
 });
 
 /** 관리자 신고 목록 조회 — 필터·페이지네이션·신고자·대상 요약을 함께 반환한다 */

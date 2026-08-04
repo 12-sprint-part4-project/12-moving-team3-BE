@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 export const getTotalReportCount = async (
   where: Prisma.UserReportWhereInput
 ) => {
@@ -113,12 +115,15 @@ const targetAuthorSelect = {
 } satisfies Prisma.UserSelect;
 
 /** USER 대상 배치 조회 — soft-delete된 유저는 목록에서 null 처리하기 위해 제외한다 */
-export const findReportTargetUsersByIds = async (ids: string[]) => {
+export const findReportTargetUsersByIds = async (
+  ids: string[],
+  db: DbClient = prisma
+) => {
   if (ids.length === 0) {
     return [];
   }
 
-  return prisma.user.findMany({
+  return db.user.findMany({
     where: { id: { in: ids }, deletedAt: null },
     select: {
       id: true,
@@ -131,12 +136,15 @@ export const findReportTargetUsersByIds = async (ids: string[]) => {
 };
 
 /** REVIEW 대상 배치 조회 */
-export const findReportTargetReviewsByIds = async (ids: number[]) => {
+export const findReportTargetReviewsByIds = async (
+  ids: number[],
+  db: DbClient = prisma
+) => {
   if (ids.length === 0) {
     return [];
   }
 
-  return prisma.review.findMany({
+  return db.review.findMany({
     where: { id: { in: ids }, deletedAt: null },
     select: {
       id: true,
@@ -148,12 +156,15 @@ export const findReportTargetReviewsByIds = async (ids: number[]) => {
 };
 
 /** CHAT_ROOM 대상 배치 조회 */
-export const findReportTargetChatRoomsByIds = async (ids: number[]) => {
+export const findReportTargetChatRoomsByIds = async (
+  ids: number[],
+  db: DbClient = prisma
+) => {
   if (ids.length === 0) {
     return [];
   }
 
-  return prisma.chatRoom.findMany({
+  return db.chatRoom.findMany({
     where: { id: { in: ids } },
     select: {
       id: true,
@@ -164,12 +175,15 @@ export const findReportTargetChatRoomsByIds = async (ids: number[]) => {
 };
 
 /** MESSAGE 대상 배치 조회 */
-export const findReportTargetMessagesByIds = async (ids: number[]) => {
+export const findReportTargetMessagesByIds = async (
+  ids: number[],
+  db: DbClient = prisma
+) => {
   if (ids.length === 0) {
     return [];
   }
 
-  return prisma.chatMessage.findMany({
+  return db.chatMessage.findMany({
     where: { id: { in: ids } },
     select: {
       id: true,
@@ -181,12 +195,15 @@ export const findReportTargetMessagesByIds = async (ids: number[]) => {
 };
 
 /** ARTICLE(Post) 대상 배치 조회 */
-export const findReportTargetArticlesByIds = async (ids: number[]) => {
+export const findReportTargetArticlesByIds = async (
+  ids: number[],
+  db: DbClient = prisma
+) => {
   if (ids.length === 0) {
     return [];
   }
 
-  return prisma.post.findMany({
+  return db.post.findMany({
     where: { id: { in: ids }, deletedAt: null },
     select: {
       id: true,
@@ -198,12 +215,15 @@ export const findReportTargetArticlesByIds = async (ids: number[]) => {
 };
 
 /** COMMENT 대상 배치 조회 */
-export const findReportTargetCommentsByIds = async (ids: number[]) => {
+export const findReportTargetCommentsByIds = async (
+  ids: number[],
+  db: DbClient = prisma
+) => {
   if (ids.length === 0) {
     return [];
   }
 
-  return prisma.comment.findMany({
+  return db.comment.findMany({
     where: { id: { in: ids }, deletedAt: null },
     select: {
       id: true,
