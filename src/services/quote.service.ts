@@ -107,6 +107,35 @@ const assertNoExistingQuote = (
 };
 
 /**
+ * 견적 보내기/확정은 SUBMITTED 요청만 허용
+ * EXPIRED·CANCELED·확정·완료는 각각 전용 에러로 분기
+ */
+const assertSubmittedEstimateRequest = (
+  status: EstimateRequestStatus,
+  confirmedQuoteId: number | null
+): void => {
+  if (status === EstimateRequestStatus.EXPIRED) {
+    throw new AppError('REQUEST_EXPIRED');
+  }
+
+  if (status === EstimateRequestStatus.CANCELED) {
+    throw new AppError('REQUEST_CANCELED');
+  }
+
+  if (
+    confirmedQuoteId !== null ||
+    status === EstimateRequestStatus.CONFIRMED ||
+    status === EstimateRequestStatus.COMPLETED
+  ) {
+    throw new AppError('ALREADY_CONFIRMED_REQUEST');
+  }
+
+  if (status !== EstimateRequestStatus.SUBMITTED) {
+    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+  }
+};
+
+/**
  * 견적 생성. 복합 유니크 위반 시 QUOTE_ALREADY_SUBMITTED 로 변환
  */
 const createQuote = async (
@@ -143,14 +172,15 @@ export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
       throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
     }
 
-    // 이사일 경과 여부 검증
+    // SUBMITTED만 견적 보내기/반려 가능 (EXPIRED·CANCELED·확정 등 차단)
+    assertSubmittedEstimateRequest(
+      estimateRequest.status,
+      estimateRequest.confirmedQuoteId
+    );
+
+    // 이사일 경과 여부 검증 (cron 전 SUBMITTED도 차단)
     if (isMoveDateExpired(estimateRequest.moveDate)) {
       throw new AppError('REQUEST_EXPIRED');
-    }
-
-    // 견적 확정된 요청은 보내기/반려 불가
-    if (estimateRequest.confirmedQuoteId !== null) {
-      throw new AppError('ALREADY_CONFIRMED_REQUEST');
     }
 
     // 지정 견적 대상 여부 조회
@@ -484,6 +514,8 @@ const resolveCustomerQuoteStatuses = (
 const PAST_ESTIMATE_REQUEST_STATUSES: EstimateRequestStatus[] = [
   EstimateRequestStatus.CONFIRMED,
   EstimateRequestStatus.COMPLETED,
+  EstimateRequestStatus.EXPIRED,
+  EstimateRequestStatus.CANCELED,
 ];
 
 /**
@@ -779,16 +811,17 @@ export const confirmQuote = async (
       throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
     }
 
-    // 이미 확정·완료된 이사 요청 여부 검증
-    if (
-      estimateRequest.confirmedQuoteId !== null ||
-      estimateRequest.status !== EstimateRequestStatus.SUBMITTED ||
-      quote.status !== QuoteStatus.PENDING
-    ) {
+    // SUBMITTED만 확정 가능 (EXPIRED·CANCELED는 전용 에러)
+    assertSubmittedEstimateRequest(
+      estimateRequest.status,
+      estimateRequest.confirmedQuoteId
+    );
+
+    if (quote.status !== QuoteStatus.PENDING) {
       throw new AppError('ALREADY_CONFIRMED_REQUEST');
     }
 
-    // 이사일 경과 여부 검증
+    // 이사일 경과 여부 검증 (cron 전 SUBMITTED도 차단)
     if (isMoveDateExpired(estimateRequest.moveDate)) {
       throw new AppError('REQUEST_EXPIRED');
     }

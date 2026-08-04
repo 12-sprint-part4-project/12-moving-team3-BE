@@ -314,7 +314,7 @@ paths:
       tags: [Customers]
       summary: 받았던 견적(과거) 리스트 조회
       description: |
-        확정/완료된 견적 요청을 커서 기반으로 조회합니다.
+        확정/완료/만료/취소된 견적 요청을 커서 기반으로 조회합니다.
         가장 최근에 견적을 요청한 순(submittedAt 내림차순)으로 정렬됩니다.
         - filter=ALL: PENDING·CONFIRMED 견적 포함
         - filter=CONFIRMED: 확정 견적만 포함
@@ -548,6 +548,7 @@ paths:
         해당 견적(Quote)과 연결된 이사 요청(Estimate Request)을 함께 CONFIRMED로 변경하고,
         confirmedQuoteId를 설정합니다.
         EstimateRequest가 SUBMITTED가 아니거나 이미 확정된 경우, 또는 동일 견적 재확정 시 409를 반환합니다.
+        만료(EXPIRED)·취소(CANCELED)된 요청은 각각 REQUEST_EXPIRED / REQUEST_CANCELED(409)를 반환합니다.
         이사일이 지난 요청은 REQUEST_EXPIRED(409)를 반환합니다.
         Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
       security:
@@ -620,7 +621,7 @@ paths:
                       code: ESTIMATE_REQUEST_NOT_FOUND
                       message: 존재하지 않는 견적 요청입니다.
         '409':
-          description: 확정 불가 (이미 확정됨 / 이사일 경과)
+          description: 확정 불가 (이미 확정됨 / 만료 / 취소 / 이사일 경과)
           content:
             application/json:
               schema:
@@ -633,10 +634,16 @@ paths:
                       code: ALREADY_CONFIRMED_REQUEST
                       message: 이미 예약이 확정된 이사 요청입니다.
                 requestExpired:
-                  summary: 이사일 경과
+                  summary: 만료 또는 이사일 경과
                   value:
                     error:
                       code: REQUEST_EXPIRED
                       message: 이사일이 지나 견적 요청이 만료되었습니다.
+                requestCanceled:
+                  summary: 취소된 견적 요청
+                  value:
+                    error:
+                      code: REQUEST_CANCELED
+                      message: 취소된 견적 요청입니다.
         '500':
           $ref: '#/components/responses/InternalServerError'
