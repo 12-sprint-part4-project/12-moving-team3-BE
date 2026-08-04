@@ -448,3 +448,24 @@ export const submitEstimateRequest = async (
     select: customerDetailSelect,
   });
 };
+
+/**
+ * 이사일(moveDate)이 기준일 이전인 SUBMITTED 요청을 EXPIRED로 일괄 전환
+ * @returns 갱신된 행 수
+ */
+export const expireSubmittedEstimateRequestsPastMoveDate = async (
+  todayStartUtc: Date,
+  db: DbClient = prisma
+): Promise<number> => {
+  const { count } = await db.estimateRequest.updateMany({
+    where: {
+      status: EstimateRequestStatus.SUBMITTED,
+      moveDate: { lt: todayStartUtc },
+    },
+    data: {
+      status: EstimateRequestStatus.EXPIRED,
+    },
+  });
+
+  return count;
+};

@@ -383,6 +383,7 @@ export interface CustomerPendingEstimateRequestRow {
 /** 과거 견적 요청 그룹 행 */
 export interface CustomerPastEstimateRequestRow {
   id: number;
+  status: EstimateRequestStatus;
   submittedAt: Date | null;
   moveType: MoveType | null;
   moveDate: Date | null;
@@ -571,6 +572,7 @@ export const findCustomerPastEstimateRequests = async (
       },
       select: {
         id: true,
+        status: true,
         submittedAt: true,
         moveType: true,
         moveDate: true,
@@ -614,6 +616,7 @@ export const findCustomerPastEstimateRequests = async (
     take: params.limit + 1,
     select: {
       id: true,
+      status: true,
       submittedAt: true,
       moveType: true,
       moveDate: true,

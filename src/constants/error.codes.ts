@@ -91,6 +91,10 @@ export const ERROR_CODES = {
     status: 409,
     message: '이사일이 지나 견적 요청이 만료되었습니다.',
   },
+  REQUEST_CANCELED: {
+    status: 409,
+    message: '취소된 견적 요청입니다.',
+  },
   REQUEST_CLOSED: {
     status: 409,
     message: '견적 제출 가능 인원이 마감되었습니다.',

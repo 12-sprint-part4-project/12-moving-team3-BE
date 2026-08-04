@@ -89,6 +89,7 @@ components:
             - description
             - service
             - serviceRegions
+            - confirmedCount
             - createdAt
             - updatedAt
           properties:
@@ -158,6 +159,10 @@ components:
                   - BUSAN
                   - JEJU
               example: [SEOUL, GYEONGGI]
+            confirmedCount:
+              type: integer
+              description: 확정 견적(CONFIRMED) 건수
+              example: 334
             createdAt:
               type: string
               format: date-time
@@ -174,6 +179,7 @@ paths:
       summary: 기사님 본인 프로필 조회
       description: |
         로그인한 기사님(MOVER)의 등록된 프로필을 조회합니다.
+        confirmedCount(확정 견적 건수)를 포함합니다.
       security:
         - bearerAuth: []
       responses:
