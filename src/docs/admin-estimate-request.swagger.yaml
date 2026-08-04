@@ -442,6 +442,16 @@ paths:
                       price: null
                       status: REJECTED
                       createdAt: '2026-07-16T11:00:00.000Z'
+        '400':
+          description: Path Parameter(estimateRequestId) 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
         '401':
           description: 관리자 Access Token이 없거나 유효하지 않음
           content:
@@ -453,9 +463,7 @@ paths:
                   code: ADMIN_UNAUTHORIZED
                   message: 관리자 인증이 필요합니다.
         '404':
-          description: |
-            Path Parameter가 유효하지 않거나, 견적 요청이 없거나,
-            DRAFT 또는 COMPLETED 상태인 경우
+          description: 견적 요청이 없거나 DRAFT 또는 COMPLETED 상태인 경우
           content:
             application/json:
               schema:
