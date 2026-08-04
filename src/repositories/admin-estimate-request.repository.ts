@@ -113,7 +113,7 @@ export const findEstimateRequestDetailById = async <
   select: T;
 }> | null> => {
   return prisma.estimateRequest.findUnique({
-    where: { id, status },
+    where: { id, ...(status !== undefined && { status }) },
     select,
   });
 };

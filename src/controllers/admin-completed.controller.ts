@@ -41,7 +41,7 @@ export const getCompletedList = async (
 };
 
 export const getCompletedRequestDetail = async (
-  req: Request,
+  _req: Request,
   res: Response,
   next: NextFunction
 ) => {
