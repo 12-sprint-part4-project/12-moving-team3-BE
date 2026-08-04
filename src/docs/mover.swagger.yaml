@@ -207,7 +207,7 @@ components:
             isMoveCompleted:
               type: boolean
               description: 완료·만료·취소 시 카드 종료 오버레이 표시
-              example: false
+              example: true
             customer:
               type: object
               properties:
@@ -328,7 +328,7 @@ components:
         isMoveCompleted:
           type: boolean
           description: 완료·만료·취소 시 카드 종료 오버레이 표시
-          example: false
+          example: true
         createdAt:
           type: string
           format: date-time
