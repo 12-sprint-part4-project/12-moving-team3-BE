@@ -7,7 +7,8 @@ paths:
         신고 목록을 최신순(createdAt desc, id desc)으로 조회합니다.
         status·target query로 필터할 수 있으며, 둘 다 있으면 AND 조건으로 조회합니다.
         page·pageSize로 페이지네이션하며, 응답은 회원 목록과 동일하게 items/pagination 구조입니다.
-        각 item에 신고자 요약(reporter)을 포함하며, 신고 대상 상세는 포함하지 않습니다.
+        각 item에 신고자 요약(reporter)과 신고 대상 요약(targetInfo)을 포함합니다.
+        targetInfo는 대상이 삭제되었거나 조회되지 않으면 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -73,6 +74,7 @@ paths:
                             - status
                             - createdAt
                             - reporter
+                            - targetInfo
                           properties:
                             id:
                               type: integer
@@ -122,6 +124,132 @@ paths:
                                   type: string
                                   enum: [CUSTOMER, MOVER]
                                   example: CUSTOMER
+                            targetInfo:
+                              nullable: true
+                              description: 대상 유형별 요약. 삭제·미존재 시 null
+                              oneOf:
+                                - type: object
+                                  required: [type, id, name, nickname, email, userType]
+                                  properties:
+                                    type:
+                                      type: string
+                                      enum: [USER]
+                                    id:
+                                      type: string
+                                      format: uuid
+                                    name:
+                                      type: string
+                                    nickname:
+                                      type: string
+                                    email:
+                                      type: string
+                                    userType:
+                                      type: string
+                                      enum: [CUSTOMER, MOVER]
+                                - type: object
+                                  required: [type, id, rating, content, author]
+                                  properties:
+                                    type:
+                                      type: string
+                                      enum: [REVIEW]
+                                    id:
+                                      type: integer
+                                    rating:
+                                      type: integer
+                                    content:
+                                      type: string
+                                    author:
+                                      nullable: true
+                                      type: object
+                                      properties:
+                                        id:
+                                          type: string
+                                          format: uuid
+                                        name:
+                                          type: string
+                                        nickname:
+                                          type: string
+                                - type: object
+                                  required: [type, id, roomType, createdAt]
+                                  properties:
+                                    type:
+                                      type: string
+                                      enum: [CHAT_ROOM]
+                                    id:
+                                      type: integer
+                                    roomType:
+                                      type: string
+                                    createdAt:
+                                      type: string
+                                      format: date-time
+                                - type: object
+                                  required: [type, id, content, messageType, sender]
+                                  properties:
+                                    type:
+                                      type: string
+                                      enum: [MESSAGE]
+                                    id:
+                                      type: integer
+                                    content:
+                                      type: string
+                                    messageType:
+                                      type: string
+                                    sender:
+                                      nullable: true
+                                      type: object
+                                      properties:
+                                        id:
+                                          type: string
+                                          format: uuid
+                                        name:
+                                          type: string
+                                        nickname:
+                                          type: string
+                                - type: object
+                                  required: [type, id, title, category, author]
+                                  properties:
+                                    type:
+                                      type: string
+                                      enum: [ARTICLE]
+                                    id:
+                                      type: integer
+                                    title:
+                                      type: string
+                                    category:
+                                      type: string
+                                    author:
+                                      nullable: true
+                                      type: object
+                                      properties:
+                                        id:
+                                          type: string
+                                          format: uuid
+                                        name:
+                                          type: string
+                                        nickname:
+                                          type: string
+                                - type: object
+                                  required: [type, id, content, author]
+                                  properties:
+                                    type:
+                                      type: string
+                                      enum: [COMMENT]
+                                    id:
+                                      type: integer
+                                    content:
+                                      type: string
+                                    author:
+                                      nullable: true
+                                      type: object
+                                      properties:
+                                        id:
+                                          type: string
+                                          format: uuid
+                                        name:
+                                          type: string
+                                        nickname:
+                                          type: string
+                                - type: 'null'
                       pagination:
                         type: object
                         required: [page, pageSize, totalCount, totalPages]
@@ -154,6 +282,13 @@ paths:
                         nickname: 길동이
                         email: reporter@example.com
                         userType: CUSTOMER
+                      targetInfo:
+                        type: USER
+                        id: '550e8400-e29b-41d4-a716-446655440001'
+                        name: 김철수
+                        nickname: 철수
+                        email: target@example.com
+                        userType: MOVER
                   pagination:
                     page: 1
                     pageSize: 10

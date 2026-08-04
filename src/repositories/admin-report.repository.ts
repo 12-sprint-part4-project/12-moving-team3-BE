@@ -89,3 +89,126 @@ export const findAdminReportsWithCount = async (
 
   return { items, totalCount };
 };
+
+/** targetId 문자열을 Int PK용 숫자로 변환. 유효하지 않으면 null */
+export const parseNumericTargetId = (targetId: string): number | null => {
+  if (!/^[1-9]\d*$/.test(targetId)) {
+    return null;
+  }
+
+  const id = Number(targetId);
+
+  // Prisma Int 범위를 벗어나면 조회하지 않고 null로 둔다.
+  if (!Number.isSafeInteger(id) || id < 1 || id > 2_147_483_647) {
+    return null;
+  }
+
+  return id;
+};
+
+const targetAuthorSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+} satisfies Prisma.UserSelect;
+
+/** USER 대상 배치 조회 — soft-delete된 유저는 목록에서 null 처리하기 위해 제외한다 */
+export const findReportTargetUsersByIds = async (ids: string[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.user.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      email: true,
+      userType: true,
+    },
+  });
+};
+
+/** REVIEW 대상 배치 조회 */
+export const findReportTargetReviewsByIds = async (ids: number[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.review.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    select: {
+      id: true,
+      rating: true,
+      content: true,
+      user: { select: targetAuthorSelect },
+    },
+  });
+};
+
+/** CHAT_ROOM 대상 배치 조회 */
+export const findReportTargetChatRoomsByIds = async (ids: number[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.chatRoom.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      roomType: true,
+      createdAt: true,
+    },
+  });
+};
+
+/** MESSAGE 대상 배치 조회 */
+export const findReportTargetMessagesByIds = async (ids: number[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.chatMessage.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      content: true,
+      messageType: true,
+      sender: { select: targetAuthorSelect },
+    },
+  });
+};
+
+/** ARTICLE(Post) 대상 배치 조회 */
+export const findReportTargetArticlesByIds = async (ids: number[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.post.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      user: { select: targetAuthorSelect },
+    },
+  });
+};
+
+/** COMMENT 대상 배치 조회 */
+export const findReportTargetCommentsByIds = async (ids: number[]) => {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.comment.findMany({
+    where: { id: { in: ids }, deletedAt: null },
+    select: {
+      id: true,
+      content: true,
+      user: { select: targetAuthorSelect },
+    },
+  });
+};
