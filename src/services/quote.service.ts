@@ -301,10 +301,12 @@ const createRejection = async ({
 };
 
 /**
- * 이사 완료 여부 판별
+ * 보낸 견적 카드 종료 오버레이 대상
  */
-const isMoveCompleted = (status: EstimateRequestStatus): boolean =>
-  status === EstimateRequestStatus.COMPLETED;
+const isClosedEstimateRequestCard = (status: EstimateRequestStatus): boolean =>
+  status === EstimateRequestStatus.COMPLETED ||
+  status === EstimateRequestStatus.EXPIRED ||
+  status === EstimateRequestStatus.CANCELED;
 
 /**
  * 견적 상세 응답 DTO 변환
@@ -318,7 +320,8 @@ const toQuoteDetailDto = (quote: QuoteDetailRow): QuoteDetailDto => {
     price: quote.price,
     status: quote.status,
     rejectReason: quote.rejectReason,
-    isMoveCompleted: isMoveCompleted(estimateRequest.status),
+    estimateRequestStatus: estimateRequest.status,
+    isMoveCompleted: isClosedEstimateRequestCard(estimateRequest.status),
     customer: { name: estimateRequest.user.name },
     moveType: estimateRequest.moveType,
     isDesignated: quote.isDesignated,
@@ -375,7 +378,8 @@ const toSentQuoteListItem = (quote: SentQuoteListRow): SentQuoteListItemDto => {
       estimateRequest.arrivalAddress
     ),
     price: quote.price,
-    isMoveCompleted: isMoveCompleted(estimateRequest.status),
+    estimateRequestStatus: estimateRequest.status,
+    isMoveCompleted: isClosedEstimateRequestCard(estimateRequest.status),
     createdAt: quote.createdAt,
   };
 };
@@ -622,6 +626,7 @@ const toPastQuoteGroupDto = async (
   moverMap: Map<string, CustomerQuoteMoverRow>
 ): Promise<CustomerPastQuoteGroupDto> => ({
   estimateRequestId: row.id,
+  status: row.status,
   submittedAt: row.submittedAt,
   serviceType: row.moveType,
   moveDate: row.moveDate,

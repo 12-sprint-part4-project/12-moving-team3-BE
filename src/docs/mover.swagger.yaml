@@ -199,8 +199,14 @@ components:
               type: string
               nullable: true
               example: null
+            estimateRequestStatus:
+              type: string
+              enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+              description: 연결된 견적 요청 상태
+              example: COMPLETED
             isMoveCompleted:
               type: boolean
+              description: 완료·만료·취소 시 카드 종료 오버레이 표시
               example: false
             customer:
               type: object
@@ -314,8 +320,14 @@ components:
           type: integer
           nullable: true
           example: 180000
+        estimateRequestStatus:
+          type: string
+          enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+          description: 연결된 견적 요청 상태
+          example: COMPLETED
         isMoveCompleted:
           type: boolean
+          description: 완료·만료·취소 시 카드 종료 오버레이 표시
           example: false
         createdAt:
           type: string
