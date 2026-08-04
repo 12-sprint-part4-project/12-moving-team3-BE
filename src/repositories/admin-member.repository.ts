@@ -1,18 +1,9 @@
-import {
-  HistoryAction,
-  Prisma,
-  QuoteStatus,
-  UserReportTarget,
-  UserStatus,
-} from '@prisma/client';
+import { Prisma, QuoteStatus, UserReportTarget, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
-import { AppError } from '../utils/app.error';
-import { createHistory } from './history.repository';
 
-/** History.tableName — UserStatusInfo @@map("user_statuses")와 동일하게 맞춘다 */
-const USER_STATUS_TABLE_NAME = 'user_statuses';
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 /** History before/after에 남길 UserStatusInfo 스냅샷 필드 */
 const adminMemberStatusSelect = {
@@ -188,7 +179,7 @@ export const findAdminMemberDetail = async (
   });
 };
 
-/** UserStatusInfo upsert 결과 — 상태 변경 API 응답·History 스냅샷에 필요한 필드만 */
+/** UserStatusInfo 조회/upsert 결과 — 상태 변경 API 응답·History 스냅샷에 필요한 필드만 */
 export type AdminMemberStatusRow = {
   userId: string;
   status: UserStatus;
@@ -196,93 +187,61 @@ export type AdminMemberStatusRow = {
   suspendedUntil: Date | null;
 };
 
-export type UpdateAdminMemberStatusWithHistoryParams = {
-  memberId: string;
-  adminId: number;
-  status: UserStatus;
-  suspendedAt: Date | null;
-  suspendedUntil: Date | null;
+/**
+ * 삭제되지 않은 회원 id 조회.
+ * 트랜잭션 안에서는 db로 tx를 넘겨 존재 확인과 상태 변경 사이 race를 막는다.
+ */
+export const findAdminMemberId = async (
+  memberId: string,
+  db: DbClient = prisma
+): Promise<{ id: string } | null> => {
+  return db.user.findFirst({
+    where: {
+      id: memberId,
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+};
+
+/** 변경 전 UserStatusInfo 조회 — row가 없으면 null */
+export const findAdminMemberStatus = async (
+  memberId: string,
+  db: DbClient = prisma
+): Promise<AdminMemberStatusRow | null> => {
+  return db.userStatusInfo.findUnique({
+    where: { userId: memberId },
+    select: adminMemberStatusSelect,
+  });
 };
 
 /**
- * History Json 컬럼용 스냅샷.
- * Prisma Json은 Date/plain null을 그대로 받지 않으므로 ISO 문자열·DbNull로 정규화한다.
+ * 회원 계정 상태 upsert.
+ * UserStatusInfo row가 없는 회원도 첫 정지/활성화 시 row를 생성해야 하므로 upsert를 쓴다.
  */
-const toStatusHistoryJson = (
-  row: AdminMemberStatusRow | null
-): Prisma.InputJsonValue | typeof Prisma.DbNull => {
-  if (!row) {
-    return Prisma.DbNull;
-  }
-
-  return {
-    userId: row.userId,
-    status: row.status,
-    suspendedAt: row.suspendedAt?.toISOString() ?? null,
-    suspendedUntil: row.suspendedUntil?.toISOString() ?? null,
-  };
-};
-
-/**
- * 회원 존재 확인·UserStatusInfo upsert·History 저장을 한 트랜잭션으로 처리한다.
- * 존재 확인을 트랜잭션 밖에서 하면 그 사이 삭제가 끼어들 수 있어 안쪽에서 검증한다.
- */
-export const updateAdminMemberStatusWithHistory = async (
-  params: UpdateAdminMemberStatusWithHistoryParams
+export const upsertAdminMemberStatus = async (
+  memberId: string,
+  data: {
+    status: UserStatus;
+    suspendedAt: Date | null;
+    suspendedUntil: Date | null;
+  },
+  db: DbClient = prisma
 ): Promise<AdminMemberStatusRow> => {
-  const { memberId, adminId, status, suspendedAt, suspendedUntil } = params;
-
-  return prisma.$transaction(async (tx) => {
-    const member = await tx.user.findFirst({
-      where: {
-        id: memberId,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (!member) {
-      throw new AppError('ADMIN_MEMBER_NOT_FOUND');
-    }
-
-    // row가 없으면 beforeData를 null로 남겨 "최초 상태 생성" 이력을 구분한다.
-    const beforeData = await tx.userStatusInfo.findUnique({
-      where: { userId: memberId },
-      select: adminMemberStatusSelect,
-    });
-
-    const afterData = await tx.userStatusInfo.upsert({
-      where: { userId: memberId },
-      create: {
-        userId: memberId,
-        status,
-        suspendedAt,
-        suspendedUntil,
-      },
-      update: {
-        status,
-        suspendedAt,
-        suspendedUntil,
-      },
-      select: adminMemberStatusSelect,
-    });
-
-    // 최초 row 생성은 CREATE, 기존 row 갱신은 UPDATE로 남겨 감사 의미를 맞춘다.
-    const operationType =
-      beforeData === null ? HistoryAction.CREATE : HistoryAction.UPDATE;
-
-    // 관리자 작업이므로 actor는 adminUserId에 두고, 대상 회원은 tableRowId로 식별한다.
-    await createHistory(tx, {
-      userId: null,
-      adminUserId: adminId,
-      tableName: USER_STATUS_TABLE_NAME,
-      tableRowId: memberId,
-      operationType,
-      beforeData: toStatusHistoryJson(beforeData),
-      afterData: toStatusHistoryJson(afterData),
-    });
-
-    return afterData;
+  return db.userStatusInfo.upsert({
+    where: { userId: memberId },
+    create: {
+      userId: memberId,
+      status: data.status,
+      suspendedAt: data.suspendedAt,
+      suspendedUntil: data.suspendedUntil,
+    },
+    update: {
+      status: data.status,
+      suspendedAt: data.suspendedAt,
+      suspendedUntil: data.suspendedUntil,
+    },
+    select: adminMemberStatusSelect,
   });
 };
 
