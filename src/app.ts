@@ -7,6 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 import env from './config/env';
 import { swaggerSpec } from './config/swagger';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
+import { startReleaseExpiredSuspensionsCron } from './jobs/release-expired-suspensions.job';
 import { errorHandler } from './middlewares/error.handler';
 import adminAuthRouter from './routes/admin-auth.route';
 import adminCompletedRouter from './routes/admin-completed.route';
@@ -109,4 +110,6 @@ httpServer.listen(env.port, () => {
   }
   // 이사 전날 리마인더 배치 (매일 09:00 Asia/Seoul)
   startMoveDayReminderCron();
+  // 만료된 정지 자동 해제 배치 (매일 00:05 Asia/Seoul)
+  startReleaseExpiredSuspensionsCron();
 });
