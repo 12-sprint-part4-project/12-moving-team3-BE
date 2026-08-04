@@ -8,6 +8,8 @@ export const moveTypeSchema = z.enum(MoveType);
 export const estimateRequestManageStatusSchema = z.enum([
   EstimateRequestStatus.SUBMITTED,
   EstimateRequestStatus.CONFIRMED,
+  EstimateRequestStatus.EXPIRED,
+  EstimateRequestStatus.CANCELED,
 ]);
 
 export const adminEstimateRequestListQuerySchema = listQuerySchema
