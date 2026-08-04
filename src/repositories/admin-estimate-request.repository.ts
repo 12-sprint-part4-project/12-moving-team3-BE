@@ -70,3 +70,17 @@ export const findEstimateRequestList = async <
     select,
   });
 };
+
+export const findEstimateRequestDetailById = async <
+  T extends Prisma.EstimateRequestSelect,
+>(
+  id: number,
+  select: T
+): Promise<Prisma.EstimateRequestGetPayload<{
+  select: T;
+}> | null> => {
+  return prisma.estimateRequest.findUnique({
+    where: { id },
+    select,
+  });
+};
