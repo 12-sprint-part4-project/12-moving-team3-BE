@@ -1,7 +1,9 @@
-import { UserStatus } from '@prisma/client';
+import { Prisma, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
-/** 만료된 정지 상태 스냅샷 — 다음 History 작업에서 beforeData로 재사용한다 */
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
+/** 만료된 정지 상태 스냅샷 — History beforeData로 사용한다 */
 export interface ExpiredSuspendedStatusRow {
   userId: string;
   status: UserStatus;
@@ -14,9 +16,10 @@ export interface ExpiredSuspendedStatusRow {
  * suspendedUntil이 null이거나 미래인 row는 포함하지 않는다.
  */
 export const findExpiredSuspendedStatuses = async (
-  now: Date = new Date()
+  now: Date = new Date(),
+  db: DbClient = prisma
 ): Promise<ExpiredSuspendedStatusRow[]> => {
-  return prisma.userStatusInfo.findMany({
+  return db.userStatusInfo.findMany({
     where: {
       status: UserStatus.SUSPENDED,
       suspendedUntil: {
@@ -37,13 +40,14 @@ export const findExpiredSuspendedStatuses = async (
  * 조회 직후 상태가 바뀐 row는 건드리지 않도록 SUSPENDED 조건을 유지한다.
  */
 export const activateUserStatusesByUserIds = async (
-  userIds: string[]
+  userIds: string[],
+  db: DbClient = prisma
 ): Promise<number> => {
   if (userIds.length === 0) {
     return 0;
   }
 
-  const { count } = await prisma.userStatusInfo.updateMany({
+  const { count } = await db.userStatusInfo.updateMany({
     where: {
       userId: { in: userIds },
       status: UserStatus.SUSPENDED,
