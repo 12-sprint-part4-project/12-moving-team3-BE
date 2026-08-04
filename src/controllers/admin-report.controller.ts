@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
+import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import * as adminReportService from '../services/admin-report.service';
+import { getValidated } from '../utils/validated.util';
 
 export const getReportStatistics = async (
   _req: Request,
@@ -25,7 +27,8 @@ export const getAdminReportList = async (
   next: NextFunction
 ) => {
   try {
-    const data = await adminReportService.getAdminReportList();
+    const query = getValidated<AdminReportListQuery>(res, 'query');
+    const data = await adminReportService.getAdminReportList(query);
 
     // 관리자 API 공통 포맷: 성공 본문을 data로 감싼다.
     res.status(200).json({ data });
