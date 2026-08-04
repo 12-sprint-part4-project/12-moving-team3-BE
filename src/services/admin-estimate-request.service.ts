@@ -6,6 +6,7 @@ import {
   findEstimateRequestList,
   findEstimateRequestDetailById,
   getEstimateRequestCount,
+  getEstimateRequestStatusStatistics,
 } from '../repositories/admin-estimate-request.repository';
 import { AdminEstimateRequestListQuery } from '../schemas/admin-estimate-request.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
@@ -19,37 +20,10 @@ export const getEstimateRequestStatistics = async ({
   endDate,
 }: AdminStatisticsFilter) => {
   const dateRange = createDateRange(startDate, endDate);
+  const { submitted, confirmed, expired, canceled } =
+    await getEstimateRequestStatusStatistics(dateRange?.gte, dateRange?.lt);
 
-  const where: Prisma.EstimateRequestWhereInput = {
-    ...(dateRange && { submittedAt: dateRange }),
-  };
-
-  const [
-    totalActiveEstimateRequestCount,
-    submittedEstimateRequestCount,
-    confirmedEstimateRequestCount,
-  ] = await Promise.all([
-    getEstimateRequestCount({
-      ...where,
-      status: {
-        in: [EstimateRequestStatus.SUBMITTED, EstimateRequestStatus.CONFIRMED],
-      },
-    }),
-    getEstimateRequestCount({
-      ...where,
-      status: { in: [EstimateRequestStatus.SUBMITTED] },
-    }),
-    getEstimateRequestCount({
-      ...where,
-      status: { in: [EstimateRequestStatus.CONFIRMED] },
-    }),
-  ]);
-
-  return {
-    totalActiveEstimateRequestCount,
-    submittedEstimateRequestCount,
-    confirmedEstimateRequestCount,
-  };
+  return { submitted, confirmed, expired, canceled };
 };
 
 export const createEstimateRequestCommonWhere = ({
@@ -109,7 +83,9 @@ export const getEstimateRequestList = async (
       endDate,
     }),
     status: status ?? {
-      in: [EstimateRequestStatus.SUBMITTED, EstimateRequestStatus.CONFIRMED],
+      not: {
+        in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.COMPLETED],
+      },
     },
   };
 
@@ -189,7 +165,6 @@ export const getEstimateRequestDetail = async (
     arrivalDetailAddress: true,
     submittedAt: true,
     status: true,
-    _count: { select: { quotes: true } },
     quotes: {
       select: {
         id: true,
@@ -208,7 +183,14 @@ export const getEstimateRequestDetail = async (
   );
 
   if (estimateRequest == null) {
-    throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+    throw new AppError('ADMIN_ESTIMATE_REQUEST_NOT_FOUND');
+  }
+
+  if (
+    estimateRequest.status === EstimateRequestStatus.DRAFT ||
+    estimateRequest.status === EstimateRequestStatus.COMPLETED
+  ) {
+    throw new AppError('ADMIN_ESTIMATE_REQUEST_NOT_FOUND');
   }
 
   if (
@@ -251,7 +233,7 @@ export const getEstimateRequestDetail = async (
       arrivalDetailAddress: estimateRequest.arrivalDetailAddress,
       submittedAt: estimateRequest.submittedAt,
       status: estimateRequest.status,
-      estimateCount: estimateRequest._count.quotes,
+      estimateCount: quotes.length,
       quotes,
     },
   };

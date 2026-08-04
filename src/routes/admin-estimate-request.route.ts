@@ -36,7 +36,7 @@ router.get(
   requireAdminAuth,
   validateRequest({
     params: estimateRequestIdParamsSchema,
-    errorCode: 'ADMIN_ESTIMATE_REQUEST_NOT_FOUND',
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminEstimateRequestController.getEstimateRequestDetail
 );

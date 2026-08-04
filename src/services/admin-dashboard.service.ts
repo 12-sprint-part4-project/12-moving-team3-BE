@@ -15,6 +15,7 @@ import {
 import {
   getCompletedEstimateRequestRecentActivities,
   getEstimateRequestCount,
+  getEstimateRequestStatusStatistics,
   getRequestTrendRows,
 } from '../repositories/admin-estimate-request.repository';
 import { getQuoteCount } from '../repositories/admin-quote.repository';
@@ -144,32 +145,17 @@ export const getRequestTrend = async (
 
 export const getRequestStatus = async () => {
   const { start, end } = getDashboardChartDateRange('MONTH');
-  const dateRange = { gte: start, lte: end };
 
-  const [total, requested, matched, completed] = await Promise.all([
-    getEstimateRequestCount({
-      status: { not: EstimateRequestStatus.DRAFT },
-      submittedAt: dateRange,
-    }),
-    getEstimateRequestCount({
-      status: EstimateRequestStatus.SUBMITTED,
-      submittedAt: dateRange,
-    }),
-    getEstimateRequestCount({
-      status: EstimateRequestStatus.CONFIRMED,
-      submittedAt: dateRange,
-    }),
-    getEstimateRequestCount({
-      status: EstimateRequestStatus.COMPLETED,
-      submittedAt: dateRange,
-    }),
-  ]);
+  const { submitted, confirmed, completed, expired, canceled } =
+    await getEstimateRequestStatusStatistics(start, end);
 
   return {
-    total,
-    requested,
-    matched,
+    total: submitted + confirmed + completed + expired + canceled,
+    submitted,
+    confirmed,
     completed,
+    expired,
+    canceled,
   };
 };
 
