@@ -556,6 +556,7 @@ const toCustomerQuoteMoverDto = async (
   moverId: mover.id,
   nickname: mover.nickname,
   profileImage: await toPresignedViewUrl(mover.profileImageKey),
+  shortDescription: mover.shortDescription,
   rating: toAverageRating(mover.ratingSum, mover.reviewCount),
   reviewCount: mover.reviewCount,
   career: mover.career,
@@ -619,6 +620,20 @@ const buildCustomerQuoteItems = async (
 };
 
 /**
+ * 도로명·지번 주소와 상세주소(동·호수)를 합친 전체 주소
+ */
+const toFullAddressLabel = (
+  address: string | null,
+  detailAddress: string | null
+): string | null => {
+  const parts = [address, detailAddress]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+
+  return parts.length > 0 ? parts.join(' ') : null;
+};
+
+/**
  * 과거 견적 요청 그룹 DTO 변환
  */
 const toPastQuoteGroupDto = async (
@@ -630,8 +645,11 @@ const toPastQuoteGroupDto = async (
   submittedAt: row.submittedAt,
   serviceType: row.moveType,
   moveDate: row.moveDate,
-  fromAddress: inferDistrictLabelFromAddress(row.departureAddress),
-  toAddress: inferDistrictLabelFromAddress(row.arrivalAddress),
+  fromAddress: toFullAddressLabel(
+    row.departureAddress,
+    row.departureDetailAddress
+  ),
+  toAddress: toFullAddressLabel(row.arrivalAddress, row.arrivalDetailAddress),
   quotes: await mapCustomerQuoteItems(row.quotes, moverMap),
 });
 
@@ -776,6 +794,7 @@ export const getCustomerQuoteDetail = async (
     comment: quote.comment,
     status: quote.status,
     isDesignated: quote.isDesignated,
+    estimateRequestStatus: quote.estimateRequest.status,
     serviceType: quote.estimateRequest.moveType,
     moveDate: quote.estimateRequest.moveDate,
     submittedAt: quote.estimateRequest.submittedAt,

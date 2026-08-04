@@ -62,8 +62,8 @@ export interface GetReceivedEstimateRequestsResult {
 }
 
 /**
- * unknown 값이 커서 페이로드({ id, value }) 형태인지 좁힘
- * value 는 buildCursorCondition 에서 Date 로 쓰이므로 파싱 가능한 날짜 문자열만 허용
+ * unknown 값이 커서 페이로드({ id, value, secondaryValue? }) 형태인지 좁힘
+ * value / secondaryValue 는 buildCursorCondition 에서 Date 로 쓰이므로 파싱 가능한 날짜 문자열만 허용
  */
 const isEstimateRequestCursor = (
   value: unknown
@@ -76,10 +76,23 @@ const isEstimateRequestCursor = (
     return false;
   }
 
-  return (
+  const isValidPrimary =
     Number.isSafeInteger(value.id) &&
     typeof value.value === 'string' &&
-    !Number.isNaN(Date.parse(value.value))
+    !Number.isNaN(Date.parse(value.value));
+
+  if (!isValidPrimary) {
+    return false;
+  }
+
+  if (!('secondaryValue' in value) || value.secondaryValue === undefined) {
+    return true;
+  }
+
+  return (
+    value.secondaryValue === null ||
+    (typeof value.secondaryValue === 'string' &&
+      !Number.isNaN(Date.parse(value.secondaryValue)))
   );
 };
 
@@ -196,7 +209,17 @@ export const getReceivedEstimateRequests = async (
 
   const nextCursor =
     hasNextPage && lastRow && lastSortValue
-      ? encodeCursor({ id: lastRow.id, value: lastSortValue.toISOString() })
+      ? encodeCursor({
+          id: lastRow.id,
+          value: lastSortValue.toISOString(),
+          ...(input.sort === 'MOVE_DATE_ASC'
+            ? {
+                secondaryValue: lastRow.submittedAt
+                  ? lastRow.submittedAt.toISOString()
+                  : null,
+              }
+            : {}),
+        })
       : null;
 
   return {
