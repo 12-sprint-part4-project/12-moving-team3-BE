@@ -26,7 +26,7 @@ export const getUserReportRecentActivities = async (
   });
 };
 
-/** 신고 목록 기본 select — 필터/페이지네이션/상세 include 이전 최소 필드만 조회한다 */
+/** 신고 목록 기본 select — 상세 include 이전 최소 필드만 조회한다 */
 const adminReportListSelect = {
   id: true,
   reporterId: true,
@@ -43,7 +43,7 @@ export type AdminReportListRow = Prisma.UserReportGetPayload<{
 
 /** status·target이 있으면 AND로 좁히고, 없으면 전체 목록을 조회한다 */
 const buildAdminReportListWhere = (
-  params: AdminReportListQuery
+  params: Pick<AdminReportListQuery, 'status' | 'target'>
 ): Prisma.UserReportWhereInput => {
   const where: Prisma.UserReportWhereInput = {};
 
@@ -58,14 +58,24 @@ const buildAdminReportListWhere = (
   return where;
 };
 
-/** 관리자 신고 목록 조회 (최신순). 페이지네이션은 이후 단계에서 추가한다. */
-export const findAdminReports = async (
+/** 관리자 신고 목록 + 전체 건수 조회 (totalPages는 Service에서 계산) */
+export const findAdminReportsWithCount = async (
   params: AdminReportListQuery
-): Promise<AdminReportListRow[]> => {
-  return prisma.userReport.findMany({
-    where: buildAdminReportListWhere(params),
-    select: adminReportListSelect,
-    // createdAt이 같으면 id로 tie-break해 목록 순서를 안정화한다.
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-  });
+): Promise<{ items: AdminReportListRow[]; totalCount: number }> => {
+  const where = buildAdminReportListWhere(params);
+  const skip = (params.page - 1) * params.pageSize;
+
+  const [items, totalCount] = await prisma.$transaction([
+    prisma.userReport.findMany({
+      where,
+      select: adminReportListSelect,
+      // createdAt이 같으면 id로 tie-break해 offset 페이지네이션 순서를 안정화한다.
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      skip,
+      take: params.pageSize,
+    }),
+    prisma.userReport.count({ where }),
+  ]);
+
+  return { items, totalCount };
 };

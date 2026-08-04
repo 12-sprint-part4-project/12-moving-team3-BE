@@ -1,8 +1,8 @@
 import { Prisma, UserReportStatus } from '@prisma/client';
+import type { AdminReportListResultDto } from '../dtos/admin-report.dto';
 import {
-  findAdminReports,
+  findAdminReportsWithCount,
   getTotalReportCount,
-  type AdminReportListRow,
 } from '../repositories/admin-report.repository';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
@@ -37,9 +37,19 @@ export const getReportStatistics = async ({
   };
 };
 
-/** 관리자 신고 목록 조회 — status/target 필터를 Repository where로 전달한다 */
+/** 관리자 신고 목록 조회 — 필터와 페이지네이션 메타를 함께 반환한다 */
 export const getAdminReportList = async (
   params: AdminReportListQuery
-): Promise<AdminReportListRow[]> => {
-  return findAdminReports(params);
+): Promise<AdminReportListResultDto> => {
+  const { items, totalCount } = await findAdminReportsWithCount(params);
+
+  return {
+    items,
+    pagination: {
+      page: params.page,
+      pageSize: params.pageSize,
+      totalCount,
+      totalPages: Math.ceil(totalCount / params.pageSize),
+    },
+  };
 };
