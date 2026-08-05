@@ -140,15 +140,17 @@ export const findEstimateRequestForUpdate = async (
 
 /**
  * 마감 인원 카운트용 활성 견적(PENDING/CONFIRMED) 개수 조회
- * 반려(REJECTED) 및 soft-delete 건은 제외
+ * 지정/일반(isDesignated)별로 분리해 집계. 반려·soft-delete 건은 제외
  */
 export const countActiveProposals = async (
   tx: QuoteTransactionClient,
-  estimateRequestId: number
+  estimateRequestId: number,
+  isDesignated: boolean
 ): Promise<number> => {
   return tx.quote.count({
     where: {
       estimateRequestId,
+      isDesignated,
       deletedAt: null,
       status: { in: SENT_QUOTE_STATUSES },
     },

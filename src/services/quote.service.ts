@@ -71,9 +71,10 @@ export interface GetQuotesInput {
 
 /**
  * 지정/일반 견적 최대 제출 가능 인원 반환
+ * — 제출하려는 견적 유형(기사님 지정 여부) 기준
  */
-const getMaxProposalCount = (isDesignated: boolean): number =>
-  isDesignated ? DESIGNATED_MAX_PROPOSALS : GENERAL_MAX_PROPOSALS;
+const getMaxProposalCount = (isDesignatedQuote: boolean): number =>
+  isDesignatedQuote ? DESIGNATED_MAX_PROPOSALS : GENERAL_MAX_PROPOSALS;
 
 /**
  * Prisma P2002(Unique Constraint) 여부 판별
@@ -204,7 +205,6 @@ export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
         moverId,
         estimateRequestId,
         body,
-        isDesignatedRequest: estimateRequest.isDesignated,
         isDesignatedTarget,
         existingQuote,
       });
@@ -226,31 +226,31 @@ interface CreateProposalParams {
   moverId: string;
   estimateRequestId: number;
   body: Extract<QuoteBody, { type: 'PROPOSAL' }>;
-  isDesignatedRequest: boolean;
   isDesignatedTarget: boolean;
   existingQuote: { id: number; status: QuoteStatus } | null;
 }
 
 /**
  * 견적 보내기(PROPOSAL) 처리
+ * 지정 견적·일반 견적은 각각 독립 한도(지정 3 / 일반 5)로 마감 검증
  */
 const createProposal = async ({
   tx,
   moverId,
   estimateRequestId,
   body,
-  isDesignatedRequest,
   isDesignatedTarget,
   existingQuote,
 }: CreateProposalParams): Promise<Quote> => {
   assertNoExistingQuote(existingQuote);
 
-  // 동적 마감 인원(지정 3 / 일반 5) 검증
+  // 동일 유형(지정/일반) 활성 견적만 집계해 한도 검증
   const activeProposalCount = await quoteRepository.countActiveProposals(
     tx,
-    estimateRequestId
+    estimateRequestId,
+    isDesignatedTarget
   );
-  const maxProposalCount = getMaxProposalCount(isDesignatedRequest);
+  const maxProposalCount = getMaxProposalCount(isDesignatedTarget);
 
   if (activeProposalCount >= maxProposalCount) {
     throw new AppError('REQUEST_CLOSED');
