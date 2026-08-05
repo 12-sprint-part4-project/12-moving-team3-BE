@@ -7,6 +7,7 @@ import type {
   CreatePostBody,
   PostIdParams,
   PostListQuery,
+  PostNeighborsQuery,
   UpdatePostBody,
 } from '../schemas/post.schema';
 import * as postService from '../services/post.service';
@@ -42,6 +43,23 @@ export const getPostById = async (
     const userId = getOptionalAuthenticatedUser(res)?.userId;
     const { postId } = getValidated<PostIdParams>(res, 'params');
     const result = await postService.getPostById(postId, userId);
+
+    res.status(200).json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** GET /api/posts/:postId/neighbors — 게시글 이전/다음 조회 */
+export const getPostNeighbors = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { postId } = getValidated<PostIdParams>(res, 'params');
+    const query = getValidated<PostNeighborsQuery>(res, 'query');
+    const result = await postService.getPostNeighbors(postId, query);
 
     res.status(200).json({ data: result });
   } catch (error) {

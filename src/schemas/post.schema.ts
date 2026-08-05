@@ -44,6 +44,16 @@ export const postListQuerySchema = z.object({
 
 export type PostListQuery = z.infer<typeof postListQuerySchema>;
 
+/** GET /api/posts/:postId/neighbors query (목록과 동일, cursor/limit 제외) */
+export const postNeighborsQuerySchema = postListQuerySchema.pick({
+  category: true,
+  region: true,
+  keyword: true,
+  sort: true,
+});
+
+export type PostNeighborsQuery = z.infer<typeof postNeighborsQuerySchema>;
+
 export const postIdParamsSchema = z.object({
   postId: z.coerce.number().int().positive(),
 });
