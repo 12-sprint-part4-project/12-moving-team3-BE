@@ -16,6 +16,7 @@ export const getUserReportRecentActivities = async (
   return prisma.userReport.findMany({
     where,
     select: {
+      id: true,
       createdAt: true,
       target: true,
       category: true,

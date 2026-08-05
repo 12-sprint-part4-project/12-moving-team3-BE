@@ -135,8 +135,12 @@ paths:
                         description: 최근 7일 동안 생성된 신고 목록 (최대 5건)
                         items:
                           type: object
-                          required: [createdAt, target, category, status]
+                          required: [id, createdAt, target, category, status]
                           properties:
+                            id:
+                              type: integer
+                              description: 신고 ID
+                              example: 42
                             createdAt:
                               type: string
                               format: date-time
@@ -170,8 +174,12 @@ paths:
                         description: 최근 7일 동안 가입한 삭제되지 않은 일반 유저(CUSTOMER) 목록 (최대 5건)
                         items:
                           type: object
-                          required: [nickname, email, createdAt]
+                          required: [id, nickname, email, createdAt]
                           properties:
+                            id:
+                              type: integer
+                              description: 회원 ID
+                              example: 15
                             nickname:
                               type: string
                               description: 회원 닉네임
@@ -227,12 +235,14 @@ paths:
               example:
                 data:
                   recentReports:
-                    - createdAt: '2026-08-01T04:30:00.000Z'
+                    - id: 42
+                      createdAt: '2026-08-01T04:30:00.000Z'
                       target: REVIEW
                       category: ABUSIVE_LANGUAGE
                       status: PENDING
                   recentUsers:
-                    - nickname: movingUser
+                    - id: 15
+                      nickname: movingUser
                       email: moving@example.com
                       createdAt: '2026-08-01T02:10:00.000Z'
                   recentCompletedRequests:
