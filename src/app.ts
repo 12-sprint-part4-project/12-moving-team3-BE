@@ -21,6 +21,7 @@ import authRouter from './routes/auth.route';
 import chatRouter from './routes/chat.route';
 import communityRouter from './routes/community.route';
 import customerRouter from './routes/customer.route';
+import designatedEstimateRequestRouter from './routes/designated-estimate-request.route';
 import estimateRequestRouter from './routes/estimate-request.route';
 import favoritesRouter from './routes/favorites.route';
 import moverRouter from './routes/mover.route';
@@ -93,6 +94,10 @@ app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/users/customers', customerRouter);
 app.use('/api/estimate-requests', estimateRequestRouter);
+app.use(
+  '/api/designated-estimate-requests',
+  designatedEstimateRequestRouter
+);
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/review', reviewRouter);

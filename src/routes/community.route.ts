@@ -11,6 +11,7 @@ import {
   createPostBodySchema,
   postIdParamsSchema,
   postListQuerySchema,
+  postNeighborsQuerySchema,
   updatePostBodySchema,
 } from '../schemas/post.schema';
 
@@ -24,6 +25,7 @@ const router = Router();
  *     summary: 게시글 목록 조회
  *     description: |
  *       커뮤니티 게시글 목록을 커서 기반으로 조회합니다.
+ *       category, region, keyword, sort, cursor, limit 쿼리로 필터·정렬·무한 스크롤 조회할 수 있습니다.
  *       카테고리를 지정하지 않으면 가구 나눔(FURNITURE_SHARE) 게시글은 제외됩니다.
  *       Bearer Access Token은 선택입니다. 토큰이 있으면 isLiked가 반영되고, 없으면 isLiked는 null입니다.
  *     security:
@@ -44,6 +46,13 @@ const router = Router();
  *           type: string
  *           enum: [SEOUL, GYEONGGI, INCHEON, GANGWON, CHUNGBUK, CHUNGNAM, SEJONG, DAEJEON, JEONBUK, GWANGJU_JEONNAM, GYEONGBUK, DAEGU, ULSAN, GYEONGNAM, BUSAN, JEJU]
  *         description: 지역 필터 (가구 나눔 등)
+ *       - in: query
+ *         name: keyword
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: 제목·본문 부분 일치 검색 (대소문자 무시). 공백만 있으면 무시됩니다.
+ *         example: 이사
  *       - in: query
  *         name: sort
  *         required: false
@@ -146,6 +155,96 @@ router.get(
     errorCode: 'INVALID_QUERY_PARAM',
   }),
   postController.getPosts
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/neighbors:
+ *   get:
+ *     tags: [Posts]
+ *     summary: 게시글 이전/다음 조회
+ *     description: |
+ *       목록 API와 동일한 category, region, keyword, sort 기준으로 이전·다음 게시글을 조회합니다.
+ *       prev는 목록에서 더 최신(위), next는 더 오래됨(아래)입니다.
+ *       현재 글이 필터에 포함되지 않으면 prev/next 모두 null입니다.
+ *       Bearer Access Token은 선택입니다.
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [MOVING_TIP, QUESTION, REVIEW, ETC, FURNITURE_SHARE]
+ *       - in: query
+ *         name: region
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [SEOUL, GYEONGGI, INCHEON, GANGWON, CHUNGBUK, CHUNGNAM, SEJONG, DAEJEON, JEONBUK, GWANGJU_JEONNAM, GYEONGBUK, DAEGU, ULSAN, GYEONGNAM, BUSAN, JEJU]
+ *       - in: query
+ *         name: keyword
+ *         required: false
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: sort
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [LATEST, POPULAR, MOST_COMMENTED]
+ *           default: LATEST
+ *     responses:
+ *       200:
+ *         description: 이전/다음 게시글 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     prev:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         title:
+ *                           type: string
+ *                     next:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         title:
+ *                           type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get(
+  '/:postId/neighbors',
+  optionalAuth,
+  validateRequest({
+    params: postIdParamsSchema,
+    query: postNeighborsQuerySchema,
+    errorCode: 'INVALID_QUERY_PARAM',
+  }),
+  postController.getPostNeighbors
 );
 
 /**
@@ -503,6 +602,43 @@ router.delete(
   requireAuth,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   likeController.deleteLike
+);
+
+/**
+ * @swagger
+ * /api/posts/{postId}/views:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 게시글 조회수 증가
+ *     description: |
+ *       게시글 상세 조회 시 조회수를 1 증가시킵니다.
+ *       Bearer Access Token은 선택입니다. 비로그인(게스트)도 호출할 수 있습니다.
+ *       중복 호출 방지는 FE(sessionStorage)에서 처리합니다.
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 조회수 증가 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/views',
+  optionalAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  postController.incrementViewCount
 );
 
 /**

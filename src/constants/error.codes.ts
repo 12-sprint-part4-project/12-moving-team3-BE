@@ -39,6 +39,14 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 지정 요청입니다.',
   },
+  DESIGNATED_ALREADY_EXISTS: {
+    status: 409,
+    message: '이미 지정한 기사님입니다.',
+  },
+  ESTIMATE_REQUEST_NOT_SUBMITTED: {
+    status: 409,
+    message: '제출된 견적 요청에만 지정 견적을 보낼 수 있습니다.',
+  },
   USER_TYPE_FORBIDDEN: {
     status: 403,
     message: '접근 권한이 없습니다.',

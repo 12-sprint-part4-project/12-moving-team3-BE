@@ -16,7 +16,7 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: 닉네임·소개글 검색어
+          description: 이름·한 줄 소개 검색어
           schema:
             type: string
         - name: region
@@ -110,7 +110,7 @@ paths:
                       updatedAt: '2026-07-20T12:30:00.000Z'
                       user:
                         id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                        nickname: 빠른이사맨
+                        name: 김코드
                         profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                       serviceRegions:
                         - id: 1
@@ -214,7 +214,7 @@ paths:
                       createdAt: '2026-07-15T10:00:00.000Z'
                       mover:
                         id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                        name: 김기사
+                        name: 빠른이사맨
                         profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                         moverProfile:
                           career: 5
@@ -344,7 +344,7 @@ paths:
                       createdAt: '2026-07-20T12:00:00.000Z'
                       customer:
                         id: c0ffeeee-0000-4000-8000-000000000001
-                        name: 김고객
+                        nickname: 김고객
                 meta:
                   pagination:
                     currentPage: 1
@@ -458,7 +458,6 @@ paths:
                     user:
                       id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                       name: 김기사
-                      nickname: 빠른이사맨
                       profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                     serviceRegions:
                       - id: 1

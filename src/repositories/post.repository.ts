@@ -18,11 +18,41 @@ export interface FindPostsParams {
   category?: PostsCategory;
   excludeCategories?: PostsCategory[];
   region?: Region;
+  keyword?: string;
   sort: PostSort;
   cursor?: PostCursor;
   limit: number;
   userId?: string;
 }
+
+export interface PostListFilterParams {
+  category?: PostsCategory;
+  excludeCategories?: PostsCategory[];
+  region?: Region;
+  keyword?: string;
+}
+
+export interface FindPostNeighborsParams extends PostListFilterParams {
+  postId: number;
+  sort: PostSort;
+}
+
+const buildPostListBaseWhere = (
+  params: PostListFilterParams
+): Prisma.PostWhereInput => ({
+  deletedAt: null,
+  ...(params.category && { category: params.category }),
+  ...(params.excludeCategories?.length && {
+    category: { notIn: params.excludeCategories },
+  }),
+  ...(params.region && { region: params.region }),
+  ...(params.keyword && {
+    OR: [
+      { title: { contains: params.keyword, mode: 'insensitive' } },
+      { content: { contains: params.keyword, mode: 'insensitive' } },
+    ],
+  }),
+});
 
 /** 정렬 기준 desc + id desc 키셋 커서 조건 */
 const buildCursorCondition = (
@@ -61,24 +91,23 @@ const buildCursorCondition = (
   };
 };
 
-// 게시글 목록 조회
+// 게시글 목록 조회 (category, region, keyword는 값이 있을 때만 where에 추가)
 export const findPosts = async ({
   category,
   excludeCategories,
   region,
+  keyword,
   sort,
   cursor,
   limit,
   userId,
 }: FindPostsParams) => {
-  const baseWhere: Prisma.PostWhereInput = {
-    deletedAt: null,
-    ...(category && { category }),
-    ...(excludeCategories?.length && {
-      category: { notIn: excludeCategories },
-    }),
-    ...(region && { region }),
-  };
+  const baseWhere = buildPostListBaseWhere({
+    category,
+    excludeCategories,
+    region,
+    keyword,
+  });
 
   const where: Prisma.PostWhereInput = cursor
     ? { AND: [baseWhere, buildCursorCondition(sort, cursor)] }
@@ -124,6 +153,155 @@ export const findPosts = async ({
         : {}),
     },
   });
+};
+
+const neighborSelect = { id: true, title: true } as const;
+
+/** 게시글 이전/다음 (목록 필터·정렬과 동일). post 없으면 null */
+export const findPostNeighbors = async ({
+  postId,
+  sort,
+  ...filterParams
+}: FindPostNeighborsParams) => {
+  const baseWhere = buildPostListBaseWhere(filterParams);
+
+  const current = await prisma.post.findFirst({
+    where: { id: postId, deletedAt: null },
+    select: {
+      id: true,
+      createdAt: true,
+      likeCount: true,
+      commentCount: true,
+    },
+  });
+
+  if (!current) {
+    return null;
+  }
+
+  const inFilter = await prisma.post.findFirst({
+    where: { AND: [baseWhere, { id: postId }] },
+    select: { id: true },
+  });
+
+  if (!inFilter) {
+    return { prev: null, next: null };
+  }
+
+  if (sort === 'POPULAR') {
+    const [prev, next] = await Promise.all([
+      prisma.post.findFirst({
+        where: {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { likeCount: { gt: current.likeCount } },
+                { likeCount: current.likeCount, id: { gt: current.id } },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ likeCount: 'asc' }, { id: 'asc' }],
+        select: neighborSelect,
+      }),
+      prisma.post.findFirst({
+        where: {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { likeCount: { lt: current.likeCount } },
+                { likeCount: current.likeCount, id: { lt: current.id } },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ likeCount: 'desc' }, { id: 'desc' }],
+        select: neighborSelect,
+      }),
+    ]);
+
+    return { prev, next };
+  }
+
+  if (sort === 'MOST_COMMENTED') {
+    const [prev, next] = await Promise.all([
+      prisma.post.findFirst({
+        where: {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { commentCount: { gt: current.commentCount } },
+                {
+                  commentCount: current.commentCount,
+                  id: { gt: current.id },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ commentCount: 'asc' }, { id: 'asc' }],
+        select: neighborSelect,
+      }),
+      prisma.post.findFirst({
+        where: {
+          AND: [
+            baseWhere,
+            {
+              OR: [
+                { commentCount: { lt: current.commentCount } },
+                {
+                  commentCount: current.commentCount,
+                  id: { lt: current.id },
+                },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ commentCount: 'desc' }, { id: 'desc' }],
+        select: neighborSelect,
+      }),
+    ]);
+
+    return { prev, next };
+  }
+
+  const [prev, next] = await Promise.all([
+    prisma.post.findFirst({
+      where: {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { createdAt: { gt: current.createdAt } },
+              { createdAt: current.createdAt, id: { gt: current.id } },
+            ],
+          },
+        ],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: neighborSelect,
+    }),
+    prisma.post.findFirst({
+      where: {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { createdAt: { lt: current.createdAt } },
+              { createdAt: current.createdAt, id: { lt: current.id } },
+            ],
+          },
+        ],
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: neighborSelect,
+    }),
+  ]);
+
+  return { prev, next };
 };
 
 // 게시글 상세 조회
@@ -247,4 +425,14 @@ export const softDeletePost = async (postId: number) => {
     where: { id: postId, deletedAt: null },
     data: { deletedAt: new Date() },
   });
+};
+
+/** 게시글 조회수 +1. 대상 없으면 0 반환 */
+export const incrementViewCount = async (postId: number) => {
+  const result = await prisma.post.updateMany({
+    where: { id: postId, deletedAt: null },
+    data: { viewCount: { increment: 1 } },
+  });
+
+  return result.count;
 };

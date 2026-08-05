@@ -62,7 +62,16 @@ export interface EstimateRequestFilterParams {
 
 export interface EstimateRequestCursor {
   id: number;
+  /** 커서를 발급한 정렬 기준 — 요청 sort 와 다르면 INVALID_QUERY_PARAM */
+  sort: EstimateRequestSort;
+  /** 1차 정렬 기준 값 (moveDate 또는 submittedAt) ISO 문자열 */
   value: string;
+  /**
+   * MOVE_DATE_ASC 전용 2차 정렬 값 (submittedAt ISO).
+   * 이사일이 같을 때 최신 요청순(submittedAt desc) 커서에 사용한다.
+   * MOVE_DATE_ASC 에서는 필수(null = submittedAt IS NULL).
+   */
+  secondaryValue?: string | null;
 }
 
 export interface FindEstimateRequestsParams extends EstimateRequestFilterParams {
@@ -161,19 +170,58 @@ const buildWhere = (
 
 /**
  * 키셋(keyset) 방식의 커서 조건 생성
- * 정렬 기준 필드가 커서 값보다 크거나, 값이 같다면 id 가 커서보다 큰 행만 조회
+ * - SUBMITTED_AT_ASC: submittedAt ASC, id ASC
+ * - MOVE_DATE_ASC: moveDate ASC, submittedAt DESC, id DESC
  */
 const buildCursorCondition = (
   sort: EstimateRequestSort,
   cursor: EstimateRequestCursor
 ): Prisma.EstimateRequestWhereInput => {
   const cursorDate = new Date(cursor.value);
-  const sortField = sort === 'MOVE_DATE_ASC' ? 'moveDate' : 'submittedAt';
+
+  if (sort === 'SUBMITTED_AT_ASC') {
+    return {
+      OR: [
+        { submittedAt: { gt: cursorDate } },
+        { submittedAt: cursorDate, id: { gt: cursor.id } },
+      ],
+    };
+  }
+
+  // MOVE_DATE_ASC — moveDate ASC, submittedAt DESC (PG: NULLS FIRST), id DESC
+  if (cursor.secondaryValue == null) {
+    return {
+      OR: [
+        { moveDate: { gt: cursorDate } },
+        {
+          AND: [
+            { moveDate: cursorDate },
+            { submittedAt: null },
+            { id: { lt: cursor.id } },
+          ],
+        },
+        {
+          AND: [{ moveDate: cursorDate }, { submittedAt: { not: null } }],
+        },
+      ],
+    };
+  }
+
+  const secondaryDate = new Date(cursor.secondaryValue);
 
   return {
     OR: [
-      { [sortField]: { gt: cursorDate } },
-      { [sortField]: cursorDate, id: { gt: cursor.id } },
+      { moveDate: { gt: cursorDate } },
+      {
+        AND: [{ moveDate: cursorDate }, { submittedAt: { lt: secondaryDate } }],
+      },
+      {
+        AND: [
+          { moveDate: cursorDate },
+          { submittedAt: secondaryDate },
+          { id: { lt: cursor.id } },
+        ],
+      },
     ],
   };
 };
@@ -204,7 +252,7 @@ export const findEstimateRequests = async (
 
   const orderBy: Prisma.EstimateRequestOrderByWithRelationInput[] =
     params.sort === 'MOVE_DATE_ASC'
-      ? [{ moveDate: 'asc' }, { id: 'asc' }]
+      ? [{ moveDate: 'asc' }, { submittedAt: 'desc' }, { id: 'desc' }]
       : [{ submittedAt: 'asc' }, { id: 'asc' }];
 
   const rows = await db.estimateRequest.findMany({
@@ -390,6 +438,24 @@ export const findEstimateRequestById = async (
     where: { id },
     select: customerDetailSelect,
   });
+};
+
+/**
+ * SUBMITTED + 소유자 조건을 updateMany로 재확인 (지정 견적 생성 race 방지용)
+ * data는 updatedAt만 갱신해 상태는 유지한다.
+ * @returns 갱신 건수
+ */
+export const touchSubmittedEstimateRequestForOwner = async (
+  id: number,
+  userId: string,
+  db: DbClient = prisma
+): Promise<number> => {
+  const { count } = await db.estimateRequest.updateMany({
+    where: { id, userId, status: EstimateRequestStatus.SUBMITTED },
+    data: { updatedAt: new Date() },
+  });
+
+  return count;
 };
 
 /**

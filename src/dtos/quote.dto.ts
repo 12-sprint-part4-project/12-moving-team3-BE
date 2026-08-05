@@ -13,9 +13,7 @@ export interface QuoteDetailDto {
   price: number | null;
   status: QuoteStatus;
   rejectReason: string | null;
-  /** 연결된 견적 요청 상태 (완료/만료/취소 카드 분기용) */
   estimateRequestStatus: EstimateRequestStatus;
-  /** 완료·만료·취소 시 카드 종료 오버레이 표시 */
   isMoveCompleted: boolean;
   customer: { name: string };
   moveType: MoveType | null;
@@ -51,9 +49,7 @@ export interface SentQuoteListItemDto {
   fromRegionLabel: string | null;
   toRegionLabel: string | null;
   price: number | null;
-  /** 연결된 견적 요청 상태 (완료/만료/취소 카드 분기용) */
   estimateRequestStatus: EstimateRequestStatus;
-  /** 완료·만료·취소 시 카드 종료 오버레이 표시 */
   isMoveCompleted: boolean;
   createdAt: Date;
 }
@@ -78,6 +74,7 @@ export interface CustomerQuoteMoverDto {
   moverId: string;
   nickname: string;
   profileImage: string | null;
+  shortDescription: string | null;
   rating: number;
   reviewCount: number;
   career: number | null;
@@ -140,6 +137,7 @@ export interface CustomerQuoteDetailDto {
   comment: string | null;
   status: QuoteStatus;
   isDesignated: boolean;
+  estimateRequestStatus: EstimateRequestStatus;
   serviceType: MoveType | null;
   moveDate: Date | null;
   submittedAt: Date | null;

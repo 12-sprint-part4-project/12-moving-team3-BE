@@ -57,3 +57,23 @@ export interface AdminEstimateQuoteResponse {
 export interface AdminEstimateRequestDetailDto {
   data: AdminEstimateRequestDetailResponse;
 }
+
+export interface AdminConfirmedQuoteResponse {
+  moverName: string;
+  price: number;
+  comment: string | null;
+  createdAt: Date;
+}
+
+export interface AdminCompletedRequestDetailResponse extends AdminEstimateRequestBaseResponse {
+  departureZipCode: string;
+  departureDetailAddress: string;
+  arrivalZipCode: string;
+  arrivalDetailAddress: string;
+  moveDate: Date;
+  confirmedQuote: AdminConfirmedQuoteResponse;
+}
+
+export interface AdminCompletedRequestDetailDto {
+  data: AdminCompletedRequestDetailResponse;
+}
