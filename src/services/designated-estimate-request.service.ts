@@ -9,15 +9,23 @@ import * as estimateRequestRepository from '../repositories/estimate-request.rep
 import { findUserById } from '../repositories/user.repository';
 import { AppError } from '../utils/app.error';
 
+interface DesignatedEstimateMoverRow {
+  id: number;
+  estimateId: number;
+  moverId: string;
+}
+
+interface DesignatedEstimateRequestServiceParams {
+  userId: string;
+  estimateRequestId: number;
+  moverId: string;
+}
+
 const isUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === 'P2002';
 
-const toDto = (row: {
-  id: number;
-  estimateId: number;
-  moverId: string;
-}): DesignatedEstimateMoverDto => ({
+const toDto = (row: DesignatedEstimateMoverRow): DesignatedEstimateMoverDto => ({
   id: row.id,
   estimateId: row.estimateId,
   moverId: row.moverId,
@@ -26,11 +34,9 @@ const toDto = (row: {
 /**
  * 지정 견적 존재 여부 조회 (고객 본인 견적요청만)
  */
-export const checkDesignatedEstimateExistence = async (params: {
-  userId: string;
-  estimateRequestId: number;
-  moverId: string;
-}): Promise<DesignatedEstimateExistenceDto> => {
+export const checkDesignatedEstimateExistence = async (
+  params: DesignatedEstimateRequestServiceParams
+): Promise<DesignatedEstimateExistenceDto> => {
   const { userId, estimateRequestId, moverId } = params;
 
   const estimateRequest =
@@ -66,11 +72,9 @@ export const checkDesignatedEstimateExistence = async (params: {
 /**
  * 지정 견적 요청 생성 — SUBMITTED 상태의 본인 견적요청에만 가능
  */
-export const createDesignatedEstimateRequest = async (params: {
-  userId: string;
-  estimateRequestId: number;
-  moverId: string;
-}): Promise<CreateDesignatedEstimateDto> => {
+export const createDesignatedEstimateRequest = async (
+  params: DesignatedEstimateRequestServiceParams
+): Promise<CreateDesignatedEstimateDto> => {
   const { userId, estimateRequestId, moverId } = params;
 
   const estimateRequest =
