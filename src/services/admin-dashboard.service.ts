@@ -3,6 +3,7 @@ import {
   EstimateRequestStatus,
   QuoteStatus,
   UserReportStatus,
+  UserType,
 } from '@prisma/client';
 import {
   createDateRange,
@@ -170,6 +171,7 @@ export const getRecentActivities = async () => {
       }),
       getUserRecentActivities({
         createdAt: dateRange,
+        userType: UserType.CUSTOMER,
         deletedAt: null,
       }),
       getCompletedEstimateRequestRecentActivities({
