@@ -232,3 +232,193 @@ export const findReportTargetCommentsByIds = async (
     },
   });
 };
+
+// --- 신고 상세 조회 ---
+// 목록 배치 조회와 달리 soft-delete 행도 가져와 Service가 exists/isDeleted를 구분하게 한다.
+
+/** 상세용 사용자 요약 — 탈퇴 판단을 위해 deletedAt을 포함한다 */
+const detailUserSummarySelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  email: true,
+  userType: true,
+  deletedAt: true,
+} satisfies Prisma.UserSelect;
+
+/** 신고 상세 select — reporter 탈퇴 정보·처리 admin을 FK로 함께 조회한다 */
+const adminReportDetailSelect = {
+  id: true,
+  reporterId: true,
+  target: true,
+  targetId: true,
+  category: true,
+  status: true,
+  adminId: true,
+  createdAt: true,
+  reporter: {
+    select: detailUserSummarySelect,
+  },
+  admin: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+} satisfies Prisma.UserReportSelect;
+
+export type AdminReportDetailRow = Prisma.UserReportGetPayload<{
+  select: typeof adminReportDetailSelect;
+}>;
+
+/**
+ * 신고 단건 조회.
+ * 없으면 null을 반환하고, 404 판단은 Service에서 한다.
+ */
+export const findAdminReportById = async (
+  reportId: number,
+  db: DbClient = prisma
+): Promise<AdminReportDetailRow | null> => {
+  return db.userReport.findUnique({
+    where: { id: reportId },
+    select: adminReportDetailSelect,
+  });
+};
+
+/**
+ * USER 대상 단건.
+ * User.id는 UUID 문자열이며 UserReport.targetId(VarChar)와 타입이 같다.
+ * soft-delete도 포함해 탈퇴 여부를 Service에서 판단한다.
+ */
+export const findReportDetailTargetUserById = async (
+  id: string,
+  db: DbClient = prisma
+) => {
+  return db.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      nickname: true,
+      email: true,
+      userType: true,
+      deletedAt: true,
+      createdAt: true,
+    },
+  });
+};
+
+/**
+ * REVIEW 대상 단건.
+ * deletedAt 필터 없이 조회해 삭제된 리뷰도 상세에서 확인할 수 있게 한다.
+ */
+export const findReportDetailTargetReviewById = async (
+  id: number,
+  db: DbClient = prisma
+) => {
+  return db.review.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      rating: true,
+      content: true,
+      createdAt: true,
+      deletedAt: true,
+      user: { select: detailUserSummarySelect },
+    },
+  });
+};
+
+/**
+ * CHAT_ROOM 대상 단건.
+ * ChatRoom에는 deletedAt이 없어 존재 여부만 확인한다.
+ * participants는 상세 metadata에 쓰지 않으므로 조회하지 않는다.
+ */
+export const findReportDetailTargetChatRoomById = async (
+  id: number,
+  db: DbClient = prisma
+) => {
+  return db.chatRoom.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      roomType: true,
+      createdAt: true,
+      lastMessageAt: true,
+      estimateRequestId: true,
+      quoteId: true,
+    },
+  });
+};
+
+/**
+ * MESSAGE 대상 단건.
+ * ChatMessage에는 deletedAt이 없고, 상세 DTO·목록과 같이 attachments는 조회하지 않는다.
+ */
+export const findReportDetailTargetMessageById = async (
+  id: number,
+  db: DbClient = prisma
+) => {
+  return db.chatMessage.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      content: true,
+      messageType: true,
+      createdAt: true,
+      roomId: true,
+      sender: { select: detailUserSummarySelect },
+    },
+  });
+};
+
+/**
+ * ARTICLE 대상 단건.
+ * UserReportTarget.ARTICLE은 Prisma Post 모델을 가리킨다 (목록 배치 조회와 동일).
+ */
+export const findReportDetailTargetArticleById = async (
+  id: number,
+  db: DbClient = prisma
+) => {
+  return db.post.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      category: true,
+      createdAt: true,
+      deletedAt: true,
+      user: { select: detailUserSummarySelect },
+    },
+  });
+};
+
+/**
+ * COMMENT 대상 단건.
+ * 소속 게시글 제목·삭제 여부를 함께 가져와 콘텐츠 맥락을 구성할 수 있게 한다.
+ */
+export const findReportDetailTargetCommentById = async (
+  id: number,
+  db: DbClient = prisma
+) => {
+  return db.comment.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      content: true,
+      createdAt: true,
+      deletedAt: true,
+      postId: true,
+      user: { select: detailUserSummarySelect },
+      post: {
+        select: {
+          id: true,
+          title: true,
+          deletedAt: true,
+        },
+      },
+    },
+  });
+};
