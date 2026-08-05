@@ -2,6 +2,7 @@ import { PostsCategory } from '@prisma/client';
 import type {
   CreatePostBody,
   PostListQuery,
+  PostNeighborsQuery,
   PostSort,
   UpdatePostBody,
 } from '../schemas/post.schema';
@@ -120,20 +121,26 @@ const mapPostListItem = async (
   createdAt: post.createdAt,
 });
 
+const getPostListFilterParams = (query: {
+  category?: PostListQuery['category'];
+  region?: PostListQuery['region'];
+  keyword?: PostListQuery['keyword'];
+}) => ({
+  category: query.category,
+  excludeCategories:
+    query.category === undefined ? [PostsCategory.FURNITURE_SHARE] : undefined,
+  region: query.region,
+  keyword: query.keyword,
+});
+
 /** 게시글 목록 조회 */
 export const getPosts = async (query: PostListQuery, userId?: string) => {
-  const { category, region, keyword, sort, limit } = query;
+  const { sort, limit } = query;
   const cursor = query.cursor ? decodeCursor(query.cursor, sort) : undefined;
-
-  // 카테고리 미지정 시 가구 나눔 제외 (조회 정책은 service에서 결정)
-  const excludeCategories =
-    category === undefined ? [PostsCategory.FURNITURE_SHARE] : undefined;
+  const listFilter = getPostListFilterParams(query);
 
   const rows = await postRepository.findPosts({
-    category,
-    excludeCategories,
-    region,
-    keyword,
+    ...listFilter,
     sort,
     cursor,
     limit,
@@ -153,6 +160,28 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
           : null,
       hasNextPage,
     },
+  };
+};
+
+/** 게시글 이전/다음 조회 */
+export const getPostNeighbors = async (
+  postId: number,
+  query: PostNeighborsQuery
+) => {
+  const { sort } = query;
+  const result = await postRepository.findPostNeighbors({
+    postId,
+    sort,
+    ...getPostListFilterParams(query),
+  });
+
+  if (result === null) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  return {
+    prev: result.prev,
+    next: result.next,
   };
 };
 
