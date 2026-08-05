@@ -332,7 +332,8 @@ export const findReportDetailTargetReviewById = async (
 
 /**
  * CHAT_ROOM 대상 단건.
- * ChatRoom에는 deletedAt이 없어 존재 여부만 확인하며, 활성 참가자 최소 정보를 붙인다.
+ * ChatRoom에는 deletedAt이 없어 존재 여부만 확인한다.
+ * participants는 상세 metadata에 쓰지 않으므로 조회하지 않는다.
  */
 export const findReportDetailTargetChatRoomById = async (
   id: number,
@@ -347,13 +348,6 @@ export const findReportDetailTargetChatRoomById = async (
       lastMessageAt: true,
       estimateRequestId: true,
       quoteId: true,
-      participants: {
-        where: { leftAt: null },
-        select: {
-          participantId: true,
-          user: { select: detailUserSummarySelect },
-        },
-      },
     },
   });
 };

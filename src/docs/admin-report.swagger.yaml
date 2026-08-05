@@ -126,6 +126,7 @@ paths:
                                   example: CUSTOMER
                             targetInfo:
                               description: 대상 유형별 요약. 삭제·미존재 시 null
+                              nullable: true
                               oneOf:
                                 - type: object
                                   required: [type, id, name, nickname, email, userType]
@@ -248,7 +249,6 @@ paths:
                                           type: string
                                         nickname:
                                           type: string
-                                - type: 'null'
                       pagination:
                         type: object
                         required: [page, pageSize, totalCount, totalPages]

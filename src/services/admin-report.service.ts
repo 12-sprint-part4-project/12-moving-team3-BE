@@ -253,15 +253,6 @@ export const getAdminReportList = async (
   };
 };
 
-/** 숫자 PK 대상의 targetId를 검증·변환. 깨진 값이면 상세 조회를 중단한다 */
-const requireNumericTargetId = (targetId: string): number => {
-  const id = parseNumericTargetId(targetId);
-  if (id === null) {
-    throw new AppError('ADMIN_REPORT_INVALID_TARGET_ID');
-  }
-  return id;
-};
-
 /** soft-delete 사용자 row → 상세 사용자 요약. 없으면 null을 유지해 DTO 구조를 고정한다 */
 const toDetailUserSummary = (
   user: {
@@ -330,208 +321,247 @@ type DetailTargetBundle = {
   content: AdminReportDetailContentDto | null;
 };
 
+/** 대상 없음·잘못된 targetId 공통 fallback — 신고 상세 응답 구조는 유지한다 */
+const toMissingTargetBundle = (
+  type: UserReportTarget,
+  targetId: string
+): DetailTargetBundle => ({
+  targetInfo: toMissingTargetInfo(type, targetId),
+  content: null,
+});
+
+/** USER 대상 상세 — UUID 문자열 targetId를 그대로 조회한다 */
+const loadUserReportTarget = async (
+  targetId: string
+): Promise<DetailTargetBundle> => {
+  const user = await findReportDetailTargetUserById(targetId);
+  if (!user) {
+    return toMissingTargetBundle('USER', targetId);
+  }
+
+  const userSummary = toDetailUserSummary(user);
+  return {
+    targetInfo: {
+      type: 'USER',
+      id: targetId,
+      ...toSoftDeletePresence(user.deletedAt),
+      user: userSummary,
+    },
+    content: {
+      type: 'USER',
+      id: targetId,
+      title: user.nickname || user.name,
+      // 이름·이메일을 요약 body로 내려 상세 화면에서 프로필 맥락을 보여준다.
+      body: `${user.name} · ${user.email}`,
+      createdAt: user.createdAt,
+      deletedAt: user.deletedAt,
+      metadata: { userType: user.userType },
+    },
+  };
+};
+
+/** REVIEW 대상 상세 — 숫자 변환 실패도 미존재 fallback으로 처리한다 */
+const loadReviewReportTarget = async (
+  targetId: string
+): Promise<DetailTargetBundle> => {
+  const id = parseNumericTargetId(targetId);
+  if (id === null) {
+    return toMissingTargetBundle('REVIEW', targetId);
+  }
+
+  const review = await findReportDetailTargetReviewById(id);
+  if (!review) {
+    return toMissingTargetBundle('REVIEW', targetId);
+  }
+
+  return {
+    targetInfo: {
+      type: 'REVIEW',
+      id: targetId,
+      ...toSoftDeletePresence(review.deletedAt),
+      user: toDetailUserSummary(review.user),
+    },
+    content: {
+      type: 'REVIEW',
+      id: String(review.id),
+      title: '리뷰',
+      body: review.content,
+      createdAt: review.createdAt,
+      deletedAt: review.deletedAt,
+      metadata: { rating: review.rating },
+    },
+  };
+};
+
+/** CHAT_ROOM 대상 상세 — soft-delete 컬럼이 없어 존재 시 isDeleted: false */
+const loadChatRoomReportTarget = async (
+  targetId: string
+): Promise<DetailTargetBundle> => {
+  const id = parseNumericTargetId(targetId);
+  if (id === null) {
+    return toMissingTargetBundle('CHAT_ROOM', targetId);
+  }
+
+  const room = await findReportDetailTargetChatRoomById(id);
+  if (!room) {
+    return toMissingTargetBundle('CHAT_ROOM', targetId);
+  }
+
+  return {
+    targetInfo: {
+      type: 'CHAT_ROOM',
+      id: targetId,
+      exists: true,
+      isDeleted: false,
+      user: null,
+    },
+    content: {
+      type: 'CHAT_ROOM',
+      id: String(room.id),
+      title: '채팅방',
+      body: null,
+      createdAt: room.createdAt,
+      deletedAt: null,
+      metadata: {
+        roomType: room.roomType,
+        estimateRequestId: room.estimateRequestId,
+        quoteId: room.quoteId,
+        lastMessageAt: room.lastMessageAt,
+      },
+    },
+  };
+};
+
+/** MESSAGE 대상 상세 — soft-delete가 없어 존재 시 isDeleted: false */
+const loadMessageReportTarget = async (
+  targetId: string
+): Promise<DetailTargetBundle> => {
+  const id = parseNumericTargetId(targetId);
+  if (id === null) {
+    return toMissingTargetBundle('MESSAGE', targetId);
+  }
+
+  const message = await findReportDetailTargetMessageById(id);
+  if (!message) {
+    return toMissingTargetBundle('MESSAGE', targetId);
+  }
+
+  return {
+    targetInfo: {
+      type: 'MESSAGE',
+      id: targetId,
+      exists: true,
+      isDeleted: false,
+      user: toDetailUserSummary(message.sender),
+    },
+    content: {
+      type: 'MESSAGE',
+      id: String(message.id),
+      title: '채팅 메시지',
+      body: message.content,
+      createdAt: message.createdAt,
+      deletedAt: null,
+      metadata: {
+        messageType: message.messageType,
+        roomId: message.roomId,
+      },
+    },
+  };
+};
+
+/** ARTICLE(Post) 대상 상세 */
+const loadArticleReportTarget = async (
+  targetId: string
+): Promise<DetailTargetBundle> => {
+  const id = parseNumericTargetId(targetId);
+  if (id === null) {
+    return toMissingTargetBundle('ARTICLE', targetId);
+  }
+
+  const article = await findReportDetailTargetArticleById(id);
+  if (!article) {
+    return toMissingTargetBundle('ARTICLE', targetId);
+  }
+
+  return {
+    targetInfo: {
+      type: 'ARTICLE',
+      id: targetId,
+      ...toSoftDeletePresence(article.deletedAt),
+      user: toDetailUserSummary(article.user),
+    },
+    content: {
+      type: 'ARTICLE',
+      id: String(article.id),
+      title: article.title,
+      body: article.content,
+      createdAt: article.createdAt,
+      deletedAt: article.deletedAt,
+      // region은 Repository select에 없으므로 실제 조회된 category만 담는다.
+      metadata: { category: article.category },
+    },
+  };
+};
+
+/** COMMENT 대상 상세 */
+const loadCommentReportTarget = async (
+  targetId: string
+): Promise<DetailTargetBundle> => {
+  const id = parseNumericTargetId(targetId);
+  if (id === null) {
+    return toMissingTargetBundle('COMMENT', targetId);
+  }
+
+  const comment = await findReportDetailTargetCommentById(id);
+  if (!comment) {
+    return toMissingTargetBundle('COMMENT', targetId);
+  }
+
+  return {
+    targetInfo: {
+      type: 'COMMENT',
+      id: targetId,
+      ...toSoftDeletePresence(comment.deletedAt),
+      user: toDetailUserSummary(comment.user),
+    },
+    content: {
+      type: 'COMMENT',
+      id: String(comment.id),
+      title: '댓글',
+      body: comment.content,
+      createdAt: comment.createdAt,
+      deletedAt: comment.deletedAt,
+      // parentId는 Repository select에 없으므로 조회된 postId·게시글 제목만 담는다.
+      metadata: {
+        postId: comment.postId,
+        postTitle: comment.post?.title ?? null,
+        postDeletedAt: comment.post?.deletedAt ?? null,
+      },
+    },
+  };
+};
+
 /** target 타입별 Repository 조회 후 targetInfo·content를 조립한다 */
 const loadReportDetailTarget = async (
   target: UserReportTarget,
   targetId: string
 ): Promise<DetailTargetBundle> => {
   switch (target) {
-    case 'USER': {
-      // User.id는 UUID 문자열 — targetId를 그대로 전달한다.
-      const user = await findReportDetailTargetUserById(targetId);
-      if (!user) {
-        return {
-          targetInfo: toMissingTargetInfo(target, targetId),
-          content: null,
-        };
-      }
-
-      const userSummary = toDetailUserSummary(user);
-      return {
-        targetInfo: {
-          type: 'USER',
-          id: targetId,
-          ...toSoftDeletePresence(user.deletedAt),
-          user: userSummary,
-        },
-        content: {
-          type: 'USER',
-          id: targetId,
-          title: user.nickname || user.name,
-          // 이름·이메일을 요약 body로 내려 상세 화면에서 프로필 맥락을 보여준다.
-          body: `${user.name} · ${user.email}`,
-          createdAt: user.createdAt,
-          deletedAt: user.deletedAt,
-          metadata: { userType: user.userType },
-        },
-      };
-    }
-    case 'REVIEW': {
-      const id = requireNumericTargetId(targetId);
-      const review = await findReportDetailTargetReviewById(id);
-      if (!review) {
-        return {
-          targetInfo: toMissingTargetInfo(target, targetId),
-          content: null,
-        };
-      }
-
-      return {
-        targetInfo: {
-          type: 'REVIEW',
-          id: targetId,
-          ...toSoftDeletePresence(review.deletedAt),
-          user: toDetailUserSummary(review.user),
-        },
-        content: {
-          type: 'REVIEW',
-          id: String(review.id),
-          title: '리뷰',
-          body: review.content,
-          createdAt: review.createdAt,
-          deletedAt: review.deletedAt,
-          metadata: { rating: review.rating },
-        },
-      };
-    }
-    case 'CHAT_ROOM': {
-      const id = requireNumericTargetId(targetId);
-      const room = await findReportDetailTargetChatRoomById(id);
-      if (!room) {
-        return {
-          targetInfo: toMissingTargetInfo(target, targetId),
-          content: null,
-        };
-      }
-
-      // ChatRoom은 soft-delete 컬럼이 없어 존재하면 isDeleted: false로 고정한다.
-      return {
-        targetInfo: {
-          type: 'CHAT_ROOM',
-          id: targetId,
-          exists: true,
-          isDeleted: false,
-          user: null,
-        },
-        content: {
-          type: 'CHAT_ROOM',
-          id: String(room.id),
-          title: '채팅방',
-          body: null,
-          createdAt: room.createdAt,
-          deletedAt: null,
-          metadata: {
-            roomType: room.roomType,
-            participantCount: room.participants.length,
-            estimateRequestId: room.estimateRequestId,
-            quoteId: room.quoteId,
-            lastMessageAt: room.lastMessageAt,
-          },
-        },
-      };
-    }
-    case 'MESSAGE': {
-      const id = requireNumericTargetId(targetId);
-      const message = await findReportDetailTargetMessageById(id);
-      if (!message) {
-        return {
-          targetInfo: toMissingTargetInfo(target, targetId),
-          content: null,
-        };
-      }
-
-      // ChatMessage도 soft-delete가 없어 존재 시 isDeleted: false.
-      return {
-        targetInfo: {
-          type: 'MESSAGE',
-          id: targetId,
-          exists: true,
-          isDeleted: false,
-          user: toDetailUserSummary(message.sender),
-        },
-        content: {
-          type: 'MESSAGE',
-          id: String(message.id),
-          title: '채팅 메시지',
-          body: message.content,
-          createdAt: message.createdAt,
-          deletedAt: null,
-          metadata: {
-            messageType: message.messageType,
-            roomId: message.roomId,
-          },
-        },
-      };
-    }
-    case 'ARTICLE': {
-      const id = requireNumericTargetId(targetId);
-      const article = await findReportDetailTargetArticleById(id);
-      if (!article) {
-        return {
-          targetInfo: toMissingTargetInfo(target, targetId),
-          content: null,
-        };
-      }
-
-      return {
-        targetInfo: {
-          type: 'ARTICLE',
-          id: targetId,
-          ...toSoftDeletePresence(article.deletedAt),
-          user: toDetailUserSummary(article.user),
-        },
-        content: {
-          type: 'ARTICLE',
-          id: String(article.id),
-          title: article.title,
-          body: article.content,
-          createdAt: article.createdAt,
-          deletedAt: article.deletedAt,
-          // region은 Repository select에 없으므로 실제 조회된 category만 담는다.
-          metadata: { category: article.category },
-        },
-      };
-    }
-    case 'COMMENT': {
-      const id = requireNumericTargetId(targetId);
-      const comment = await findReportDetailTargetCommentById(id);
-      if (!comment) {
-        return {
-          targetInfo: toMissingTargetInfo(target, targetId),
-          content: null,
-        };
-      }
-
-      return {
-        targetInfo: {
-          type: 'COMMENT',
-          id: targetId,
-          ...toSoftDeletePresence(comment.deletedAt),
-          user: toDetailUserSummary(comment.user),
-        },
-        content: {
-          type: 'COMMENT',
-          id: String(comment.id),
-          title: '댓글',
-          body: comment.content,
-          createdAt: comment.createdAt,
-          deletedAt: comment.deletedAt,
-          // parentId는 Repository select에 없으므로 조회된 postId·게시글 제목만 담는다.
-          metadata: {
-            postId: comment.postId,
-            postTitle: comment.post?.title ?? null,
-            postDeletedAt: comment.post?.deletedAt ?? null,
-          },
-        },
-      };
-    }
-    default: {
+    case 'USER':
+      return loadUserReportTarget(targetId);
+    case 'REVIEW':
+      return loadReviewReportTarget(targetId);
+    case 'CHAT_ROOM':
+      return loadChatRoomReportTarget(targetId);
+    case 'MESSAGE':
+      return loadMessageReportTarget(targetId);
+    case 'ARTICLE':
+      return loadArticleReportTarget(targetId);
+    case 'COMMENT':
+      return loadCommentReportTarget(targetId);
+    default:
       // Prisma enum 외 값이 들어오면 대상 없음으로 안전하게 처리한다.
-      return {
-        targetInfo: toMissingTargetInfo(target, targetId),
-        content: null,
-      };
-    }
+      return toMissingTargetBundle(target, targetId);
   }
 };
 
