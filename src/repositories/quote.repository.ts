@@ -351,6 +351,7 @@ export interface CustomerQuoteMoverRow {
   id: string;
   nickname: string;
   profileImageKey: string | null;
+  shortDescription: string | null;
   career: number | null;
   confirmedQuoteCount: number;
   favoriteCount: number;
@@ -388,7 +389,9 @@ export interface CustomerPastEstimateRequestRow {
   moveType: MoveType | null;
   moveDate: Date | null;
   departureAddress: string | null;
+  departureDetailAddress: string | null;
   arrivalAddress: string | null;
+  arrivalDetailAddress: string | null;
   quotes: CustomerQuoteRow[];
 }
 
@@ -402,6 +405,7 @@ export interface CustomerQuoteDetailRow {
   isDesignated: boolean;
   moverId: string | null;
   estimateRequest: {
+    status: EstimateRequestStatus;
     moveType: MoveType | null;
     moveDate: Date | null;
     submittedAt: Date | null;
@@ -420,7 +424,7 @@ export interface FindCustomerPastEstimateRequestsParams {
   quoteStatuses: QuoteStatus[];
 }
 
-/** 고객 견적 목록용 quote select (목록에는 comment 미포함) */
+/** 고객 견적 목록용 quote select */
 const customerQuoteListSelect = {
   id: true,
   price: true,
@@ -480,7 +484,7 @@ export const findMoverCardsByIds = async (
         id: true,
         nickname: true,
         profileImageKey: true,
-        moverProfile: { select: { career: true } },
+        moverProfile: { select: { career: true, shortDescription: true } },
         favoritesAsMover: {
           where: { userId: customerId },
           select: { id: true },
@@ -506,6 +510,7 @@ export const findMoverCardsByIds = async (
       id: mover.id,
       nickname: mover.nickname,
       profileImageKey: mover.profileImageKey,
+      shortDescription: mover.moverProfile?.shortDescription ?? null,
       career: mover.moverProfile?.career ?? null,
       confirmedQuoteCount: mover._count.quotesAsMover,
       favoriteCount: mover._count.favoritesAsMover,
@@ -577,7 +582,9 @@ export const findCustomerPastEstimateRequests = async (
         moveType: true,
         moveDate: true,
         departureAddress: true,
+        departureDetailAddress: true,
         arrivalAddress: true,
+        arrivalDetailAddress: true,
         quotes: {
           where: {
             deletedAt: null,
@@ -621,7 +628,9 @@ export const findCustomerPastEstimateRequests = async (
       moveType: true,
       moveDate: true,
       departureAddress: true,
+      departureDetailAddress: true,
       arrivalAddress: true,
+      arrivalDetailAddress: true,
       quotes: {
         where: {
           deletedAt: null,
@@ -663,6 +672,7 @@ export const findCustomerQuoteById = async (
       moverId: true,
       estimateRequest: {
         select: {
+          status: true,
           moveType: true,
           moveDate: true,
           submittedAt: true,
