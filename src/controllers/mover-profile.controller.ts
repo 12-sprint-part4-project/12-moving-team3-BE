@@ -1,6 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import { getAuthenticatedUser } from '../middlewares/auth.middleware';
-import type { MoverProfileBody } from '../schemas/mover-profile.schema';
+import type {
+  MoverBasicInfoBody,
+  MoverProfileBody,
+} from '../schemas/mover-profile.schema';
 import * as moverProfileService from '../services/mover-profile.service';
 
 export const getMoverProfile = async (
@@ -36,6 +39,28 @@ export const saveMoverProfile = async (
 
     res.status(200).json({
       data: profile,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateMoverBasicInfo = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId } = getAuthenticatedUser(res);
+    const body = res.locals.validated.body as MoverBasicInfoBody;
+
+    const basicInfo = await moverProfileService.updateMoverBasicInfo({
+      userId,
+      body,
+    });
+
+    res.status(200).json({
+      data: basicInfo,
     });
   } catch (error) {
     next(error);

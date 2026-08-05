@@ -8,7 +8,6 @@ components:
           type: object
           required:
             - nickname
-            - phoneNumber
             - career
             - shortDescription
             - description
@@ -20,9 +19,6 @@ components:
             nickname:
               type: string
               example: 김코드
-            phoneNumber:
-              type: string
-              example: '01012345678'
             career:
               type: integer
               example: 8
@@ -90,6 +86,7 @@ components:
             - service
             - serviceRegions
             - confirmedCount
+            - hasPassword
             - createdAt
             - updatedAt
           properties:
@@ -163,6 +160,10 @@ components:
               type: integer
               description: 확정 견적(CONFIRMED) 건수
               example: 334
+            hasPassword:
+              type: boolean
+              description: LOCAL 비밀번호 보유 여부 (카카오 전용 계정이면 false)
+              example: true
             createdAt:
               type: string
               format: date-time
@@ -171,6 +172,34 @@ components:
               type: string
               format: date-time
               example: '2026-07-21T10:00:00.000Z'
+
+    MoverBasicInfoResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - name
+            - email
+            - phoneNumber
+            - updatedAt
+          properties:
+            name:
+              type: string
+              example: 김코드
+            email:
+              type: string
+              format: email
+              example: kcode@email.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-28T08:20:00.000Z'
 
 paths:
   /api/users/movers/profile:
@@ -213,7 +242,8 @@ paths:
       description: |
         기사님(MOVER)이 프로필 정보를 등록하거나 수정합니다.
         - Content-Type: `application/json`
-        - `nickname`, `phoneNumber` 포함 필수 필드를 모두 전달합니다.
+        - `nickname`, `career`, `shortDescription`, `description`, `service`, `serviceRegions` 필수.
+        - 전화번호는 `PATCH /api/users/movers/basic-info`에서 수정합니다.
         - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
         - `s3Key`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
       security:
@@ -226,7 +256,6 @@ paths:
               type: object
               required:
                 - nickname
-                - phoneNumber
                 - career
                 - shortDescription
                 - description
@@ -239,11 +268,6 @@ paths:
                   maxLength: 20
                   description: 사이트에 노출될 기사 별명 (2~20자)
                   example: 김코드
-                phoneNumber:
-                  type: string
-                  pattern: '^\d{11}$'
-                  description: 전화번호 (숫자 11자리, 필수)
-                  example: '01012345678'
                 career:
                   type: integer
                   description: 경력(년)
@@ -299,7 +323,6 @@ paths:
                 summary: 기사님 프로필 등록/수정 예시
                 value:
                   nickname: 김코드
-                  phoneNumber: '01012345678'
                   career: 8
                   shortDescription: 꼼꼼한이사
                   description: 포장부터 정리까지 책임지고 진행합니다.
@@ -338,7 +361,108 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: 닉네임/전화번호 중복
+          description: 닉네임 중복
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/movers/basic-info:
+    patch:
+      tags: [Movers]
+      summary: 기사님 기본정보 수정
+      description: |
+        기사님(MOVER)이 이름·전화번호·비밀번호를 수정합니다.
+        - Content-Type: `application/json`
+        - `name`, `phoneNumber`는 필수입니다. 이메일은 변경할 수 없습니다.
+        - 변경된 항목이 없으면 `NO_CHANGE`를 반환합니다.
+        - 비밀번호 변경 시 `newPassword`와 함께 `currentPassword`, `newPasswordConfirm`이 필요합니다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - phoneNumber
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 20
+                  description: 이름 (2~20자)
+                  example: 김코드
+                phoneNumber:
+                  type: string
+                  pattern: '^\d{11}$'
+                  description: 전화번호 (숫자 11자리)
+                  example: '01012345678'
+                currentPassword:
+                  type: string
+                  description: 비밀번호 변경 시 현재 비밀번호 (조건부 필수)
+                  example: OldPass123!
+                newPassword:
+                  type: string
+                  description: 변경할 새 비밀번호 (8~20자, 영문·숫자·특수문자)
+                  example: NewPass123!
+                newPasswordConfirm:
+                  type: string
+                  description: 새 비밀번호 확인 (newPassword 입력 시 필수)
+                  example: NewPass123!
+            examples:
+              updateBasicInfo:
+                summary: 이름·전화번호 수정 예시
+                value:
+                  name: 김코드
+                  phoneNumber: '01012345678'
+              updatePassword:
+                summary: 비밀번호 변경 포함 수정 예시
+                value:
+                  name: 김코드
+                  phoneNumber: '01012345678'
+                  currentPassword: OldPass123!
+                  newPassword: NewPass123!
+                  newPasswordConfirm: NewPass123!
+      responses:
+        '200':
+          description: 기본정보 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoverBasicInfoResponse'
+        '400':
+          description: |
+            요청 본문 오류
+            (`NO_CHANGE`, `CURRENT_PASSWORD_REQUIRED`, `CURRENT_PASSWORD_MISMATCH`,
+            `NEW_PASSWORD_CONFIRM_REQUIRED`, `INVALID_NEW_PASSWORD`,
+            `NEW_PASSWORD_MISMATCH`, `SAME_AS_CURRENT_PASSWORD` 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 기사님(MOVER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록 대상 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 전화번호 중복
           content:
             application/json:
               schema:
