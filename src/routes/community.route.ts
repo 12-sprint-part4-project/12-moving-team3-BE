@@ -24,6 +24,7 @@ const router = Router();
  *     summary: 게시글 목록 조회
  *     description: |
  *       커뮤니티 게시글 목록을 커서 기반으로 조회합니다.
+ *       category, region, keyword, sort, cursor, limit 쿼리로 필터·정렬·무한 스크롤 조회할 수 있습니다.
  *       카테고리를 지정하지 않으면 가구 나눔(FURNITURE_SHARE) 게시글은 제외됩니다.
  *       Bearer Access Token은 선택입니다. 토큰이 있으면 isLiked가 반영되고, 없으면 isLiked는 null입니다.
  *     security:
@@ -44,6 +45,13 @@ const router = Router();
  *           type: string
  *           enum: [SEOUL, GYEONGGI, INCHEON, GANGWON, CHUNGBUK, CHUNGNAM, SEJONG, DAEJEON, JEONBUK, GWANGJU_JEONNAM, GYEONGBUK, DAEGU, ULSAN, GYEONGNAM, BUSAN, JEJU]
  *         description: 지역 필터 (가구 나눔 등)
+ *       - in: query
+ *         name: keyword
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: 제목·본문 부분 일치 검색 (대소문자 무시). 공백만 있으면 무시됩니다.
+ *         example: 이사
  *       - in: query
  *         name: sort
  *         required: false
