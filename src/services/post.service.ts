@@ -243,3 +243,12 @@ export const deletePost = async (postId: number, userId: string) => {
     throw new AppError('POST_NOT_FOUND');
   }
 };
+
+/** 게시글 조회수 +1 */
+export const incrementViewCount = async (postId: number) => {
+  const updatedCount = await postRepository.incrementViewCount(postId);
+
+  if (updatedCount === 0) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+};
