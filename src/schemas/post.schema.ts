@@ -18,11 +18,15 @@ export const COMMENT_CONTENT_MAX_LENGTH = 500;
 /** trim 후 빈 keyword는 undefined (검색 조건 미적용) */
 const optionalKeywordQuerySchema = z.preprocess(
   (value) => {
-    if (value === undefined || value === '') {
+    if (value === undefined) {
       return undefined;
     }
 
-    const trimmed = String(value).trim();
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const trimmed = value.trim();
 
     return trimmed.length > 0 ? trimmed : undefined;
   },
