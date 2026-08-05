@@ -122,7 +122,7 @@ const mapPostListItem = async (
 
 /** 게시글 목록 조회 */
 export const getPosts = async (query: PostListQuery, userId?: string) => {
-  const { category, region, sort, limit } = query;
+  const { category, region, keyword, sort, limit } = query;
   const cursor = query.cursor ? decodeCursor(query.cursor, sort) : undefined;
 
   // 카테고리 미지정 시 가구 나눔 제외 (조회 정책은 service에서 결정)
@@ -133,6 +133,7 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
     category,
     excludeCategories,
     region,
+    keyword,
     sort,
     cursor,
     limit,

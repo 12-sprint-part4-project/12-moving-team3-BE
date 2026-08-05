@@ -15,9 +15,28 @@ export const CONTENT_PREVIEW_MAX_LENGTH = 100;
 /** 댓글/대댓글 content 최대 길이 */
 export const COMMENT_CONTENT_MAX_LENGTH = 500;
 
+/** trim 후 빈 keyword는 undefined (검색 조건 미적용) */
+const optionalKeywordQuerySchema = z.preprocess(
+  (value) => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const trimmed = value.trim();
+
+    return trimmed.length > 0 ? trimmed : undefined;
+  },
+  z.string().min(1).optional()
+);
+
 export const postListQuerySchema = z.object({
   category: z.enum(PostsCategory).optional(),
   region: z.enum(Region).optional(),
+  keyword: optionalKeywordQuerySchema,
   sort: z.enum(POST_SORT_VALUES).optional().default('LATEST'),
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(20).optional().default(10),

@@ -18,6 +18,7 @@ export interface FindPostsParams {
   category?: PostsCategory;
   excludeCategories?: PostsCategory[];
   region?: Region;
+  keyword?: string;
   sort: PostSort;
   cursor?: PostCursor;
   limit: number;
@@ -61,11 +62,12 @@ const buildCursorCondition = (
   };
 };
 
-// 게시글 목록 조회
+// 게시글 목록 조회 (category, region, keyword는 값이 있을 때만 where에 추가)
 export const findPosts = async ({
   category,
   excludeCategories,
   region,
+  keyword,
   sort,
   cursor,
   limit,
@@ -78,6 +80,12 @@ export const findPosts = async ({
       category: { notIn: excludeCategories },
     }),
     ...(region && { region }),
+    ...(keyword && {
+      OR: [
+        { title: { contains: keyword, mode: 'insensitive' } },
+        { content: { contains: keyword, mode: 'insensitive' } },
+      ],
+    }),
   };
 
   const where: Prisma.PostWhereInput = cursor
