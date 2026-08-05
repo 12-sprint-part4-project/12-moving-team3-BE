@@ -441,6 +441,24 @@ export const findEstimateRequestById = async (
 };
 
 /**
+ * SUBMITTED + 소유자 조건을 updateMany로 재확인 (지정 견적 생성 race 방지용)
+ * data는 updatedAt만 갱신해 상태는 유지한다.
+ * @returns 갱신 건수
+ */
+export const touchSubmittedEstimateRequestForOwner = async (
+  id: number,
+  userId: string,
+  db: DbClient = prisma
+): Promise<number> => {
+  const { count } = await db.estimateRequest.updateMany({
+    where: { id, userId, status: EstimateRequestStatus.SUBMITTED },
+    data: { updatedAt: new Date() },
+  });
+
+  return count;
+};
+
+/**
  * DRAFT 견적요청 필드 부분 업데이트 (단계 저장 / 재수정 공통)
  * id + userId + status=DRAFT 를 한 번에 조건으로 걸어 race condition(검사 후 갱신 사이 경합)을 막음
  * 조건에 맞는 행이 없으면 null (이미 제출됐거나 소유자가 다른 경우)

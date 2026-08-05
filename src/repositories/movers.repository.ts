@@ -62,7 +62,7 @@ const moverListInclude = {
   user: {
     select: {
       id: true,
-      nickname: true,
+      name: true,
       profileImageKey: true,
     },
   },
@@ -86,7 +86,6 @@ const moverDetailInclude = {
     select: {
       id: true,
       name: true,
-      nickname: true,
       profileImageKey: true,
     },
   },
@@ -125,11 +124,8 @@ const buildMoverListWhere = (
       OR: [
         {
           user: {
-            nickname: { contains: filters.keyword, mode: 'insensitive' },
+            name: { contains: filters.keyword, mode: 'insensitive' },
           },
-        },
-        {
-          description: { contains: filters.keyword, mode: 'insensitive' },
         },
         {
           shortDescription: {
