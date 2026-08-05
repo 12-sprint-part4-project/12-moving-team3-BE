@@ -1,4 +1,80 @@
 paths:
+  /api/designated-estimate-requests:
+    post:
+      tags: [DesignatedEstimateRequest]
+      summary: 지정 견적 요청 생성
+      description: |
+        제출(SUBMITTED)된 본인 견적요청에 특정 기사님을 지정합니다.
+        이미 지정된 기사님이면 409(DESIGNATED_ALREADY_EXISTS)를 반환합니다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estimateRequestId, moverId]
+              properties:
+                estimateRequestId:
+                  type: integer
+                  minimum: 1
+                  description: 견적요청 ID (EstimateRequest.id)
+                moverId:
+                  type: string
+                  format: uuid
+                  description: 기사님 User.id (UUID)
+            example:
+              estimateRequestId: 34
+              moverId: 11111111-1111-1111-1111-111111111111
+      responses:
+        '201':
+          description: 지정 견적 생성 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DesignatedEstimateMover'
+              example:
+                data:
+                  id: 12
+                  estimateId: 34
+                  moverId: 11111111-1111-1111-1111-111111111111
+        '400':
+          description: 유효하지 않은 body (INVALID_REQUEST_BODY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 본인 견적요청이 아님 (FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            - ESTIMATE_REQUEST_NOT_FOUND: 견적요청 없음
+            - MOVER_NOT_FOUND: 기사님 없음
+            - PROFILE_NOT_FOUND: 고객 프로필 미등록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |
+            - DESIGNATED_ALREADY_EXISTS: 이미 지정된 기사
+            - ESTIMATE_REQUEST_NOT_SUBMITTED: SUBMITTED 상태 아님
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/designated-estimate-requests/{estimateRequestId}/movers/{moverId}:
     get:
       tags: [DesignatedEstimateRequest]
@@ -35,11 +111,11 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [exists, designatedMover]
+                    required: [exists, designatedEstimateRequest]
                     properties:
                       exists:
                         type: boolean
-                      designatedMover:
+                      designatedEstimateRequest:
                         nullable: true
                         allOf:
                           - $ref: '#/components/schemas/DesignatedEstimateMover'
@@ -49,13 +125,13 @@ paths:
                   value:
                     data:
                       exists: false
-                      designatedMover: null
+                      designatedEstimateRequest: null
                 exists:
                   summary: 지정 있음
                   value:
                     data:
                       exists: true
-                      designatedMover:
+                      designatedEstimateRequest:
                         id: 12
                         estimateId: 34
                         moverId: 11111111-1111-1111-1111-111111111111

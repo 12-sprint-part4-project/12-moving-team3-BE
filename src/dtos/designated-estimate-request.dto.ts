@@ -8,3 +8,5 @@ export interface DesignatedEstimateExistenceDto {
   exists: boolean;
   designatedEstimateRequest: DesignatedEstimateMoverDto | null;
 }
+
+export type CreateDesignatedEstimateDto = DesignatedEstimateMoverDto;

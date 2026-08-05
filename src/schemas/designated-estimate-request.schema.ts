@@ -9,3 +9,13 @@ export const designatedEstimateExistenceParamsSchema = z.object({
 export type DesignatedEstimateExistenceParams = z.infer<
   typeof designatedEstimateExistenceParamsSchema
 >;
+
+/** POST / body */
+export const createDesignatedEstimateBodySchema = z.object({
+  estimateRequestId: z.coerce.number().int().positive(),
+  moverId: z.uuid('유효하지 않은 기사님 ID입니다.'),
+});
+
+export type CreateDesignatedEstimateBody = z.infer<
+  typeof createDesignatedEstimateBodySchema
+>;
