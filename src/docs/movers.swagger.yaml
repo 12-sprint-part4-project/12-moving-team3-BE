@@ -16,7 +16,7 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: 이름·소개글 검색어
+          description: 이름·한 줄 소개 검색어
           schema:
             type: string
         - name: region

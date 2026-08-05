@@ -128,9 +128,6 @@ const buildMoverListWhere = (
           },
         },
         {
-          description: { contains: filters.keyword, mode: 'insensitive' },
-        },
-        {
           shortDescription: {
             contains: filters.keyword,
             mode: 'insensitive',
