@@ -15,6 +15,11 @@ components:
           type: string
           nullable: true
           example: https://cdn.example.com/profiles/mover-201.jpg
+        shortDescription:
+          type: string
+          nullable: true
+          example: 꼼꼼한이사
+          description: 기사님 한 줄 소개
         rating:
           type: number
           format: float
@@ -141,11 +146,13 @@ components:
         fromAddress:
           type: string
           nullable: true
-          example: 서울 강남구
+          example: 서울 중구 삼일대로 343 5층
+          description: 출발지 전체 주소 (도로명·지번 + 상세주소)
         toAddress:
           type: string
           nullable: true
-          example: 서울 서초구
+          example: 서울 강남구 선릉로 428 101동 1001호
+          description: 도착지 전체 주소 (도로명·지번 + 상세주소)
         quotes:
           type: array
           items:
@@ -199,6 +206,11 @@ components:
             isDesignated:
               type: boolean
               example: true
+            estimateRequestStatus:
+              type: string
+              enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+              example: SUBMITTED
+              description: 견적 요청 상태 (확정 CTA·미확정 배너 분기용)
             serviceType:
               type: string
               enum: [SMALL, HOME, OFFICE]
@@ -281,6 +293,7 @@ paths:
                             moverId: 550e8400-e29b-41d4-a716-446655440000
                             nickname: 베스트무빙
                             profileImage: https://cdn.example.com/profiles/mover.jpg
+                            shortDescription: 꼼꼼한이사
                             rating: 4.8
                             reviewCount: 120
                             career: 7
@@ -373,8 +386,8 @@ paths:
                       submittedAt: '2024-05-05T10:00:00.000Z'
                       serviceType: HOME
                       moveDate: '2024-05-10T00:00:00.000Z'
-                      fromAddress: 서울 강남구
-                      toAddress: 서울 서초구
+                      fromAddress: 서울 중구 삼일대로 343 5층
+                      toAddress: 서울 강남구 선릉로 428 101동 1001호
                       quotes:
                         - quoteId: 10
                           price: 180000
@@ -384,6 +397,7 @@ paths:
                             moverId: 550e8400-e29b-41d4-a716-446655440000
                             nickname: 베스트무빙
                             profileImage: https://cdn.example.com/profiles/mover.jpg
+                            shortDescription: 꼼꼼한이사
                             rating: 4.8
                             reviewCount: 120
                             career: 7
@@ -479,6 +493,7 @@ paths:
                   comment: 포장 이사로 깔끔하게 진행해 드립니다.
                   status: PENDING
                   isDesignated: true
+                  estimateRequestStatus: SUBMITTED
                   serviceType: HOME
                   moveDate: '2024-05-10T00:00:00.000Z'
                   submittedAt: '2024-08-26T10:00:00.000Z'
@@ -488,6 +503,7 @@ paths:
                     moverId: 550e8400-e29b-41d4-a716-446655440000
                     nickname: 베스트무빙
                     profileImage: https://cdn.example.com/profiles/mover.jpg
+                    shortDescription: 꼼꼼한이사
                     rating: 4.8
                     reviewCount: 120
                     career: 7
