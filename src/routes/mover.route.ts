@@ -3,7 +3,10 @@ import * as estimateRequestController from '../controllers/estimate-request.cont
 import * as moverProfileController from '../controllers/mover-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
 import { validateRequest } from '../middlewares/validate.middleware';
-import { moverProfileBodySchema } from '../schemas/mover-profile.schema';
+import {
+  moverBasicInfoBodySchema,
+  moverProfileBodySchema,
+} from '../schemas/mover-profile.schema';
 import { estimateRequestListQuerySchema } from '../schemas/estimate-request.schema';
 import {
   quoteBodySchema,
@@ -34,6 +37,18 @@ router.patch(
     errorCode: 'INVALID_REQUEST_BODY',
   }),
   moverProfileController.saveMoverProfile
+);
+
+// 기사님 기본정보 수정 (Swagger: src/docs/mover-profile.swagger.yaml)
+router.patch(
+  '/basic-info',
+  requireAuth,
+  allowUserTypes('MOVER'),
+  validateRequest({
+    body: moverBasicInfoBodySchema,
+    errorCode: 'INVALID_REQUEST_BODY',
+  }),
+  moverProfileController.updateMoverBasicInfo
 );
 
 // 기사님이 받은 견적 요청 목록 조회 (Swagger 문서: src/docs/mover.swagger.yaml)

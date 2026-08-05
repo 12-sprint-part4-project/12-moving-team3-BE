@@ -1,7 +1,11 @@
 import * as authRepository from '../repositories/auth.repository';
 import * as moverProfileRepository from '../repositories/mover-profile.repository';
 import { countConfirmedQuotesByMoverId } from '../repositories/quote.repository';
-import type { MoverProfileBody } from '../schemas/mover-profile.schema';
+import type {
+  MoverBasicInfoBody,
+  MoverProfileBody,
+} from '../schemas/mover-profile.schema';
+import { resolvePasswordHashForUpdate } from '../utils/auth-password.util';
 import { deleteImage, toPresignedViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
@@ -9,6 +13,11 @@ import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 export interface SaveMoverProfileInput {
   userId: string;
   body: MoverProfileBody;
+}
+
+export interface UpdateMoverBasicInfoServiceInput {
+  userId: string;
+  body: MoverBasicInfoBody;
 }
 
 export const getMoverProfile = async (userId: string) => {
@@ -20,9 +29,10 @@ export const getMoverProfile = async (userId: string) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
-  const [profileImageUrl, confirmedCount] = await Promise.all([
+  const [profileImageUrl, confirmedCount, localAuth] = await Promise.all([
     toPresignedViewUrl(profile.user.profileImageKey),
     countConfirmedQuotesByMoverId(userId),
+    authRepository.findLocalPasswordHashByUserId(userId),
   ]);
 
   return {
@@ -39,6 +49,7 @@ export const getMoverProfile = async (userId: string) => {
     service: profile.service,
     serviceRegions: profile.serviceRegions.map((item) => item.region),
     confirmedCount,
+    hasPassword: Boolean(localAuth?.passwordHash),
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   };
@@ -53,14 +64,6 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
-  const existingPhoneUser = await authRepository.findUserByPhoneNumber(
-    input.body.phoneNumber
-  );
-
-  if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
-    throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
-  }
-
   const previousProfileImageKey = existingProfile.user.profileImageKey;
   const nextProfileImageKey = input.body.s3Key;
 
@@ -68,7 +71,6 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
     const profile = await moverProfileRepository.saveMoverProfile({
       userId: input.userId,
       nickname: input.body.nickname,
-      phoneNumber: input.body.phoneNumber,
       career: input.body.career,
       shortDescription: input.body.shortDescription,
       description: input.body.description,
@@ -91,7 +93,6 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
 
     return {
       nickname: profile.nickname,
-      phoneNumber: profile.phoneNumber,
       career: profile.career,
       shortDescription: profile.shortDescription,
       description: profile.description,
@@ -109,6 +110,64 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       }
     }
 
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
+};
+
+export const updateMoverBasicInfo = async (
+  input: UpdateMoverBasicInfoServiceInput
+) => {
+  const existingProfile = await moverProfileRepository.findMoverProfileByUserId(
+    input.userId
+  );
+
+  if (!existingProfile) {
+    throw new AppError('PROFILE_NOT_FOUND');
+  }
+
+  const { body } = input;
+  const hasNameChange = body.name !== existingProfile.user.name;
+  const hasPhoneChange = body.phoneNumber !== existingProfile.user.phoneNumber;
+  const hasPasswordChange = body.newPassword !== undefined;
+
+  if (!hasNameChange && !hasPhoneChange && !hasPasswordChange) {
+    throw new AppError('NO_CHANGE');
+  }
+
+  if (hasPhoneChange) {
+    const existingPhoneUser = await authRepository.findUserByPhoneNumber(
+      body.phoneNumber
+    );
+
+    if (existingPhoneUser && existingPhoneUser.id !== input.userId) {
+      throw new AppError('PHONE_NUMBER_ALREADY_EXISTS');
+    }
+  }
+
+  const nextPasswordHash = await resolvePasswordHashForUpdate({
+    currentPassword: body.currentPassword,
+    newPassword: body.newPassword,
+    newPasswordConfirm: body.newPasswordConfirm,
+    findLocalPasswordHash: () =>
+      authRepository.findLocalPasswordHashByUserId(input.userId),
+  });
+
+  try {
+    return await moverProfileRepository.updateMoverBasicInfo({
+      userId: input.userId,
+      ...(hasNameChange ? { name: body.name } : {}),
+      ...(hasPhoneChange ? { phoneNumber: body.phoneNumber } : {}),
+      ...(nextPasswordHash !== undefined
+        ? { passwordHash: nextPasswordHash }
+        : {}),
+    });
+  } catch (error) {
     const appError = toAppErrorFromPrisma(error);
 
     if (appError) {

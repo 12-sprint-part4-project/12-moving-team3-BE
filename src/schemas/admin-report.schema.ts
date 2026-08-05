@@ -16,3 +16,12 @@ export const adminReportListQuerySchema = listQuerySchema
   });
 
 export type AdminReportListQuery = z.infer<typeof adminReportListQuerySchema>;
+
+/** 관리자 신고 상세 조회 Path Params — UserReport.id(Int)와 동일한 양의 정수만 허용 */
+export const adminReportDetailParamsSchema = z.object({
+  reportId: z.coerce.number().int().positive(),
+});
+
+export type AdminReportDetailParams = z.infer<
+  typeof adminReportDetailParamsSchema
+>;

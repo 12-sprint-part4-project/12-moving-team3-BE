@@ -9,6 +9,7 @@ export const getUserRecentActivities = async (where: Prisma.UserWhereInput) => {
   return prisma.user.findMany({
     where,
     select: {
+      id: true,
       nickname: true,
       email: true,
       createdAt: true,
