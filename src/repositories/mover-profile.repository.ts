@@ -1,7 +1,5 @@
-import { MoveType, Region, type Prisma } from '@prisma/client';
+import { MoveType, Region } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-
-type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export const findMoverProfileByUserId = async (userId: string) => {
   return prisma.moverProfile.findUnique({
@@ -16,23 +14,6 @@ export const findMoverProfileByUserId = async (userId: string) => {
           profileImageKey: true,
         },
       },
-    },
-  });
-};
-
-export const findLocalPasswordHashByUserId = async (
-  userId: string,
-  db: DbClient = prisma
-) => {
-  return db.authAccount.findUnique({
-    where: {
-      userId_provider: {
-        userId,
-        provider: 'LOCAL',
-      },
-    },
-    select: {
-      passwordHash: true,
     },
   });
 };

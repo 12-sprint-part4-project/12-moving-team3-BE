@@ -5,11 +5,7 @@ import type {
   MoverBasicInfoBody,
   MoverProfileBody,
 } from '../schemas/mover-profile.schema';
-import {
-  AUTH_PASSWORD_DUMMY_HASH,
-  compareAuthPassword,
-  hashAuthPassword,
-} from '../utils/auth-password.util';
+import { resolvePasswordHashForUpdate } from '../utils/auth-password.util';
 import { deleteImage, toPresignedViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
@@ -24,59 +20,6 @@ export interface UpdateMoverBasicInfoServiceInput {
   body: MoverBasicInfoBody;
 }
 
-interface ResolvePasswordHashForUpdateInput {
-  userId: string;
-  currentPassword?: string;
-  newPassword?: string;
-  newPasswordConfirm?: string;
-}
-
-// INVALID_NEW_PASSWORD와 동일 정책 (8~20자, 영문·숫자·특수문자)
-const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
-
-/** newPassword가 있을 때만 비밀번호 변경 필드를 검증하고 hash를 반환 */
-const resolvePasswordHashForUpdate = async (
-  input: ResolvePasswordHashForUpdateInput
-): Promise<string | undefined> => {
-  if (input.newPassword === undefined) {
-    return undefined;
-  }
-
-  if (!input.currentPassword) {
-    throw new AppError('CURRENT_PASSWORD_REQUIRED');
-  }
-
-  if (!input.newPasswordConfirm) {
-    throw new AppError('NEW_PASSWORD_CONFIRM_REQUIRED');
-  }
-
-  if (!PASSWORD_REGEX.test(input.newPassword)) {
-    throw new AppError('INVALID_NEW_PASSWORD');
-  }
-
-  if (input.newPassword !== input.newPasswordConfirm) {
-    throw new AppError('NEW_PASSWORD_MISMATCH');
-  }
-
-  if (input.currentPassword === input.newPassword) {
-    throw new AppError('SAME_AS_CURRENT_PASSWORD');
-  }
-
-  const localAuth =
-    await moverProfileRepository.findLocalPasswordHashByUserId(input.userId);
-
-  const isPasswordMatched = await compareAuthPassword(
-    input.currentPassword,
-    localAuth?.passwordHash ?? AUTH_PASSWORD_DUMMY_HASH
-  );
-
-  if (!localAuth?.passwordHash || !isPasswordMatched) {
-    throw new AppError('CURRENT_PASSWORD_MISMATCH');
-  }
-
-  return hashAuthPassword(input.newPassword);
-};
-
 export const getMoverProfile = async (userId: string) => {
   const profile =
     await moverProfileRepository.findMoverProfileDetailByUserId(userId);
@@ -89,7 +32,7 @@ export const getMoverProfile = async (userId: string) => {
   const [profileImageUrl, confirmedCount, localAuth] = await Promise.all([
     toPresignedViewUrl(profile.user.profileImageKey),
     countConfirmedQuotesByMoverId(userId),
-    moverProfileRepository.findLocalPasswordHashByUserId(userId),
+    authRepository.findLocalPasswordHashByUserId(userId),
   ]);
 
   return {
@@ -208,10 +151,11 @@ export const updateMoverBasicInfo = async (
   }
 
   const nextPasswordHash = await resolvePasswordHashForUpdate({
-    userId: input.userId,
     currentPassword: body.currentPassword,
     newPassword: body.newPassword,
     newPasswordConfirm: body.newPasswordConfirm,
+    findLocalPasswordHash: () =>
+      authRepository.findLocalPasswordHashByUserId(input.userId),
   });
 
   try {

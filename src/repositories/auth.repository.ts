@@ -29,6 +29,23 @@ export const findUserByPhoneNumber = async (phoneNumber: string) => {
   });
 };
 
+export const findLocalPasswordHashByUserId = async (
+  userId: string,
+  db: DbClient = prisma
+) => {
+  return db.authAccount.findUnique({
+    where: {
+      userId_provider: {
+        userId,
+        provider: 'LOCAL',
+      },
+    },
+    select: {
+      passwordHash: true,
+    },
+  });
+};
+
 const userAuthSelect = {
   id: true,
   userType: true,
