@@ -4,6 +4,7 @@ import type {
   DesignatedEstimateExistenceDto,
   DesignatedEstimateMoverDto,
 } from '../dtos/designated-estimate-request.dto';
+import { prisma } from '../lib/prisma';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import { findUserById } from '../repositories/user.repository';
@@ -71,6 +72,7 @@ export const checkDesignatedEstimateExistence = async (
 
 /**
  * 지정 견적 요청 생성 — SUBMITTED 상태의 본인 견적요청에만 가능
+ * updateMany(소유·SUBMITTED) + create를 트랜잭션으로 묶어 race condition을 차단
  */
 export const createDesignatedEstimateRequest = async (
   params: DesignatedEstimateRequestServiceParams
@@ -112,12 +114,46 @@ export const createDesignatedEstimateRequest = async (
   }
 
   try {
-    return toDto(
-      await designatedEstimateRequestRepository.create(
-        estimateRequestId,
-        moverId
-      )
-    );
+    return await prisma.$transaction(async (tx) => {
+      const touchedCount =
+        await estimateRequestRepository.touchSubmittedEstimateRequestForOwner(
+          estimateRequestId,
+          userId,
+          tx
+        );
+
+      if (touchedCount === 0) {
+        const current =
+          await estimateRequestRepository.findEstimateRequestById(
+            estimateRequestId,
+            tx
+          );
+
+        if (!current) {
+          throw new AppError(
+            'ESTIMATE_REQUEST_NOT_FOUND',
+            '일반 견적 요청이 존재하지 않습니다.'
+          );
+        }
+
+        if (current.userId !== userId) {
+          throw new AppError(
+            'FORBIDDEN',
+            '본인의 견적 요청만 지정할 수 있습니다.'
+          );
+        }
+
+        throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
+      }
+
+      return toDto(
+        await designatedEstimateRequestRepository.create(
+          estimateRequestId,
+          moverId,
+          tx
+        )
+      );
+    });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       throw new AppError('DESIGNATED_ALREADY_EXISTS');

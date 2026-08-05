@@ -1,4 +1,7 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export interface DesignatedEstimateMoverRow {
   id: number;
@@ -17,9 +20,10 @@ const designatedMoverSelect = {
  */
 export const findByEstimateIdAndMoverId = async (
   estimateId: number,
-  moverId: string
+  moverId: string,
+  db: DbClient = prisma
 ): Promise<DesignatedEstimateMoverRow | null> => {
-  return prisma.estimateDesignatedMover.findUnique({
+  return db.estimateDesignatedMover.findUnique({
     where: {
       estimateId_moverId: {
         estimateId,
@@ -35,9 +39,10 @@ export const findByEstimateIdAndMoverId = async (
  */
 export const create = async (
   estimateId: number,
-  moverId: string
+  moverId: string,
+  db: DbClient = prisma
 ): Promise<DesignatedEstimateMoverRow> => {
-  return prisma.estimateDesignatedMover.create({
+  return db.estimateDesignatedMover.create({
     data: {
       estimateId,
       moverId,
