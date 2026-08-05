@@ -14,6 +14,7 @@ import type {
 } from '../repositories/estimate-request.repository';
 import {
   TOTAL_INPUT_STEPS,
+  ESTIMATE_REQUEST_SORT_VALUES,
   moveDateSchema,
   type EstimateRequestSort,
   type ReviseEstimateRequestFieldBody,
@@ -62,9 +63,17 @@ export interface GetReceivedEstimateRequestsResult {
 }
 
 /**
- * unknown 값이 커서 페이로드({ id, value, secondaryValue? }) 형태인지 좁힘
+ * unknown 값이 커서 페이로드({ id, sort, value, secondaryValue? }) 형태인지 좁힘
  * value / secondaryValue 는 buildCursorCondition 에서 Date 로 쓰이므로 파싱 가능한 날짜 문자열만 허용
+ * MOVE_DATE_ASC 는 secondaryValue(submittedAt) 필수 — null 또는 유효한 ISO 문자열
  */
+const isEstimateRequestSort = (value: unknown): value is EstimateRequestSort =>
+  typeof value === 'string' &&
+  (ESTIMATE_REQUEST_SORT_VALUES as readonly string[]).includes(value);
+
+const isValidCursorDateString = (value: unknown): value is string =>
+  typeof value === 'string' && value !== '' && !Number.isNaN(Date.parse(value));
+
 const isEstimateRequestCursor = (
   value: unknown
 ): value is EstimateRequestCursor => {
@@ -72,17 +81,27 @@ const isEstimateRequestCursor = (
     return false;
   }
 
-  if (!('id' in value) || !('value' in value)) {
+  if (!('id' in value) || !('value' in value) || !('sort' in value)) {
     return false;
   }
 
   const isValidPrimary =
     Number.isSafeInteger(value.id) &&
-    typeof value.value === 'string' &&
-    !Number.isNaN(Date.parse(value.value));
+    isEstimateRequestSort(value.sort) &&
+    isValidCursorDateString(value.value);
 
   if (!isValidPrimary) {
     return false;
+  }
+
+  if (value.sort === 'MOVE_DATE_ASC') {
+    if (!('secondaryValue' in value)) {
+      return false;
+    }
+    return (
+      value.secondaryValue === null ||
+      isValidCursorDateString(value.secondaryValue)
+    );
   }
 
   if (!('secondaryValue' in value) || value.secondaryValue === undefined) {
@@ -91,22 +110,24 @@ const isEstimateRequestCursor = (
 
   return (
     value.secondaryValue === null ||
-    (typeof value.secondaryValue === 'string' &&
-      !Number.isNaN(Date.parse(value.secondaryValue)))
+    isValidCursorDateString(value.secondaryValue)
   );
 };
 
 /**
- * {id, 정렬기준값} 커서 객체를 클라이언트에 노출할 base64url 문자열로 인코딩
+ * {id, sort, 정렬기준값} 커서 객체를 클라이언트에 노출할 base64url 문자열로 인코딩
  */
 const encodeCursor = (cursor: EstimateRequestCursor): string =>
   Buffer.from(JSON.stringify(cursor), 'utf-8').toString('base64url');
 
 /**
- * 클라이언트가 보낸 커서 문자열을 디코딩해 {id, value} 형태로 복원
- * 형식이 올바르지 않으면 잘못된 쿼리 파라미터 에러로 처리
+ * 클라이언트가 보낸 커서 문자열을 디코딩해 {id, sort, value} 형태로 복원
+ * 형식 오류·sort 불일치·MOVE_DATE_ASC secondaryValue(submittedAt) 누락/무효 시 INVALID_QUERY_PARAM
  */
-const decodeCursor = (cursor: string): EstimateRequestCursor => {
+const decodeCursor = (
+  cursor: string,
+  sort: EstimateRequestSort
+): EstimateRequestCursor => {
   let decoded: unknown;
 
   try {
@@ -115,7 +136,7 @@ const decodeCursor = (cursor: string): EstimateRequestCursor => {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  if (!isEstimateRequestCursor(decoded)) {
+  if (!isEstimateRequestCursor(decoded) || decoded.sort !== sort) {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
@@ -169,7 +190,9 @@ export const getReceivedEstimateRequests = async (
     serviceRegions: moverProfile.serviceRegions,
   };
 
-  const cursor = input.cursor ? decodeCursor(input.cursor) : undefined;
+  const cursor = input.cursor
+    ? decodeCursor(input.cursor, input.sort)
+    : undefined;
 
   const [
     { items: rows, hasNextPage },
@@ -211,6 +234,7 @@ export const getReceivedEstimateRequests = async (
     hasNextPage && lastRow && lastSortValue
       ? encodeCursor({
           id: lastRow.id,
+          sort: input.sort,
           value: lastSortValue.toISOString(),
           ...(input.sort === 'MOVE_DATE_ASC'
             ? {

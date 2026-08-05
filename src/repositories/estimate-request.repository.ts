@@ -62,11 +62,14 @@ export interface EstimateRequestFilterParams {
 
 export interface EstimateRequestCursor {
   id: number;
+  /** 커서를 발급한 정렬 기준 — 요청 sort 와 다르면 INVALID_QUERY_PARAM */
+  sort: EstimateRequestSort;
   /** 1차 정렬 기준 값 (moveDate 또는 submittedAt) ISO 문자열 */
   value: string;
   /**
    * MOVE_DATE_ASC 전용 2차 정렬 값 (submittedAt ISO).
    * 이사일이 같을 때 최신 요청순(submittedAt desc) 커서에 사용한다.
+   * MOVE_DATE_ASC 에서는 필수(null = submittedAt IS NULL).
    */
   secondaryValue?: string | null;
 }
@@ -185,29 +188,32 @@ const buildCursorCondition = (
     };
   }
 
-  // MOVE_DATE_ASC — 이사일 오름차순, 동일 이사일은 submittedAt 최신순
-  const secondaryDate =
-    cursor.secondaryValue != null && cursor.secondaryValue !== ''
-      ? new Date(cursor.secondaryValue)
-      : null;
-
-  if (secondaryDate == null || Number.isNaN(secondaryDate.getTime())) {
+  // MOVE_DATE_ASC — moveDate ASC, submittedAt DESC (PG: NULLS FIRST), id DESC
+  if (cursor.secondaryValue == null) {
     return {
       OR: [
         { moveDate: { gt: cursorDate } },
-        { moveDate: cursorDate, id: { lt: cursor.id } },
+        {
+          AND: [
+            { moveDate: cursorDate },
+            { submittedAt: null },
+            { id: { lt: cursor.id } },
+          ],
+        },
+        {
+          AND: [{ moveDate: cursorDate }, { submittedAt: { not: null } }],
+        },
       ],
     };
   }
+
+  const secondaryDate = new Date(cursor.secondaryValue);
 
   return {
     OR: [
       { moveDate: { gt: cursorDate } },
       {
-        AND: [
-          { moveDate: cursorDate },
-          { submittedAt: { lt: secondaryDate } },
-        ],
+        AND: [{ moveDate: cursorDate }, { submittedAt: { lt: secondaryDate } }],
       },
       {
         AND: [

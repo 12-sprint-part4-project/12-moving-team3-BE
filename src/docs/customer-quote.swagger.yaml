@@ -493,6 +493,7 @@ paths:
                   comment: 포장 이사로 깔끔하게 진행해 드립니다.
                   status: PENDING
                   isDesignated: true
+                  estimateRequestStatus: SUBMITTED
                   serviceType: HOME
                   moveDate: '2024-05-10T00:00:00.000Z'
                   submittedAt: '2024-08-26T10:00:00.000Z'
