@@ -256,3 +256,13 @@ export const softDeletePost = async (postId: number) => {
     data: { deletedAt: new Date() },
   });
 };
+
+/** 게시글 조회수 +1. 대상 없으면 0 반환 */
+export const incrementViewCount = async (postId: number) => {
+  const result = await prisma.post.updateMany({
+    where: { id: postId, deletedAt: null },
+    data: { viewCount: { increment: 1 } },
+  });
+
+  return result.count;
+};

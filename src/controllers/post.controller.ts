@@ -100,3 +100,19 @@ export const deletePost = async (
     next(error);
   }
 };
+
+/** POST /api/posts/:postId/views — 게시글 조회수 +1 */
+export const incrementViewCount = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { postId } = getValidated<PostIdParams>(res, 'params');
+    await postService.incrementViewCount(postId);
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};

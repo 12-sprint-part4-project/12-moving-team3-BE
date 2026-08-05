@@ -515,6 +515,43 @@ router.delete(
 
 /**
  * @swagger
+ * /api/posts/{postId}/views:
+ *   post:
+ *     tags: [Posts]
+ *     summary: 게시글 조회수 증가
+ *     description: |
+ *       게시글 상세 조회 시 조회수를 1 증가시킵니다.
+ *       Bearer Access Token은 선택입니다. 비로그인(게스트)도 호출할 수 있습니다.
+ *       중복 호출 방지는 FE(sessionStorage)에서 처리합니다.
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       204:
+ *         description: 조회수 증가 성공
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post(
+  '/:postId/views',
+  optionalAuth,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  postController.incrementViewCount
+);
+
+/**
+ * @swagger
  * /api/posts/{postId}/comments:
  *   get:
  *     tags: [Posts]
