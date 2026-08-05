@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { Prisma } from '@prisma/client';
+import { EstimateRequestStatus, Prisma } from '@prisma/client';
 import { DashboardChartDateRange } from '../utils/admin-date-range.util';
 
 interface RequestTrendRow {
@@ -107,12 +107,13 @@ export const findEstimateRequestDetailById = async <
   T extends Prisma.EstimateRequestSelect,
 >(
   id: number,
-  select: T
+  select: T,
+  status?: EstimateRequestStatus
 ): Promise<Prisma.EstimateRequestGetPayload<{
   select: T;
 }> | null> => {
   return prisma.estimateRequest.findUnique({
-    where: { id },
+    where: { id, ...(status !== undefined && { status }) },
     select,
   });
 };

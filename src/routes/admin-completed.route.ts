@@ -4,6 +4,7 @@ import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { adminCompletedListQuerySchema } from '../schemas/admin-estimate-request.schema';
+import { estimateRequestIdParamsSchema } from '../schemas/estimate-request.schema';
 
 const router = Router();
 
@@ -27,6 +28,17 @@ router.get(
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminCompletedController.getCompletedList
+);
+
+// 완료 견적 요청 상세 조회 (Swagger: src/docs/admin-completed.swagger.yaml)
+router.get(
+  '/:estimateRequestId',
+  requireAdminAuth,
+  validateRequest({
+    params: estimateRequestIdParamsSchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminCompletedController.getCompletedRequestDetail
 );
 
 export default router;

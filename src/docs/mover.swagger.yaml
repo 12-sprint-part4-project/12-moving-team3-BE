@@ -422,7 +422,10 @@ paths:
         - name: sort
           in: query
           required: false
-          description: 정렬 조건 (기본값 MOVE_DATE_ASC)
+          description: |
+            정렬 조건 (기본값 MOVE_DATE_ASC)
+            - MOVE_DATE_ASC: 이사일 빠른 순. 이사일이 같으면 요청일시(submittedAt) 최신순
+            - SUBMITTED_AT_ASC: 요청일시 오래된 순
           schema:
             type: string
             enum: [MOVE_DATE_ASC, SUBMITTED_AT_ASC]

@@ -1,4 +1,5 @@
 import {
+  findEstimateRequestDetailById,
   findEstimateRequestList,
   getEstimateRequestCount,
 } from '../repositories/admin-estimate-request.repository';
@@ -11,8 +12,12 @@ import { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import { createEstimateRequestCommonWhere } from './admin-estimate-request.service';
-import { AdminCompletedListDto } from '../dtos/admin-estimate-request.dto';
+import {
+  AdminCompletedListDto,
+  AdminCompletedRequestDetailDto,
+} from '../dtos/admin-estimate-request.dto';
 import { AppError } from '../utils/app.error';
+import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
 // 완료 처리는 cron에 의해 이사 다음 날(COMPLETED)로 변경되지만,
 // 완료 통계는 실제 이사일(moveDate)을 기준으로 집계한다.
@@ -121,6 +126,79 @@ export const getCompletedList = async (
       page,
       pageSize,
       totalPages: Math.ceil(totalCount / pageSize),
+    },
+  };
+};
+
+export const getCompletedRequestDetail = async (
+  params: EstimateRequestIdParams
+): Promise<AdminCompletedRequestDetailDto> => {
+  const { estimateRequestId } = params;
+
+  const select = {
+    id: true,
+    user: { select: { name: true } },
+    moveType: true,
+    departureZipCode: true,
+    departureAddress: true,
+    departureDetailAddress: true,
+    arrivalZipCode: true,
+    arrivalAddress: true,
+    arrivalDetailAddress: true,
+    moveDate: true,
+    confirmedQuote: {
+      select: {
+        mover: { select: { name: true } },
+        price: true,
+        comment: true,
+        createdAt: true,
+      },
+    },
+  } satisfies Prisma.EstimateRequestSelect;
+
+  const estimateRequest = await findEstimateRequestDetailById(
+    estimateRequestId,
+    select,
+    EstimateRequestStatus.COMPLETED
+  );
+  if (estimateRequest == null) {
+    throw new AppError('ADMIN_ESTIMATE_REQUEST_NOT_FOUND');
+  }
+
+  if (
+    estimateRequest.moveType == null ||
+    estimateRequest.departureAddress == null ||
+    estimateRequest.departureDetailAddress == null ||
+    estimateRequest.departureZipCode == null ||
+    estimateRequest.arrivalAddress == null ||
+    estimateRequest.arrivalDetailAddress == null ||
+    estimateRequest.arrivalZipCode == null ||
+    estimateRequest.moveDate == null ||
+    estimateRequest.confirmedQuote == null ||
+    estimateRequest.confirmedQuote.mover == null ||
+    estimateRequest.confirmedQuote.price == null
+  ) {
+    throw new AppError('INTERNAL_SERVER_ERROR');
+  }
+
+  return {
+    data: {
+      id: estimateRequest.id,
+      userName: estimateRequest.user.name,
+      moveType: estimateRequest.moveType,
+      departureZipCode: estimateRequest.departureZipCode,
+      departureDetailAddress: estimateRequest.departureDetailAddress,
+      arrivalZipCode: estimateRequest.arrivalZipCode,
+      arrivalDetailAddress: estimateRequest.arrivalDetailAddress,
+      departureAddress: estimateRequest.departureAddress,
+      arrivalAddress: estimateRequest.arrivalAddress,
+      moveDate: estimateRequest.moveDate,
+      confirmedQuote: {
+        moverName: estimateRequest.confirmedQuote.mover.name,
+        price: estimateRequest.confirmedQuote.price,
+        comment: estimateRequest.confirmedQuote.comment,
+        createdAt: estimateRequest.confirmedQuote.createdAt,
+      },
     },
   };
 };

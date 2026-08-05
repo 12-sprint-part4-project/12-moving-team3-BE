@@ -110,7 +110,7 @@ paths:
         KST(한국 표준시) 기준 오늘을 포함한 최근 7일(6일 전 00:00부터 현재 시각까지)의 활동 목록을 조회합니다.
         각 목록은 최대 5건이며, 신고와 회원 가입은 생성일 내림차순, 이사 완료 견적 요청은 이사일(moveDate) 내림차순으로 반환합니다.
         신고는 생성일, 회원 가입은 생성일, 이사 완료 견적 요청은 이사일(moveDate)을 기준으로 조회합니다.
-        삭제된 회원은 회원 가입 목록에서 제외합니다.
+        회원 가입 목록은 일반 유저(CUSTOMER)만 포함하며, 삭제된 회원은 제외합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -167,7 +167,7 @@ paths:
                               example: PENDING
                       recentUsers:
                         type: array
-                        description: 최근 7일 동안 가입한 삭제되지 않은 회원 목록 (최대 5건)
+                        description: 최근 7일 동안 가입한 삭제되지 않은 일반 유저(CUSTOMER) 목록 (최대 5건)
                         items:
                           type: object
                           required: [nickname, email, createdAt]
