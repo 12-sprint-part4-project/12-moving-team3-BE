@@ -52,6 +52,16 @@ components:
           format: date-time
           nullable: true
           description: 견적 요청 제출 시각 (요청일)
+        quoteCount:
+          type: object
+          description: 해당 요청에 도착한 대기 중(PENDING) 견적의 지정/일반 건수
+          properties:
+            designated:
+              type: integer
+              example: 1
+            general:
+              type: integer
+              example: 4
     EstimateRequestListResponse:
       type: object
       properties:
@@ -514,7 +524,7 @@ paths:
         - confirmedQuoteId가 설정된(견적 확정된) 요청은 보내기/반려 모두 불가
 
         동시성 제어:
-        - 지정견적 요청은 최대 3개, 일반 견적 요청은 최대 5개까지 PROPOSAL 접수
+        - 지정 견적·일반 견적은 각각 독립 한도(지정 최대 3개 / 일반 최대 5개)로 PROPOSAL 접수
         - 'SELECT ... FOR UPDATE' 비관적 락으로 Race Condition 방어
         - '(estimateRequestId, moverId)' 유니크 제약으로 중복 제출(따닥) 방어
         - 반려(REJECTION)는 마감 인원 카운트에서 제외

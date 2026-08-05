@@ -44,6 +44,10 @@ export interface EstimateRequestListItem {
   arrival: { address: string | null; regionLabel: string | null };
   isDesignated: boolean;
   submittedAt: Date | null;
+  quoteCount: {
+    designated: number;
+    general: number;
+  };
 }
 
 export interface EstimateRequestFilterCounts {
@@ -143,6 +147,22 @@ const decodeCursor = (
   return decoded;
 };
 
+/** 대기 중 견적을 지정/일반 건수로 집계 */
+const countQuotesByDesignation = (
+  quotes: Array<{ isDesignated: boolean }>
+): { designated: number; general: number } =>
+  quotes.reduce(
+    (acc, quote) => {
+      if (quote.isDesignated) {
+        acc.designated += 1;
+      } else {
+        acc.general += 1;
+      }
+      return acc;
+    },
+    { designated: 0, general: 0 }
+  );
+
 /**
  * Repository 에서 조회한 원본 행(row)을 응답용 아이템 형태로 변환
  */
@@ -163,6 +183,7 @@ const toEstimateRequestListItem = (
   },
   isDesignated: row.designatedMovers.length > 0,
   submittedAt: row.submittedAt,
+  quoteCount: countQuotesByDesignation(row.quotes),
 });
 
 /**

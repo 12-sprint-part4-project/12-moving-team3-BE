@@ -1,6 +1,7 @@
 import {
   EstimateRequestStatus,
   MoveType,
+  QuoteStatus,
   type Prisma,
   type Region,
 } from '@prisma/client';
@@ -89,6 +90,8 @@ export interface EstimateRequestListRow {
   submittedAt: Date | null;
   user: { id: string; name: string };
   designatedMovers: { id: number }[];
+  /** 대기 중(PENDING) 견적 — 지정/일반 건수 집계용 */
+  quotes: { isDesignated: boolean }[];
 }
 
 /**
@@ -265,6 +268,13 @@ export const findEstimateRequests = async (
         where: { moverId: params.moverId },
         select: { id: true },
         take: 1,
+      },
+      quotes: {
+        where: {
+          deletedAt: null,
+          status: QuoteStatus.PENDING,
+        },
+        select: { isDesignated: true },
       },
     },
   });
