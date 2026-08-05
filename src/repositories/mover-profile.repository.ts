@@ -1,5 +1,7 @@
-import { MoveType, Region } from '@prisma/client';
+import { MoveType, Region, type Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export const findMoverProfileByUserId = async (userId: string) => {
   return prisma.moverProfile.findUnique({
@@ -9,9 +11,28 @@ export const findMoverProfileByUserId = async (userId: string) => {
       service: true,
       user: {
         select: {
+          name: true,
+          phoneNumber: true,
           profileImageKey: true,
         },
       },
+    },
+  });
+};
+
+export const findLocalPasswordHashByUserId = async (
+  userId: string,
+  db: DbClient = prisma
+) => {
+  return db.authAccount.findUnique({
+    where: {
+      userId_provider: {
+        userId,
+        provider: 'LOCAL',
+      },
+    },
+    select: {
+      passwordHash: true,
     },
   });
 };
@@ -50,7 +71,6 @@ export const findMoverProfileDetailByUserId = async (userId: string) => {
 export interface SaveMoverProfileInput {
   userId: string;
   nickname: string;
-  phoneNumber: string;
   career: number;
   shortDescription: string;
   description: string;
@@ -79,14 +99,12 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       where: { id: input.userId },
       data: {
         nickname: input.nickname,
-        phoneNumber: input.phoneNumber,
         ...(input.profileImageKey !== undefined
           ? { profileImageKey: input.profileImageKey }
           : {}),
       },
       select: {
         nickname: true,
-        phoneNumber: true,
         profileImageKey: true,
       },
     });
@@ -109,7 +127,6 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
 
     return {
       nickname: user.nickname,
-      phoneNumber: user.phoneNumber,
       career: profile.career,
       shortDescription: profile.shortDescription,
       description: profile.description,
@@ -117,6 +134,63 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       serviceRegions: profile.serviceRegions.map((item) => item.region),
       profileImageKey: user.profileImageKey,
       updatedAt: profile.updatedAt,
+    };
+  });
+};
+
+export interface UpdateMoverBasicInfoInput {
+  userId: string;
+  name?: string;
+  phoneNumber?: string;
+  passwordHash?: string;
+}
+
+export const updateMoverBasicInfo = async (input: UpdateMoverBasicInfoInput) => {
+  return prisma.$transaction(async (tx) => {
+    const hasUserUpdate =
+      input.name !== undefined || input.phoneNumber !== undefined;
+
+    if (hasUserUpdate) {
+      await tx.user.update({
+        where: { id: input.userId },
+        data: {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.phoneNumber !== undefined
+            ? { phoneNumber: input.phoneNumber }
+            : {}),
+        },
+      });
+    }
+
+    if (input.passwordHash !== undefined) {
+      await tx.authAccount.update({
+        where: {
+          userId_provider: {
+            userId: input.userId,
+            provider: 'LOCAL',
+          },
+        },
+        data: {
+          passwordHash: input.passwordHash,
+        },
+      });
+    }
+
+    const user = await tx.user.findUniqueOrThrow({
+      where: { id: input.userId },
+      select: {
+        name: true,
+        email: true,
+        phoneNumber: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      updatedAt: user.updatedAt,
     };
   });
 };
