@@ -422,3 +422,265 @@ paths:
                 error:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/reports/{reportId}:
+    get:
+      tags: [Admin Reports]
+      summary: 관리자 신고 상세 조회
+      description: |
+        신고 단건 상세를 조회합니다.
+        신고 기본 정보, 신고자, 처리 관리자, 대상 상태(targetInfo), 신고된 콘텐츠(content)를 포함합니다.
+        targetInfo는 항상 객체로 내려가며 exists/isDeleted로 미존재·삭제 상태를 구분합니다.
+        대상이 없거나 콘텐츠를 조회할 수 없으면 content는 null입니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          description: 신고 ID (양의 정수)
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      responses:
+        '200':
+          description: 신고 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - target
+                      - targetId
+                      - category
+                      - status
+                      - adminId
+                      - admin
+                      - createdAt
+                      - reporter
+                      - targetInfo
+                      - content
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      target:
+                        type: string
+                        enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                        example: REVIEW
+                      targetId:
+                        type: string
+                        example: '12'
+                      category:
+                        type: string
+                        enum: [INAPPROPRIATE_PROFILE, ABUSIVE_LANGUAGE]
+                        example: ABUSIVE_LANGUAGE
+                      status:
+                        type: string
+                        enum: [PENDING, RESOLVED, REJECTED]
+                        example: PENDING
+                      adminId:
+                        type: integer
+                        nullable: true
+                        example: null
+                      admin:
+                        nullable: true
+                        type: object
+                        required: [id, name, email]
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          name:
+                            type: string
+                            example: 관리자
+                          email:
+                            type: string
+                            format: email
+                            example: admin@example.com
+                      createdAt:
+                        type: string
+                        format: date-time
+                        example: '2026-08-01T10:00:00.000Z'
+                      reporter:
+                        type: object
+                        required:
+                          - id
+                          - name
+                          - nickname
+                          - email
+                          - userType
+                          - isDeleted
+                          - deletedAt
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          nickname:
+                            type: string
+                          email:
+                            type: string
+                            format: email
+                          userType:
+                            type: string
+                            enum: [CUSTOMER, MOVER]
+                          isDeleted:
+                            type: boolean
+                          deletedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      targetInfo:
+                        type: object
+                        required: [type, id, exists, isDeleted, user]
+                        properties:
+                          type:
+                            type: string
+                            enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                          id:
+                            type: string
+                          exists:
+                            type: boolean
+                            description: 대상 레코드 존재 여부
+                          isDeleted:
+                            type: boolean
+                            description: soft-delete 여부 (미존재 시 false)
+                          user:
+                            nullable: true
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                format: uuid
+                              name:
+                                type: string
+                              nickname:
+                                type: string
+                              email:
+                                type: string
+                              userType:
+                                type: string
+                                enum: [CUSTOMER, MOVER]
+                              isDeleted:
+                                type: boolean
+                              deletedAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                      content:
+                        nullable: true
+                        type: object
+                        required: [type, id, title, body, createdAt, deletedAt, metadata]
+                        properties:
+                          type:
+                            type: string
+                            enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                          id:
+                            type: string
+                          title:
+                            type: string
+                            nullable: true
+                          body:
+                            type: string
+                            nullable: true
+                          createdAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          deletedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          metadata:
+                            type: object
+                            nullable: true
+                            additionalProperties: true
+              example:
+                data:
+                  id: 1
+                  target: REVIEW
+                  targetId: '12'
+                  category: ABUSIVE_LANGUAGE
+                  status: PENDING
+                  adminId: null
+                  admin: null
+                  createdAt: '2026-08-01T10:00:00.000Z'
+                  reporter:
+                    id: '550e8400-e29b-41d4-a716-446655440000'
+                    name: 홍길동
+                    nickname: 길동이
+                    email: reporter@example.com
+                    userType: CUSTOMER
+                    isDeleted: false
+                    deletedAt: null
+                  targetInfo:
+                    type: REVIEW
+                    id: '12'
+                    exists: true
+                    isDeleted: false
+                    user:
+                      id: '550e8400-e29b-41d4-a716-446655440001'
+                      name: 김철수
+                      nickname: 철수
+                      email: author@example.com
+                      userType: MOVER
+                      isDeleted: false
+                      deletedAt: null
+                  content:
+                    type: REVIEW
+                    id: '12'
+                    title: 리뷰
+                    body: 불쾌한 리뷰 내용
+                    createdAt: '2026-07-30T09:00:00.000Z'
+                    deletedAt: null
+                    metadata:
+                      rating: 1
+        '400':
+          description: Path Parameter(reportId) 형식 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 신고가 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_REPORT_NOT_FOUND
+                  message: 존재하지 않는 신고입니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
