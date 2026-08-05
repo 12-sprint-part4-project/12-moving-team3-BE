@@ -344,7 +344,7 @@ paths:
                       createdAt: '2026-07-20T12:00:00.000Z'
                       customer:
                         id: c0ffeeee-0000-4000-8000-000000000001
-                        name: 김고객
+                        nickname: 김고객
                 meta:
                   pagination:
                     currentPage: 1

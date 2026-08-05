@@ -67,7 +67,7 @@ interface MoverReviewListItem {
   createdAt: Date;
   customer: {
     id: string;
-    name: string;
+    nickname: string;
   };
 }
 
@@ -191,7 +191,7 @@ export const getMoverReviews = async (
     createdAt: review.createdAt,
     customer: {
       id: review.user.id,
-      name: review.user.name,
+      nickname: review.user.nickname,
     },
   }));
 

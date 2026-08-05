@@ -125,7 +125,7 @@ const reviewRepository = {
           user: {
             select: {
               id: true,
-              name: true,
+              nickname: true,
             },
           },
         },
