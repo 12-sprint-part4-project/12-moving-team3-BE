@@ -214,7 +214,7 @@ paths:
                       createdAt: '2026-07-15T10:00:00.000Z'
                       mover:
                         id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                        nickname: 빠른이사맨
+                        name: 빠른이사맨
                         profileImageUrl: https://cdn.example.com/profiles/mover-12.jpg
                         moverProfile:
                           career: 5

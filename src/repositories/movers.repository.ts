@@ -463,7 +463,7 @@ const moversRepository = {
         mover: {
           select: {
             id: true,
-            nickname: true,
+            name: true,
             profileImageKey: true,
             moverProfile: {
               select: {
