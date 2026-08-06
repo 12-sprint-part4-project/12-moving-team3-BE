@@ -64,6 +64,16 @@ interface AdvanceReadStatusParams {
   lastReadMessageId: number;
 }
 
+export interface PartnerReadStatus {
+  lastReadMessageId: number;
+  readAt: Date;
+}
+
+export interface PartnerRoomFilter {
+  roomId: number;
+  partnerId: string;
+}
+
 /** 삭제되지 않은 MOVER 유저(기사님)를 ID로 조회한다. */
 export const findMoverById = async (moverId: string) => {
   return prisma.user.findFirst({
@@ -233,7 +243,7 @@ export const findRoomDetailById = async (roomId: number) => {
 export const findPartnerReadStatus = async (
   roomId: number,
   readerId: string
-): Promise<{ lastReadMessageId: number; readAt: Date } | null> => {
+): Promise<PartnerReadStatus | null> => {
   const status = await prisma.chatReadStatus.findUnique({
     where: {
       roomId_readerId: {
@@ -251,13 +261,10 @@ export const findPartnerReadStatus = async (
  * 방·상대(partner) 기준 읽음 상태를 일괄 조회한다.
  */
 export const findPartnerReadStatusesByRooms = async (
-  rooms: Array<{ roomId: number; partnerId: string }>
-) => {
+  rooms: PartnerRoomFilter[]
+): Promise<Map<number, PartnerReadStatus>> => {
   if (rooms.length === 0) {
-    return new Map<
-      number,
-      { lastReadMessageId: number; readAt: Date }
-    >();
+    return new Map<number, PartnerReadStatus>();
   }
 
   const statuses = await prisma.chatReadStatus.findMany({

@@ -49,17 +49,19 @@ interface ChatRoomPartner {
   profileImageUrl: string | null;
 }
 
+interface ChatRoomLastMessage {
+  messageId: number;
+  senderId: string;
+  content: string;
+  messageType: MessageType;
+  createdAt: string;
+}
+
 interface ChatRoomListItem {
   roomId: number;
   roomType: ChatRoomType;
   partner: ChatRoomPartner;
-  lastMessage: {
-    messageId: number;
-    senderId: string;
-    content: string;
-    messageType: MessageType;
-    createdAt: string;
-  } | null;
+  lastMessage: ChatRoomLastMessage | null;
   partnerLastReadMessageId: number | null;
   partnerLastReadAt: string | null;
   unreadCount: number;
@@ -118,6 +120,7 @@ interface ChatMessagesResult {
 
 interface MarkChatRoomAsReadResult {
   lastReadMessageId: number;
+  readAt: string;
 }
 
 interface LeaveChatRoomResult {
@@ -127,6 +130,24 @@ interface LeaveChatRoomResult {
 
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
+
+/** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
+const selectPartnerParticipant = <
+  T extends { participantId: string; leftAt: Date | null },
+>(
+  participants: T[],
+  authUserId: string
+): T | null => {
+  const partnerCandidates = participants.filter(
+    (participant) => participant.participantId !== authUserId
+  );
+
+  return (
+    partnerCandidates.find((participant) => participant.leftAt === null) ??
+    partnerCandidates[0] ??
+    null
+  );
+};
 
 /** Date를 YYYY-MM-DD 형식으로 변환한다. */
 const toDateString = (date: Date) => date.toISOString().slice(0, 10);
@@ -402,8 +423,9 @@ export const getChatRoomList = async (
   }));
 
   const partnerRoomFilters = roomVisibility.flatMap(({ room }) => {
-    const partnerParticipant = room.participants.find(
-      (participant) => participant.participantId !== authUser.userId
+    const partnerParticipant = selectPartnerParticipant(
+      room.participants,
+      authUser.userId
     );
 
     if (!partnerParticipant) {
@@ -428,13 +450,10 @@ export const getChatRoomList = async (
   const roomListItems = (
     await Promise.all(
       roomVisibility.map(async ({ room }): Promise<ChatRoomListItem | null> => {
-        const partnerCandidates = room.participants.filter(
-          (participant) => participant.participantId !== authUser.userId
+        const partnerParticipant = selectPartnerParticipant(
+          room.participants,
+          authUser.userId
         );
-
-        const partnerParticipant =
-          partnerCandidates.find((participant) => participant.leftAt === null) ??
-          partnerCandidates[0];
 
         if (!partnerParticipant) {
           return null;
@@ -524,13 +543,10 @@ export const getChatRoomDetail = async (
     throw new AppError('FORBIDDEN');
   }
 
-  const partnerCandidates = room.participants.filter(
-    (participant) => participant.participantId !== authUser.userId
+  const partnerParticipant = selectPartnerParticipant(
+    room.participants,
+    authUser.userId
   );
-
-  const partnerParticipant =
-    partnerCandidates.find((participant) => participant.leftAt === null) ??
-    partnerCandidates[0];
 
   if (!partnerParticipant) {
     throw new AppError('ROOM_NOT_FOUND');
@@ -861,7 +877,10 @@ export const markChatRoomAsRead = async (
     partnerIds,
   });
 
-  return { lastReadMessageId: readStatus.lastReadMessageId };
+  return {
+    lastReadMessageId: readStatus.lastReadMessageId,
+    readAt: toIsoString(readStatus.readAt),
+  };
 };
 
 /**

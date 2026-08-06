@@ -413,6 +413,10 @@ router.post(
  *                     lastReadMessageId:
  *                       type: integer
  *                       description: 반영된 마지막 읽음 메시지 ID
+ *                     readAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: 반영된 읽음 시각(ISO). 소켓 `chat:read` payload와 동일
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       401:
@@ -511,7 +515,8 @@ router.post(
  *     summary: 채팅방 상세 조회
  *     description: |
  *       채팅방의 상대방 정보, 견적 요청 요약, 메시지 발송 가능 여부,
- *       상대방 읽음 커서(`partnerLastReadMessageId`)를 반환합니다.
+ *       상대방 읽음 커서(`partnerLastReadMessageId`)와
+ *       상대방 마지막 읽음 시각(`partnerLastReadAt`, 읽음 기록 없으면 null)을 반환합니다.
  *       활성 참여자(leftAt IS NULL)만 조회할 수 있습니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
