@@ -20,6 +20,7 @@ interface ChatRoomReadParams {
   roomId: number;
   readerId: string;
   lastReadMessageId: number;
+  readAt: string;
   partnerIds: string[];
 }
 
@@ -86,6 +87,7 @@ export const emitChatRoomRead = async (
       roomId: params.roomId,
       readerId: params.readerId,
       lastReadMessageId: params.lastReadMessageId,
+      readAt: params.readAt,
     };
 
     for (const partnerId of params.partnerIds) {

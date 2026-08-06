@@ -19,6 +19,8 @@ interface CreateChatRoomData {
 }
 
 interface RoomLastMessage {
+  messageId: number;
+  senderId: string;
   content: string;
   messageType: MessageType;
   createdAt: Date;
@@ -60,6 +62,16 @@ interface AdvanceReadStatusParams {
   roomId: number;
   readerId: string;
   lastReadMessageId: number;
+}
+
+export interface PartnerReadStatus {
+  lastReadMessageId: number;
+  readAt: Date;
+}
+
+export interface PartnerRoomFilter {
+  roomId: number;
+  partnerId: string;
 }
 
 /** 삭제되지 않은 MOVER 유저(기사님)를 ID로 조회한다. */
@@ -225,13 +237,13 @@ export const findRoomDetailById = async (roomId: number) => {
 };
 
 /**
- * 방·리더 기준 마지막 읽음 메시지 ID를 조회한다.
- * 읽음 행이 없으면 null.
+ * 방·리더 기준 읽음 상태를 조회한다.
+ * 행이 없으면 null.
  */
-export const findLastReadMessageId = async (
+export const findPartnerReadStatus = async (
   roomId: number,
   readerId: string
-): Promise<number | null> => {
+): Promise<PartnerReadStatus | null> => {
   const status = await prisma.chatReadStatus.findUnique({
     where: {
       roomId_readerId: {
@@ -239,10 +251,45 @@ export const findLastReadMessageId = async (
         readerId,
       },
     },
-    select: { lastReadMessageId: true },
+    select: { lastReadMessageId: true, readAt: true },
   });
 
-  return status?.lastReadMessageId ?? null;
+  return status;
+};
+
+/**
+ * 방·상대(partner) 기준 읽음 상태를 일괄 조회한다.
+ */
+export const findPartnerReadStatusesByRooms = async (
+  rooms: PartnerRoomFilter[]
+): Promise<Map<number, PartnerReadStatus>> => {
+  if (rooms.length === 0) {
+    return new Map<number, PartnerReadStatus>();
+  }
+
+  const statuses = await prisma.chatReadStatus.findMany({
+    where: {
+      OR: rooms.map(({ roomId, partnerId }) => ({
+        roomId,
+        readerId: partnerId,
+      })),
+    },
+    select: {
+      roomId: true,
+      lastReadMessageId: true,
+      readAt: true,
+    },
+  });
+
+  return new Map(
+    statuses.map((status) => [
+      status.roomId,
+      {
+        lastReadMessageId: status.lastReadMessageId,
+        readAt: status.readAt,
+      },
+    ])
+  );
 };
 
 /**
@@ -335,7 +382,9 @@ export const findLastMessagesByRooms = async (
   const messages = await prisma.chatMessage.findMany({
     where: { id: { in: latestMessageIds } },
     select: {
+      id: true,
       roomId: true,
+      senderId: true,
       content: true,
       messageType: true,
       createdAt: true,
@@ -352,6 +401,8 @@ export const findLastMessagesByRooms = async (
     }
 
     lastMessageByRoomId.set(message.roomId, {
+      messageId: message.id,
+      senderId: message.senderId,
       content: message.content,
       messageType: message.messageType,
       createdAt: message.createdAt,
@@ -813,6 +864,18 @@ export const findMessageInRoomAfterJoinedAt = async (
 export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
   const { roomId, readerId, lastReadMessageId } = params;
 
+  const fetchCurrent = async () => {
+    return prisma.chatReadStatus.findUnique({
+      where: {
+        roomId_readerId: {
+          roomId,
+          readerId,
+        },
+      },
+      select: { lastReadMessageId: true, readAt: true },
+    });
+  };
+
   const advanced = await prisma.chatReadStatus.updateMany({
     where: {
       roomId,
@@ -823,22 +886,17 @@ export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
   });
 
   if (advanced.count > 0) {
-    return { lastReadMessageId };
+    const current = await fetchCurrent();
+    if (current) {
+      return current;
+    }
   }
 
   // 행이 이미 존재하지만 전진 조건을 만족하지 못한 경우, 예외 없이 현재 값을 바로 반환한다.
-  const existing = await prisma.chatReadStatus.findUnique({
-    where: {
-      roomId_readerId: {
-        roomId,
-        readerId,
-      },
-    },
-    select: { lastReadMessageId: true },
-  });
+  const existing = await fetchCurrent();
 
   if (existing) {
-    return { lastReadMessageId: existing.lastReadMessageId };
+    return existing;
   }
 
   try {
@@ -848,7 +906,7 @@ export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
         readerId,
         lastReadMessageId,
       },
-      select: { lastReadMessageId: true },
+      select: { lastReadMessageId: true, readAt: true },
     });
   } catch (error) {
     if (
@@ -868,18 +926,11 @@ export const advanceReadStatus = async (params: AdvanceReadStatusParams) => {
       data: { lastReadMessageId },
     });
 
-    const current = await prisma.chatReadStatus.findUnique({
-      where: {
-        roomId_readerId: {
-          roomId,
-          readerId,
-        },
-      },
-      select: { lastReadMessageId: true },
-    });
+    const current = await fetchCurrent();
 
     return {
       lastReadMessageId: current?.lastReadMessageId ?? lastReadMessageId,
+      readAt: current?.readAt ?? new Date(),
     };
   }
 };

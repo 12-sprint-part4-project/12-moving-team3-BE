@@ -49,15 +49,21 @@ interface ChatRoomPartner {
   profileImageUrl: string | null;
 }
 
+interface ChatRoomLastMessage {
+  messageId: number;
+  senderId: string;
+  content: string;
+  messageType: MessageType;
+  createdAt: string;
+}
+
 interface ChatRoomListItem {
   roomId: number;
   roomType: ChatRoomType;
   partner: ChatRoomPartner;
-  lastMessage: {
-    content: string;
-    messageType: MessageType;
-    createdAt: string;
-  } | null;
+  lastMessage: ChatRoomLastMessage | null;
+  partnerLastReadMessageId: number | null;
+  partnerLastReadAt: string | null;
   unreadCount: number;
 }
 
@@ -82,6 +88,8 @@ interface ChatRoomDetailResult {
   isMessagingAllowed: boolean;
   /** 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null */
   partnerLastReadMessageId: number | null;
+  /** 상대방 readAt(ISO). 읽음 기록 없으면 null */
+  partnerLastReadAt: string | null;
   updatedAt: string;
 }
 
@@ -112,6 +120,7 @@ interface ChatMessagesResult {
 
 interface MarkChatRoomAsReadResult {
   lastReadMessageId: number;
+  readAt: string;
 }
 
 interface LeaveChatRoomResult {
@@ -121,6 +130,24 @@ interface LeaveChatRoomResult {
 
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
+
+/** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
+const selectPartnerParticipant = <
+  T extends { participantId: string; leftAt: Date | null },
+>(
+  participants: T[],
+  authUserId: string
+): T | null => {
+  const partnerCandidates = participants.filter(
+    (participant) => participant.participantId !== authUserId
+  );
+
+  return (
+    partnerCandidates.find((participant) => participant.leftAt === null) ??
+    partnerCandidates[0] ??
+    null
+  );
+};
 
 /** Date를 YYYY-MM-DD 형식으로 변환한다. */
 const toDateString = (date: Date) => date.toISOString().slice(0, 10);
@@ -395,21 +422,38 @@ export const getChatRoomList = async (
     joinedAt,
   }));
 
-  const [lastMessageByRoomId, unreadCountByRoomId] = await Promise.all([
-    chatRepository.findLastMessagesByRooms(roomFilters),
-    chatRepository.findUnreadCountsByRooms(authUser.userId, roomFilters),
-  ]);
+  const partnerRoomFilters = roomVisibility.flatMap(({ room }) => {
+    const partnerParticipant = selectPartnerParticipant(
+      room.participants,
+      authUser.userId
+    );
+
+    if (!partnerParticipant) {
+      return [];
+    }
+
+    return [
+      {
+        roomId: room.id,
+        partnerId: partnerParticipant.participantId,
+      },
+    ];
+  });
+
+  const [lastMessageByRoomId, unreadCountByRoomId, partnerReadStatusByRoomId] =
+    await Promise.all([
+      chatRepository.findLastMessagesByRooms(roomFilters),
+      chatRepository.findUnreadCountsByRooms(authUser.userId, roomFilters),
+      chatRepository.findPartnerReadStatusesByRooms(partnerRoomFilters),
+    ]);
 
   const roomListItems = (
     await Promise.all(
       roomVisibility.map(async ({ room }): Promise<ChatRoomListItem | null> => {
-        const partnerCandidates = room.participants.filter(
-          (participant) => participant.participantId !== authUser.userId
+        const partnerParticipant = selectPartnerParticipant(
+          room.participants,
+          authUser.userId
         );
-
-        const partnerParticipant =
-          partnerCandidates.find((participant) => participant.leftAt === null) ??
-          partnerCandidates[0];
 
         if (!partnerParticipant) {
           return null;
@@ -417,6 +461,7 @@ export const getChatRoomList = async (
 
         const partner = partnerParticipant.user;
         const lastMessage = lastMessageByRoomId.get(room.id);
+        const partnerReadStatus = partnerReadStatusByRoomId.get(room.id);
 
         return {
           roomId: room.id,
@@ -429,10 +474,17 @@ export const getChatRoomList = async (
           },
           lastMessage: lastMessage
             ? {
+                messageId: lastMessage.messageId,
+                senderId: lastMessage.senderId,
                 content: lastMessage.content,
                 messageType: lastMessage.messageType,
                 createdAt: toIsoString(lastMessage.createdAt),
               }
+            : null,
+          partnerLastReadMessageId:
+            partnerReadStatus?.lastReadMessageId ?? null,
+          partnerLastReadAt: partnerReadStatus
+            ? toIsoString(partnerReadStatus.readAt)
             : null,
           unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
         };
@@ -491,20 +543,17 @@ export const getChatRoomDetail = async (
     throw new AppError('FORBIDDEN');
   }
 
-  const partnerCandidates = room.participants.filter(
-    (participant) => participant.participantId !== authUser.userId
+  const partnerParticipant = selectPartnerParticipant(
+    room.participants,
+    authUser.userId
   );
-
-  const partnerParticipant =
-    partnerCandidates.find((participant) => participant.leftAt === null) ??
-    partnerCandidates[0];
 
   if (!partnerParticipant) {
     throw new AppError('ROOM_NOT_FOUND');
   }
 
   const partner = partnerParticipant.user;
-  const partnerLastReadMessageId = await chatRepository.findLastReadMessageId(
+  const partnerReadStatus = await chatRepository.findPartnerReadStatus(
     roomId,
     partner.id
   );
@@ -531,7 +580,10 @@ export const getChatRoomDetail = async (
     isMessagingAllowed: isMessagingAllowedByEstimateStatus(
       room.estimateRequest?.status
     ),
-    partnerLastReadMessageId,
+    partnerLastReadMessageId: partnerReadStatus?.lastReadMessageId ?? null,
+    partnerLastReadAt: partnerReadStatus
+      ? toIsoString(partnerReadStatus.readAt)
+      : null,
     updatedAt: toIsoString(room.updatedAt),
   };
 };
@@ -821,10 +873,14 @@ export const markChatRoomAsRead = async (
     roomId,
     readerId: authUser.userId,
     lastReadMessageId: readStatus.lastReadMessageId,
+    readAt: toIsoString(readStatus.readAt),
     partnerIds,
   });
 
-  return { lastReadMessageId: readStatus.lastReadMessageId };
+  return {
+    lastReadMessageId: readStatus.lastReadMessageId,
+    readAt: toIsoString(readStatus.readAt),
+  };
 };
 
 /**
