@@ -631,7 +631,7 @@ export const submitEstimateRequest = async (
     throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
   }
 
-  // 매칭 기사 대량 알림 — Outbox 1건만 enqueue(본 거래와 분리). 실제 발송은 워커(Sprint 2).
+  // 매칭 기사 대량 알림 — Outbox 1건만 enqueue(본 거래와 분리). 실제 발송은 outbox 워커.
   try {
     await notificationService.enqueueNewQuoteRequestFanout(updated.id);
   } catch (error) {
