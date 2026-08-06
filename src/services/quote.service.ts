@@ -673,6 +673,7 @@ const toPastQuoteGroupDto = async (
   estimateRequestId: row.id,
   status: row.status,
   submittedAt: row.submittedAt,
+  confirmedAt: row.confirmedAt,
   serviceType: row.moveType,
   moveDate: row.moveDate,
   fromAddress: toFullAddressLabel(

@@ -113,6 +113,8 @@ export interface CustomerPastQuoteGroupDto {
   estimateRequestId: number;
   status: EstimateRequestStatus;
   submittedAt: Date | null;
+  /** 견적 확정 시각 */
+  confirmedAt: Date | null;
   serviceType: MoveType | null;
   moveDate: Date | null;
   fromAddress: string | null;
