@@ -225,6 +225,27 @@ export const findRoomDetailById = async (roomId: number) => {
 };
 
 /**
+ * 방·리더 기준 마지막 읽음 메시지 ID를 조회한다.
+ * 읽음 행이 없으면 null.
+ */
+export const findLastReadMessageId = async (
+  roomId: number,
+  readerId: string
+): Promise<number | null> => {
+  const status = await prisma.chatReadStatus.findUnique({
+    where: {
+      roomId_readerId: {
+        roomId,
+        readerId,
+      },
+    },
+    select: { lastReadMessageId: true },
+  });
+
+  return status?.lastReadMessageId ?? null;
+};
+
+/**
  * 유저가 활성 참여 중인 방의 roomId·joinedAt만 조회한다.
  * 미읽음 합산 등 partner/방 메타가 필요 없는 집계에 사용한다.
  */
