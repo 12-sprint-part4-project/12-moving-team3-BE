@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
+import * as notificationService from '../services/notification.service';
 import { startOfDayKst } from '../utils/date.util';
 
 /**
@@ -8,6 +9,7 @@ import { startOfDayKst } from '../utils/date.util';
  * - CONFIRMED → COMPLETED
  * 이사일 다음 날 00:00(KST)부터 경과로 본다.
  * 한쪽 실패해도 다른 쪽은 계속 시도한다.
+ * COMPLETED 전환 후·재실행 시 REVIEW_REQUESTED 미발송분을 catch-up 한다.
  */
 export const runEstimateRequestStatusChangeJob = async (): Promise<void> => {
   const todayStart = startOfDayKst(new Date());
@@ -39,6 +41,16 @@ export const runEstimateRequestStatusChangeJob = async (): Promise<void> => {
   } catch (error) {
     console.error(
       '[estimate-request-status-change] complete step failed',
+      error
+    );
+  }
+
+  // COMPLETED 직후 + 이전 누락분 — 이미 보낸 (receiver, type, estimateRequestId) 는 skip
+  try {
+    await notificationService.notifyMissingReviewRequestedForCompletedMoves();
+  } catch (error) {
+    console.error(
+      '[estimate-request-status-change] review-requested catch-up failed',
       error
     );
   }
