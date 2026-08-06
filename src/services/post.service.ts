@@ -224,6 +224,7 @@ export const getPostById = async (postId: number, userId?: string) => {
     content: post.content,
     images: await Promise.all(
       post.images.map(async (img) => ({
+        imageKey: img.imageKey,
         imageUrl: await toPresignedViewUrl(img.imageKey),
       }))
     ),
