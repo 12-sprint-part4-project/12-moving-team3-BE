@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import {
+  allowUserTypes,
+  requireAuth,
+  requireAuthAllowSuspended,
+} from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { quoteIdParamsSchema } from '../schemas/quote.schema';
 import {
@@ -15,7 +19,7 @@ const router = Router();
 // 기사님의 리뷰 목록 조회 (Swagger: src/docs/review.swagger.yaml)
 router.get(
   '/mover',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('MOVER'),
   validateRequest({
     query: reviewListQuerySchema,
