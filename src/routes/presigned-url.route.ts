@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as presignedUrlController from '../controllers/presigned-url.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
+import { requireAuthAllowSuspended } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { presignedUploadUrlQuerySchema } from '../schemas/presigned-url.schema';
 
@@ -8,7 +8,7 @@ const router = Router();
 
 router.get(
   '/presigned-upload-url',
-  requireAuth,
+  requireAuthAllowSuspended,
   validateRequest({
     query: presignedUploadUrlQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',

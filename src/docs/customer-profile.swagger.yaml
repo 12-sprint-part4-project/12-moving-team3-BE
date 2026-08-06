@@ -171,8 +171,7 @@ paths:
       summary: 일반 유저 본인 프로필 조회
       description: |
         로그인한 일반 유저(CUSTOMER)의 등록된 프로필을 조회합니다.
-        헤더(닉네임·프로필 이미지)용으로 정지(SUSPENDED) 계정도 조회할 수 있습니다.
-        프로필 수정(PATCH)은 정지 시 불가합니다.
+        정지(SUSPENDED) 계정도 조회·수정할 수 있습니다.
       security:
         - bearerAuth: []
       responses:
