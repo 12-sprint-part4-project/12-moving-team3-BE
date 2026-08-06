@@ -370,7 +370,16 @@ export const processNotificationOutboxTick = async (): Promise<void> => {
       return;
     }
 
+    // claim 시 attempts 상한 도달로 FAILED 전환된 행 — 처리하지 않고 다음 claim
+    if (job.status === 'FAILED') {
+      console.error(
+        `[notification-outbox] job id=${job.id} type=${job.jobType} sourceId=${job.sourceId} marked FAILED (max attempts)`
+      );
+      continue;
+    }
+
     try {
+      // markOutboxFailure에는 claim 반환 attempts(회수 포함 증가분)를 그대로 전달
       await processClaimedOutboxJob(job);
     } catch (error) {
       console.error(

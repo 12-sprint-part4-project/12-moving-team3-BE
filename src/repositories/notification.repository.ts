@@ -122,7 +122,8 @@ export const createOutboxJob = async (
 
 /**
  * PENDING(또는 stale PROCESSING) 잡 1건 claim — FOR UPDATE SKIP LOCKED.
- * PENDING→PROCESSING 시에만 attempts++. 동시 워커 중복 claim 방지.
+ * claim마다 attempts++ (PENDING·stale PROCESSING 동일). 상한 도달 시 FAILED로 전환하고
+ * status=FAILED 행을 반환하므로 호출측은 PROCESSING만 처리한다.
  * Sprint 2: 매칭 fan-out만 claim. ADMIN_NOTICE는 후속 전략 추가 시 조건 확장.
  */
 export const claimOutboxJob = async (
@@ -148,10 +149,17 @@ export const claimOutboxJob = async (
     )
     UPDATE notification_outboxes AS o
     SET
-      status = 'PROCESSING'::"NotificationOutboxStatus",
-      attempts = CASE
-        WHEN o.status = 'PENDING'::"NotificationOutboxStatus" THEN o.attempts + 1
-        ELSE o.attempts
+      -- PENDING·stale PROCESSING 모두 회수 시 attempts++ (워커 크래시 시 상한 동작)
+      attempts = o.attempts + 1,
+      status = CASE
+        WHEN o.attempts + 1 >= ${maxAttempts}
+          THEN 'FAILED'::"NotificationOutboxStatus"
+        ELSE 'PROCESSING'::"NotificationOutboxStatus"
+      END,
+      last_error = CASE
+        WHEN o.attempts + 1 >= ${maxAttempts}
+          THEN 'max attempts exceeded on claim'
+        ELSE o.last_error
       END,
       updated_at = NOW()
     FROM cte
