@@ -33,6 +33,25 @@ export const startOfDayKst = (date: Date = new Date()): Date => {
 };
 
 /**
+ * Asia/Seoul 기준 현재 시각이 지정 hour(0–23) 이상인지.
+ * 이사 전날 리마인더 부팅 catch-up(09:00 이후만) 등에 사용.
+ */
+export const isAtOrAfterHourKst = (
+  hour: number,
+  now: Date = new Date()
+): boolean => {
+  const hourPart = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  })
+    .formatToParts(now)
+    .find((part) => part.type === 'hour')?.value;
+
+  return Number(hourPart ?? '0') >= hour;
+};
+
+/**
  * 이사일 경과 여부 판별
  * moveDate가 없으면 만료로 간주
  */
