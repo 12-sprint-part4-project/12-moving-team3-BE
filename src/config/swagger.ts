@@ -194,6 +194,7 @@ const options: swaggerJSDoc.Options = {
                     'email',
                     'phoneNumber',
                     'isProfileCompleted',
+                    'status',
                   ],
                   properties: {
                     id: {
@@ -221,6 +222,13 @@ const options: swaggerJSDoc.Options = {
                       example: true,
                       description:
                         'CUSTOMER: CustomerProfile.service 길이 > 0, MOVER: MoverProfile.service 길이 > 0',
+                    },
+                    status: {
+                      type: 'string',
+                      enum: ['ACTIVE', 'SUSPENDED'],
+                      example: 'ACTIVE',
+                      description:
+                        '계정 상태. UserStatusInfo가 없으면 ACTIVE로 정규화',
                     },
                   },
                 },
@@ -297,6 +305,7 @@ const options: swaggerJSDoc.Options = {
                     'email',
                     'phoneNumber',
                     'isProfileCompleted',
+                    'status',
                   ],
                   properties: {
                     id: {
@@ -323,6 +332,13 @@ const options: swaggerJSDoc.Options = {
                     isProfileCompleted: {
                       type: 'boolean',
                       example: false,
+                    },
+                    status: {
+                      type: 'string',
+                      enum: ['ACTIVE', 'SUSPENDED'],
+                      example: 'ACTIVE',
+                      description:
+                        '계정 상태. UserStatusInfo가 없으면 ACTIVE로 정규화',
                     },
                   },
                 },

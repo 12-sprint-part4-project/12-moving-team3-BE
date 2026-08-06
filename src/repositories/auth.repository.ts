@@ -56,6 +56,7 @@ const userAuthSelect = {
   createdAt: true,
   customerProfile: { select: { id: true, service: true } },
   moverProfile: { select: { id: true, service: true } },
+  userStatus: { select: { status: true } },
 } as const;
 
 export const findUserWithLocalAuthByEmail = async (email: string) => {
@@ -69,6 +70,7 @@ export const findUserWithLocalAuthByEmail = async (email: string) => {
       phoneNumber: true,
       customerProfile: { select: { id: true, service: true } },
       moverProfile: { select: { id: true, service: true } },
+      userStatus: { select: { status: true } },
       authAccounts: {
         where: { provider: 'LOCAL' },
         select: { passwordHash: true },
