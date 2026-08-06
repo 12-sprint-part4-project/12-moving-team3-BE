@@ -10,28 +10,51 @@ export interface AuthenticatedUser {
   userType: ApiUserType;
 }
 
+const authenticateAccessToken = (req: Parameters<RequestHandler>[0]): AuthenticatedUser => {
+  const header = req.get('authorization');
+  const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
+
+  if (!token) {
+    throw new AppError('UNAUTHORIZED');
+  }
+
+  const payload = verifyAccessToken(token);
+
+  return {
+    userId: payload.sub,
+    userType: payload.userType,
+  };
+};
+
+/**
+ * Access Token 필수. 정지 계정도 통과한다.
+ * 헤더용 프로필 조회처럼 로그인 유지가 필요한 읽기 API에 사용.
+ */
+export const requireAuthAllowSuspended: RequestHandler = (req, res, next) => {
+  try {
+    res.locals.user = authenticateAccessToken(req);
+    next();
+  } catch (error) {
+    if (error instanceof AppError) {
+      next(error);
+      return;
+    }
+
+    next(new AppError('UNAUTHORIZED'));
+  }
+};
+
 /** Access Token 필수. 정지 계정이면 USER_SUSPENDED. 성공 시 res.locals.user에 저장 */
 export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
-    const header = req.get('authorization');
-    const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
-
-    if (!token) {
-      throw new AppError('UNAUTHORIZED');
-    }
-
-    const payload = verifyAccessToken(token);
-    const userStatus = await authRepository.findUserStatusByUserId(payload.sub);
+    const user = authenticateAccessToken(req);
+    const userStatus = await authRepository.findUserStatusByUserId(user.userId);
 
     if (userStatus?.status === UserStatus.SUSPENDED) {
       throw new AppError('USER_SUSPENDED');
     }
 
-    res.locals.user = {
-      userId: payload.sub,
-      userType: payload.userType,
-    } satisfies AuthenticatedUser;
-
+    res.locals.user = user;
     next();
   } catch (error) {
     if (error instanceof AppError) {

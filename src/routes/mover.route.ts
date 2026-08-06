@@ -14,15 +14,16 @@ import {
   quoteListQuerySchema,
   quoteParamsSchema,
 } from '../schemas/quote.schema';
-import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
 import { requireCompletedMoverProfile } from '../middlewares/profile.middleware';
 
 const router = Router();
 
-// 기사님 본인 프로필 조회 (Swagger: src/docs/mover-profile.swagger.yaml)
+// 기사님 본인 프로필 조회 — 헤더용, 정지 유저도 허용
+// (Swagger: src/docs/mover-profile.swagger.yaml)
 router.get(
   '/profile',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('MOVER'),
   moverProfileController.getMoverProfile
 );
