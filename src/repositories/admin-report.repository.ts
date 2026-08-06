@@ -293,7 +293,7 @@ export const findAdminReportById = async (
  * 프로필 보강 필드가 다른 조회 경로에 영향을 주지 않게 한다.
  * 전화번호·비밀번호·인증 계정 등 민감 정보는 포함하지 않는다.
  */
-const reportDetailTargetUserSelect = {
+const REPORT_DETAIL_TARGET_USER_SELECT = {
   id: true,
   name: true,
   nickname: true,
@@ -334,7 +334,7 @@ export const findReportDetailTargetUserById = async (
 ) => {
   return db.user.findUnique({
     where: { id },
-    select: reportDetailTargetUserSelect,
+    select: REPORT_DETAIL_TARGET_USER_SELECT,
   });
 };
 

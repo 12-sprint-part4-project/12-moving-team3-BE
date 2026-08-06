@@ -288,39 +288,46 @@ type ReportDetailTargetUserRow = NonNullable<
 >;
 
 /**
- * customer/mover 프로필 row → DTO.
- * 둘 다 없으면 null을 반환해 상위 profile 구조를 고정한다.
+ * userType 기준으로 customer/mover 프로필만 매핑한다.
+ * 반대 타입 프로필은 조회돼도 무시하고, 해당 타입 relation이 없으면 profile 전체를 null로 둔다.
  * 전화번호는 매핑하지 않는다.
  */
 const toDetailUserProfile = (
-  customerProfile: ReportDetailTargetUserRow['customerProfile'],
-  moverProfile: ReportDetailTargetUserRow['moverProfile']
+  user: ReportDetailTargetUserRow
 ): AdminReportDetailUserProfileDto | null => {
-  if (!customerProfile && !moverProfile) {
-    return null;
+  if (user.userType === 'CUSTOMER') {
+    if (!user.customerProfile) {
+      return null;
+    }
+
+    const customer: AdminReportDetailCustomerProfileDto = {
+      region: user.customerProfile.region,
+      service: user.customerProfile.service,
+    };
+
+    return { customer, mover: null };
   }
 
-  const customer: AdminReportDetailCustomerProfileDto | null = customerProfile
-    ? {
-        region: customerProfile.region,
-        service: customerProfile.service,
-      }
-    : null;
+  if (user.userType === 'MOVER') {
+    if (!user.moverProfile) {
+      return null;
+    }
 
-  const mover: AdminReportDetailMoverProfileDto | null = moverProfile
-    ? {
-        service: moverProfile.service,
-        career: moverProfile.career,
-        shortDescription: moverProfile.shortDescription,
-        description: moverProfile.description,
-        // DTO는 { region }[] 형태 — Repository select와 동일하게 지역 값만 담는다.
-        serviceRegions: moverProfile.serviceRegions.map((item) => ({
-          region: item.region,
-        })),
-      }
-    : null;
+    const mover: AdminReportDetailMoverProfileDto = {
+      service: user.moverProfile.service,
+      career: user.moverProfile.career,
+      shortDescription: user.moverProfile.shortDescription,
+      description: user.moverProfile.description,
+      // DTO는 { region }[] 형태 — Repository select와 동일하게 지역 값만 담는다.
+      serviceRegions: user.moverProfile.serviceRegions.map((item) => ({
+        region: item.region,
+      })),
+    };
 
-  return { customer, mover };
+    return { customer: null, mover };
+  }
+
+  return null;
 };
 
 /**
@@ -338,7 +345,7 @@ const toDetailTargetUserSummary = (
   isDeleted: user.deletedAt !== null,
   deletedAt: user.deletedAt,
   profileImageKey: user.profileImageKey,
-  profile: toDetailUserProfile(user.customerProfile, user.moverProfile),
+  profile: toDetailUserProfile(user),
 });
 
 /** 신고자 row → 상세 reporter DTO */
