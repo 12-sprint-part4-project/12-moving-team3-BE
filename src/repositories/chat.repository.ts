@@ -206,9 +206,10 @@ export const findRoomDetailById = async (roomId: number) => {
         },
       },
       participants: {
-        where: { leftAt: null },
+        orderBy: { joinedAt: 'desc' },
         select: {
           participantId: true,
+          leftAt: true,
           user: {
             select: {
               id: true,

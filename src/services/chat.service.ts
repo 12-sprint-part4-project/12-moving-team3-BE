@@ -467,7 +467,7 @@ export const getUnreadCount = async (
 /**
  * 채팅방 상세 정보를 조회한다.
  * - 활성 참여자(leftAt IS NULL)만 접근 가능
- * - partner는 상대방 유저 정보를 반환
+ * - partner는 상대방 유저 정보(활성 우선, 없으면 최근 참여 이력)를 반환
  */
 export const getChatRoomDetail = async (
   authUser: AuthenticatedUser,
@@ -480,16 +480,21 @@ export const getChatRoomDetail = async (
   }
 
   const isActiveParticipant = room.participants.some(
-    (participant) => participant.participantId === authUser.userId
+    (participant) =>
+      participant.participantId === authUser.userId && participant.leftAt === null
   );
 
   if (!isActiveParticipant) {
     throw new AppError('FORBIDDEN');
   }
 
-  const partnerParticipant = room.participants.find(
+  const partnerCandidates = room.participants.filter(
     (participant) => participant.participantId !== authUser.userId
   );
+
+  const partnerParticipant =
+    partnerCandidates.find((participant) => participant.leftAt === null) ??
+    partnerCandidates[0];
 
   if (!partnerParticipant) {
     throw new AppError('ROOM_NOT_FOUND');
