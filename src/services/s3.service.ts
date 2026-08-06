@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -12,6 +13,45 @@ interface S3ObjectMetadata {
   contentLength: number;
   contentType: string | undefined;
 }
+
+export interface S3ObjectSummary {
+  key: string;
+  lastModified: Date;
+}
+
+/** prefix 하위 S3 객체 목록 (페이지 단위) */
+export const listObjectsByPrefix = async (
+  prefix: string,
+  options?: { maxKeys?: number; continuationToken?: string }
+): Promise<{ objects: S3ObjectSummary[]; continuationToken?: string }> => {
+  const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
+
+  const result = await s3Client.send(
+    new ListObjectsV2Command({
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Prefix: normalizedPrefix,
+      MaxKeys: options?.maxKeys ?? 1000,
+      ContinuationToken: options?.continuationToken,
+    })
+  );
+
+  const objects = (result.Contents ?? [])
+    .filter(
+      (item): item is { Key: string; LastModified: Date } =>
+        typeof item.Key === 'string' &&
+        item.Key.length > 0 &&
+        item.LastModified instanceof Date
+    )
+    .map((item) => ({
+      key: item.Key,
+      lastModified: item.LastModified,
+    }));
+
+  return {
+    objects,
+    continuationToken: result.NextContinuationToken,
+  };
+};
 
 export const createPresignedUploadUrl = async (
   filename: string,
