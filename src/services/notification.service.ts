@@ -1,8 +1,9 @@
-import type {
-  MoveType,
-  NotificationOutboxJobType,
-  NotificationType,
-  Prisma,
+import {
+  EstimateRequestStatus,
+  type MoveType,
+  type NotificationOutboxJobType,
+  type NotificationType,
+  type Prisma,
 } from '@prisma/client';
 import {
   renderNotificationContent,
@@ -272,6 +273,12 @@ const processNewQuoteRequestFanout = async (job: {
     );
   if (!request) {
     // 원본 삭제 등으로 대상 없음 — 재시도 의미 없으므로 DONE
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+
+  // 제출 직후 취소·만료 등이면 매칭 알림 불필요 — DONE으로 종료
+  if (request.status !== EstimateRequestStatus.SUBMITTED) {
     await notificationRepository.markOutboxDone(job.id);
     return;
   }

@@ -25,6 +25,7 @@ export interface CreateOutboxJobData {
 export interface FanoutEstimateRequestRow {
   id: number;
   userId: string;
+  status: EstimateRequestStatus;
   moveType: MoveType | null;
   departureAddress: string | null;
   arrivalAddress: string | null;
@@ -227,7 +228,7 @@ export const markOutboxFailure = async (
   });
 };
 
-/** fan-out용 견적요청 요약 */
+/** fan-out용 견적요청 요약 — status로 SUBMITTED만 발송할지 판단 */
 export const findEstimateRequestForFanout = async (
   estimateRequestId: number
 ): Promise<FanoutEstimateRequestRow | null> => {
@@ -236,6 +237,7 @@ export const findEstimateRequestForFanout = async (
     select: {
       id: true,
       userId: true,
+      status: true,
       moveType: true,
       departureAddress: true,
       arrivalAddress: true,
