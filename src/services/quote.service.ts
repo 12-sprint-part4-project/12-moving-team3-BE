@@ -40,8 +40,9 @@ import {
 } from '../schemas/quote.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
-import { toPresignedViewUrl } from './s3.service';
+import { countQuotesByDesignation } from '../utils/quote-count.util';
 import { inferDistrictLabelFromAddress } from '../utils/region.util';
+import { toPresignedViewUrl } from './s3.service';
 
 // --- [기사님(MOVER)용 API] ---
 
@@ -672,24 +673,6 @@ const buildPastQuoteGroups = async (
 
   return Promise.all(rows.map((row) => toPastQuoteGroupDto(row, moverMap)));
 };
-
-/**
- * 일반/지정 견적 건수 집계
- */
-const countQuotesByDesignation = (
-  quotes: Array<{ isDesignated: boolean }>
-): { general: number; designated: number } =>
-  quotes.reduce(
-    (acc, quote) => {
-      if (quote.isDesignated) {
-        acc.designated += 1;
-      } else {
-        acc.general += 1;
-      }
-      return acc;
-    },
-    { general: 0, designated: 0 }
-  );
 
 /**
  * 대기 중인 견적 리스트 조회
