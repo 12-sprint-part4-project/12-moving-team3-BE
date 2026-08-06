@@ -40,6 +40,60 @@ export interface NotificationListItem {
   userReportId: number | null;
 }
 
+export interface NotifyMatchingMoversOnEstimateSubmitParams {
+  estimateRequestId: number;
+  customerId: string;
+  moveType: MoveType | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+}
+
+export interface NotifyDesignatedQuoteRequestArrivedParams {
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string;
+  moveType: MoveType | null;
+}
+
+export interface NotifyReviewRequestedParams {
+  customerId: string;
+  moveType: MoveType | null;
+  estimateRequestId: number;
+}
+
+export interface NotifyReviewWrittenParams {
+  moverId: string;
+  customerName: string;
+  reviewId: number;
+  estimateRequestId?: number | null;
+}
+
+export interface NotifyCommunityCommentParams {
+  receiverId: string;
+  authorName: string;
+  commentId: number;
+}
+
+export interface NotifySanctionParams {
+  receiverId: string;
+}
+
+export interface NotifyCommunityReplyParams {
+  receiverId: string;
+  authorName: string;
+  commentId: number;
+}
+
+export interface NotifyPostRemovedByReportParams {
+  receiverId: string;
+  userReportId?: number | null;
+}
+
+export interface NotifyChatRoomOpenedParams {
+  receiverId: string;
+  counterpartName: string;
+}
+
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -153,13 +207,9 @@ export const markNotificationAsRead = async (
  * 일반 견적 요청 제출 → 지역·이사유형 매칭 기사에게 NEW_QUOTE_REQUEST_ARRIVED.
  * 지정 알림은 여기서 보내지 않는다(지정 API 시점).
  */
-export const notifyMatchingMoversOnEstimateSubmit = async (params: {
-  estimateRequestId: number;
-  customerId: string;
-  moveType: MoveType | null;
-  departureAddress: string | null;
-  arrivalAddress: string | null;
-}): Promise<void> => {
+export const notifyMatchingMoversOnEstimateSubmit = async (
+  params: NotifyMatchingMoversOnEstimateSubmitParams
+): Promise<void> => {
   const moverIds = await notificationRepository.findMoverIdsForNewRequest({
     departureAddress: params.departureAddress,
     arrivalAddress: params.arrivalAddress,
@@ -191,12 +241,9 @@ export const notifyMatchingMoversOnEstimateSubmit = async (params: {
  * 지정 견적 요청 생성 → 해당 기사에게 NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED.
  * 이전에 일반 알림을 받았든 말든 항상 발송한다.
  */
-export const notifyDesignatedQuoteRequestArrived = async (params: {
-  estimateRequestId: number;
-  customerId: string;
-  moverId: string;
-  moveType: MoveType | null;
-}): Promise<void> => {
+export const notifyDesignatedQuoteRequestArrived = async (
+  params: NotifyDesignatedQuoteRequestArrivedParams
+): Promise<void> => {
   const customerName =
     (await notificationRepository.findUserNameById(params.customerId)) ??
     '고객';
@@ -385,11 +432,9 @@ export const createMoveDayReminderIfAbsent = async (params: {
 };
 
 /** 이사 완료 → 고객 리뷰 요청 (동일 estimateRequestId 중복 skip) */
-export const notifyReviewRequested = async (params: {
-  customerId: string;
-  moveType: MoveType | null;
-  estimateRequestId: number;
-}): Promise<NotificationListItem | null> => {
+export const notifyReviewRequested = async (
+  params: NotifyReviewRequestedParams
+): Promise<NotificationListItem | null> => {
   const exists =
     await notificationRepository.existsByReceiverTypeAndEstimate(
       params.customerId,
@@ -410,12 +455,9 @@ export const notifyReviewRequested = async (params: {
 };
 
 /** 리뷰 작성 → 기사 */
-export const notifyReviewWritten = async (params: {
-  moverId: string;
-  customerName: string;
-  reviewId: number;
-  estimateRequestId?: number | null;
-}): Promise<NotificationListItem> => {
+export const notifyReviewWritten = async (
+  params: NotifyReviewWrittenParams
+): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.moverId,
     type: 'REVIEW_WRITTEN',
@@ -426,11 +468,9 @@ export const notifyReviewWritten = async (params: {
 };
 
 /** 게시글 댓글 → 원글 작성자 */
-export const notifyCommunityComment = async (params: {
-  receiverId: string;
-  authorName: string;
-  commentId: number;
-}): Promise<NotificationListItem> => {
+export const notifyCommunityComment = async (
+  params: NotifyCommunityCommentParams
+): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_COMMENT',
@@ -440,9 +480,9 @@ export const notifyCommunityComment = async (params: {
 };
 
 /** 유저 정지 → 정지 당한 유저 */
-export const notifySanction = async (params: {
-  receiverId: string;
-}): Promise<NotificationListItem> => {
+export const notifySanction = async (
+  params: NotifySanctionParams
+): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'SANCTION_NOTIFIED',
@@ -451,11 +491,9 @@ export const notifySanction = async (params: {
 };
 
 /** 대댓글 → 부모 댓글 작성자 */
-export const notifyCommunityReply = async (params: {
-  receiverId: string;
-  authorName: string;
-  commentId: number;
-}): Promise<NotificationListItem> => {
+export const notifyCommunityReply = async (
+  params: NotifyCommunityReplyParams
+): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_REPLY',
@@ -465,10 +503,9 @@ export const notifyCommunityReply = async (params: {
 };
 
 /** 신고로 게시글 삭제 → 원글 작성자 */
-export const notifyPostRemovedByReport = async (params: {
-  receiverId: string;
-  userReportId?: number | null;
-}): Promise<NotificationListItem> => {
+export const notifyPostRemovedByReport = async (
+  params: NotifyPostRemovedByReportParams
+): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'POST_REMOVED_BY_REPORT',
@@ -478,10 +515,9 @@ export const notifyPostRemovedByReport = async (params: {
 };
 
 /** 채팅방 최초 생성 → 상대 참여자 */
-export const notifyChatRoomOpened = async (params: {
-  receiverId: string;
-  counterpartName: string;
-}): Promise<NotificationListItem> => {
+export const notifyChatRoomOpened = async (
+  params: NotifyChatRoomOpenedParams
+): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'CHAT_ROOM_OPENED',

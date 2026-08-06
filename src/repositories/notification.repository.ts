@@ -159,11 +159,15 @@ export const findDesignatedMoverIds = async (
  * 일반 견적 요청 알림 대상 — 출발/도착 주소가 서비스 지역과 매칭되고
  * 프로필 service에 이사유형이 포함된 기사 (받은 견적 요청 serviceArea 필터와 동일 기준)
  */
-export const findMoverIdsForNewRequest = async (params: {
+export interface FindMoverIdsForNewRequestParams {
   departureAddress: string | null;
   arrivalAddress: string | null;
   moveType: MoveType | null;
-}): Promise<string[]> => {
+}
+
+export const findMoverIdsForNewRequest = async (
+  params: FindMoverIdsForNewRequestParams
+): Promise<string[]> => {
   if (!params.moveType) {
     return [];
   }
