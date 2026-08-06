@@ -267,7 +267,7 @@ model NotificationOutbox {
 
   @@unique([jobType, sourceId])
   @@index([status, updatedAt])
-  @@map("notification_outbox")
+  @@map("notification_outboxes")
 }
 
 /// userId, adminUserId는 배치/시스템 처리(예: move_date 경과로 자동 COMPLETED 전환) 시 null
