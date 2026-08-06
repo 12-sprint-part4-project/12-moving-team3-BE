@@ -110,6 +110,9 @@ components:
         - createdAt
         - quoteId
         - estimateRequestId
+        - commentId
+        - reviewId
+        - userReportId
       properties:
         id:
           type: integer
@@ -148,6 +151,15 @@ components:
           type: integer
           nullable: true
         estimateRequestId:
+          type: integer
+          nullable: true
+        commentId:
+          type: integer
+          nullable: true
+        reviewId:
+          type: integer
+          nullable: true
+        userReportId:
           type: integer
           nullable: true
     NotificationListResponse:

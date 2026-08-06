@@ -34,6 +34,10 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
   REVIEW_REQUESTED: '{moveTypeLabel} 이용 후기를 남겨주세요',
   REVIEW_WRITTEN: '{customerName} 고객님이 리뷰를 남겼어요',
   COMMUNITY_COMMENT: '{authorName}님이 댓글을 남겼어요',
+  // 답글은 원글 댓글과 type을 분리해 FE 딥링크·문구를 다르게 쓴다
+  COMMUNITY_REPLY: '{authorName}님이 답글을 남겼어요',
+  POST_REMOVED_BY_REPORT: '신고로 게시글이 삭제되었어요',
+  CHAT_ROOM_OPENED: '{counterpartName}님과의 채팅방이 열렸어요',
   SANCTION_NOTIFIED: '계정에 제재가 적용되었습니다',
 };
 

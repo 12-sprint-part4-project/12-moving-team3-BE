@@ -35,6 +35,9 @@ export interface NotificationListItem {
   createdAt: string;
   quoteId: number | null;
   estimateRequestId: number | null;
+  commentId: number | null;
+  reviewId: number | null;
+  userReportId: number | null;
 }
 
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
@@ -60,6 +63,9 @@ const toListItem = (row: NotificationRow): NotificationListItem => ({
   createdAt: row.createdAt.toISOString(),
   quoteId: row.quoteId,
   estimateRequestId: row.estimateRequestId,
+  commentId: row.commentId,
+  reviewId: row.reviewId,
+  userReportId: row.userReportId,
 });
 
 /**
@@ -375,5 +381,110 @@ export const createMoveDayReminderIfAbsent = async (params: {
     type: params.type,
     payload: params.payload,
     estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** 이사 완료 → 고객 리뷰 요청 (동일 estimateRequestId 중복 skip) */
+export const notifyReviewRequested = async (params: {
+  customerId: string;
+  moveType: MoveType | null;
+  estimateRequestId: number;
+}): Promise<NotificationListItem | null> => {
+  const exists =
+    await notificationRepository.existsByReceiverTypeAndEstimate(
+      params.customerId,
+      'REVIEW_REQUESTED',
+      params.estimateRequestId
+    );
+
+  if (exists) {
+    return null;
+  }
+
+  return createNotification({
+    receiverId: params.customerId,
+    type: 'REVIEW_REQUESTED',
+    payload: { moveTypeLabel: toMoveTypeLabel(params.moveType) },
+    estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** 리뷰 작성 → 기사 */
+export const notifyReviewWritten = async (params: {
+  moverId: string;
+  customerName: string;
+  reviewId: number;
+  estimateRequestId?: number | null;
+}): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.moverId,
+    type: 'REVIEW_WRITTEN',
+    payload: { customerName: params.customerName },
+    reviewId: params.reviewId,
+    estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** 게시글 댓글 → 원글 작성자 */
+export const notifyCommunityComment = async (params: {
+  receiverId: string;
+  authorName: string;
+  commentId: number;
+}): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'COMMUNITY_COMMENT',
+    payload: { authorName: params.authorName },
+    commentId: params.commentId,
+  });
+};
+
+/** 유저 정지 → 정지 당한 유저 */
+export const notifySanction = async (params: {
+  receiverId: string;
+}): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'SANCTION_NOTIFIED',
+    payload: {},
+  });
+};
+
+/** 대댓글 → 부모 댓글 작성자 */
+export const notifyCommunityReply = async (params: {
+  receiverId: string;
+  authorName: string;
+  commentId: number;
+}): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'COMMUNITY_REPLY',
+    payload: { authorName: params.authorName },
+    commentId: params.commentId,
+  });
+};
+
+/** 신고로 게시글 삭제 → 원글 작성자 */
+export const notifyPostRemovedByReport = async (params: {
+  receiverId: string;
+  userReportId?: number | null;
+}): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'POST_REMOVED_BY_REPORT',
+    payload: {},
+    userReportId: params.userReportId,
+  });
+};
+
+/** 채팅방 최초 생성 → 상대 참여자 */
+export const notifyChatRoomOpened = async (params: {
+  receiverId: string;
+  counterpartName: string;
+}): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'CHAT_ROOM_OPENED',
+    payload: { counterpartName: params.counterpartName },
   });
 };
