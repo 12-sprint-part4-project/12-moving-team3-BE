@@ -3,6 +3,7 @@ import * as commentRepository from '../repositories/comment.repository';
 import type { CommentCursor } from '../repositories/comment.repository';
 import * as postRepository from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
+import * as notificationService from './notification.service';
 import { toPresignedViewUrl } from './s3.service';
 
 const isCommentCursor = (value: unknown): value is CommentCursor => {
@@ -171,6 +172,18 @@ export const createComment = async (
     throw new AppError('POST_NOT_FOUND');
   }
 
+  // 알림 실패가 댓글 작성을 막지 않도록 커밋 이후 try/catch
+  try {
+    await notificationService.notifyCommunityCommentOrReplyByCommentId(
+      comment.id
+    );
+  } catch (error) {
+    console.error(
+      `[createComment] community comment notification failed commentId=${comment.id}`,
+      error
+    );
+  }
+
   return { id: comment.id };
 };
 
@@ -211,6 +224,18 @@ export const createReply = async (
 
   if (!reply) {
     throw new AppError('COMMENT_NOT_FOUND');
+  }
+
+  // 알림 실패가 답글 작성을 막지 않도록 커밋 이후 try/catch
+  try {
+    await notificationService.notifyCommunityCommentOrReplyByCommentId(
+      reply.id
+    );
+  } catch (error) {
+    console.error(
+      `[createReply] community reply notification failed commentId=${reply.id}`,
+      error
+    );
   }
 
   return { id: reply.id };

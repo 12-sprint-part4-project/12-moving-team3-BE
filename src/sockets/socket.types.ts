@@ -51,6 +51,7 @@ export interface ChatReadPayload {
   roomId: number;
   readerId: string;
   lastReadMessageId: number;
+  readAt: string;
 }
 
 export interface ChatUnreadPayload {

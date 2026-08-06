@@ -6,6 +6,7 @@ import reviewRepository from '../repositories/review.repository';
 import type { ReviewBody } from '../schemas/review.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateReached } from '../utils/date.util';
+import * as notificationService from './notification.service';
 import { toPresignedViewUrl } from './s3.service';
 
 /** 목록 조회 공통 페이지네이션 메타 */
@@ -355,6 +356,16 @@ export const createReview = async (
         tx
       );
     });
+
+    // 알림 실패가 리뷰 작성을 막지 않도록 커밋 이후 try/catch
+    try {
+      await notificationService.notifyReviewWrittenByReviewId(review.id);
+    } catch (error) {
+      console.error(
+        `[createReview] review written notification failed reviewId=${review.id}`,
+        error
+      );
+    }
 
     return review;
   } catch (error) {

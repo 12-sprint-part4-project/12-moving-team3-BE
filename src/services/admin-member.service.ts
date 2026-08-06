@@ -22,6 +22,7 @@ import { createHistory } from '../repositories/history.repository';
 import reviewRepository from '../repositories/review.repository';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { AppError } from '../utils/app.error';
+import * as notificationService from './notification.service';
 
 /** 관리자 수동 정지 기간 — 정책상 7일 고정 */
 const ADMIN_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -205,12 +206,24 @@ export const suspendAdminMember = async (
 ): Promise<AdminMemberStatusResultDto> => {
   const now = new Date();
 
-  return changeAdminMemberStatus(memberId, adminId, {
+  const result = await changeAdminMemberStatus(memberId, adminId, {
     status: UserStatus.SUSPENDED,
     suspendedAt: now,
     // 정지 종료 시각을 서버 기준으로 고정해 클라이언트 시계 편차를 피한다.
     suspendedUntil: new Date(now.getTime() + ADMIN_SUSPEND_DURATION_MS),
   });
+
+  // 알림 실패가 정지를 막지 않도록 상태 반영 이후 try/catch
+  try {
+    await notificationService.notifySanction({ receiverId: memberId });
+  } catch (error) {
+    console.error(
+      `[suspendAdminMember] sanction notification failed memberId=${memberId}`,
+      error
+    );
+  }
+
+  return result;
 };
 
 /**
