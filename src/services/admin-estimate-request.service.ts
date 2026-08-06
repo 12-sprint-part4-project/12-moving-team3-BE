@@ -28,14 +28,9 @@ export const getEstimateRequestStatistics = async ({
 
 export const createEstimateRequestCommonWhere = ({
   search,
-  startDate,
-  endDate,
 }: {
   search?: string;
-  startDate?: Date;
-  endDate?: Date;
 }): Prisma.EstimateRequestWhereInput => {
-  const dateRange = createDateRange(startDate, endDate);
   const orConditions: Prisma.EstimateRequestWhereInput[] = [];
   const normalizedPhoneNumber = search?.replace(/\D/g, '');
 
@@ -66,7 +61,6 @@ export const createEstimateRequestCommonWhere = ({
   }
 
   return {
-    ...(dateRange && { submittedAt: dateRange }),
     ...(orConditions.length > 0 && { OR: orConditions }),
   };
 };
@@ -75,18 +69,18 @@ export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
   const { page, pageSize, status, search, startDate, endDate } = query;
+  const dateRange = createDateRange(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
     ...createEstimateRequestCommonWhere({
       search,
-      startDate,
-      endDate,
     }),
     status: status ?? {
       not: {
         in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.COMPLETED],
       },
     },
+    ...(dateRange && { submittedAt: dateRange }),
   };
 
   const select = {
