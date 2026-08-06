@@ -498,7 +498,8 @@ router.post(
  *     tags: [Chat]
  *     summary: 채팅방 상세 조회
  *     description: |
- *       채팅방의 상대방 정보, 견적 요청 요약, 메시지 발송 가능 여부를 반환합니다.
+ *       채팅방의 상대방 정보, 견적 요청 요약, 메시지 발송 가능 여부,
+ *       상대방 읽음 커서(`partnerLastReadMessageId`)를 반환합니다.
  *       활성 참여자(leftAt IS NULL)만 조회할 수 있습니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
@@ -561,6 +562,10 @@ router.post(
  *                       nullable: true
  *                     isMessagingAllowed:
  *                       type: boolean
+ *                     partnerLastReadMessageId:
+ *                       type: integer
+ *                       nullable: true
+ *                       description: 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null
  *                     updatedAt:
  *                       type: string
  *                       format: date-time

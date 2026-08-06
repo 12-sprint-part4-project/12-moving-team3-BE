@@ -80,6 +80,8 @@ interface ChatRoomDetailResult {
   } | null;
   quoteId: number | null;
   isMessagingAllowed: boolean;
+  /** 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null */
+  partnerLastReadMessageId: number | null;
   updatedAt: string;
 }
 
@@ -468,6 +470,7 @@ export const getUnreadCount = async (
  * 채팅방 상세 정보를 조회한다.
  * - 활성 참여자(leftAt IS NULL)만 접근 가능
  * - partner는 상대방 유저 정보(활성 우선, 없으면 최근 참여 이력)를 반환
+ * - partnerLastReadMessageId는 상대방 읽음 커서(없으면 null)
  */
 export const getChatRoomDetail = async (
   authUser: AuthenticatedUser,
@@ -501,13 +504,17 @@ export const getChatRoomDetail = async (
   }
 
   const partner = partnerParticipant.user;
+  const partnerLastReadMessageId = await chatRepository.findLastReadMessageId(
+    roomId,
+    partner.id
+  );
 
   return {
     partner: {
       id: partner.id,
       userType: partner.userType,
       nickname: partner.nickname,
-            profileImageUrl: await toPresignedViewUrl(partner.profileImageKey),
+      profileImageUrl: await toPresignedViewUrl(partner.profileImageKey),
     },
     requestSummary: room.estimateRequest
       ? {
@@ -524,6 +531,7 @@ export const getChatRoomDetail = async (
     isMessagingAllowed: isMessagingAllowedByEstimateStatus(
       room.estimateRequest?.status
     ),
+    partnerLastReadMessageId,
     updatedAt: toIsoString(room.updatedAt),
   };
 };
