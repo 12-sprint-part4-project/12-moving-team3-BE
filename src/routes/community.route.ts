@@ -294,6 +294,9 @@ router.get(
  *                       items:
  *                         type: object
  *                         properties:
+ *                           imageKey:
+ *                             type: string
+ *                             description: S3 key 원본 (posts/{uuid}_{filename})
  *                           imageUrl:
  *                             type: string
  *                             nullable: true
