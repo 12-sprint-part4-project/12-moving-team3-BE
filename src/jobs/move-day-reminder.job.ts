@@ -58,9 +58,16 @@ export const runMoveDayReminderJob = async (): Promise<void> => {
 };
 
 /**
- * 매일 09:00 Asia/Seoul 에 이사 전날 리마인더 실행
+ * 매일 09:00 Asia/Seoul 에 이사 전날 리마인더 실행.
+ * 부팅 직후 1회 catch-up — 09:00 이후 배포/재시작으로 당일 cron 이 빠진 경우를 보정.
+ * 이미 보낸 (receiverId, type, estimateRequestId) 는 createMoveDayReminderIfAbsent 가 skip.
  */
 export const startMoveDayReminderCron = (): void => {
+  // 부팅 catch-up (실패해도 cron 스케줄은 등록)
+  runMoveDayReminderJob().catch((error) => {
+    console.error('[move-day-reminder] boot catch-up failed', error);
+  });
+
   // minute hour day-of-month month day-of-week
   cron.schedule(
     '0 9 * * *',
@@ -73,5 +80,7 @@ export const startMoveDayReminderCron = (): void => {
     { timezone: 'Asia/Seoul' }
   );
 
-  console.log('[cron] move-day reminder scheduled (09:00 Asia/Seoul)');
+  console.log(
+    '[cron] move-day reminder scheduled (09:00 Asia/Seoul) + boot catch-up'
+  );
 };
