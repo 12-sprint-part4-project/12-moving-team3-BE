@@ -93,6 +93,113 @@ export const findAdminReportsWithCount = async (
   return { items, totalCount };
 };
 
+/**
+ * 신고 대상 사용자 검색 시 사용자 조회 상한.
+ * 이름/닉네임/이메일이 흔한 단어도 있어, 무제한 contains는 목록 필터를 과도하게 넓힌다.
+ */
+const REPORT_TARGET_USER_SEARCH_LIMIT = 100;
+
+/**
+ * target별 콘텐츠 ID 조회 상한.
+ * UserReport.targetId IN (...)에 넣을 후보를 제한해 쿼리 크기를 고정한다.
+ */
+const REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT = 500;
+
+/** 검색어로 찾은 대상 사용자·콘텐츠의 targetId 후보 (UserReport.targetId와 맞춰 string) */
+export type AdminReportTargetIdsByKeyword = {
+  userIds: string[];
+  reviewIds: string[];
+  messageIds: string[];
+  articleIds: string[];
+  commentIds: string[];
+  chatRoomIds: string[];
+};
+
+const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
+  userIds: [],
+  reviewIds: [],
+  messageIds: [],
+  articleIds: [],
+  commentIds: [],
+  chatRoomIds: [],
+};
+
+/**
+ * 신고 대상 사용자 검색어로 target 타입별 targetId 목록을 조회한다.
+ * 목록 where 조립은 이후 커밋에서 연결하고, 여기서는 ID 후보만 만든다.
+ *
+ * - USER: 일치 사용자 id
+ * - REVIEW/ARTICLE/COMMENT: 작성자 userId
+ * - MESSAGE: 발신자 senderId
+ * - CHAT_ROOM: 참여자 participantId
+ *
+ * deletedAt은 걸지 않는다 — 탈퇴·삭제된 대상의 신고도 관리자가 검색할 수 있어야 한다.
+ */
+export const findReportTargetIdsByTargetUserKeyword = async (
+  keyword: string,
+  db: DbClient = prisma
+): Promise<AdminReportTargetIdsByKeyword> => {
+  const matchedUsers = await db.user.findMany({
+    where: {
+      OR: [
+        { name: { contains: keyword, mode: 'insensitive' } },
+        { nickname: { contains: keyword, mode: 'insensitive' } },
+        { email: { contains: keyword, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true },
+    take: REPORT_TARGET_USER_SEARCH_LIMIT,
+  });
+
+  if (matchedUsers.length === 0) {
+    return EMPTY_REPORT_TARGET_IDS_BY_KEYWORD;
+  }
+
+  const userIds = matchedUsers.map((user) => user.id);
+
+  const [reviews, messages, articles, comments, chatRooms] = await Promise.all([
+    db.review.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true },
+      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
+    }),
+    db.chatMessage.findMany({
+      where: { senderId: { in: userIds } },
+      select: { id: true },
+      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
+    }),
+    db.post.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true },
+      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
+    }),
+    db.comment.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true },
+      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
+    }),
+    // 참여자 중 한 명이라도 검색 사용자면 해당 방 id를 후보에 넣는다.
+    db.chatRoom.findMany({
+      where: {
+        participants: {
+          some: { participantId: { in: userIds } },
+        },
+      },
+      select: { id: true },
+      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
+    }),
+  ]);
+
+  return {
+    userIds,
+    reviewIds: reviews.map((row) => String(row.id)),
+    messageIds: messages.map((row) => String(row.id)),
+    articleIds: articles.map((row) => String(row.id)),
+    commentIds: comments.map((row) => String(row.id)),
+    chatRoomIds: chatRooms.map((row) => String(row.id)),
+  };
+};
+
 /** targetId 문자열을 Int PK용 숫자로 변환. 유효하지 않으면 null */
 export const parseNumericTargetId = (targetId: string): number | null => {
   if (!/^[1-9]\d*$/.test(targetId)) {
