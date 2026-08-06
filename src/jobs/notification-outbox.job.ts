@@ -14,15 +14,20 @@ export const runNotificationOutboxJob = async (): Promise<void> => {
  * 매칭 알림 지연을 줄이려고 분 단위로 돌리고, 재시작 누락분은 boot catch-up.
  */
 export const startNotificationOutboxCron = (): void => {
-  const runSafely = (): void => {
-    runNotificationOutboxJob().catch((error) => {
+  // Promise를 반환해야 noOverlap이 이전 틱 종료를 기다릴 수 있다
+  const runSafely = (): Promise<void> => {
+    return runNotificationOutboxJob().catch((error) => {
       console.error('[notification-outbox] job failed', error);
     });
   };
 
   // minute hour day-of-month month day-of-week
-  cron.schedule('* * * * *', runSafely, { timezone: 'Asia/Seoul' });
+  cron.schedule('* * * * *', runSafely, {
+    name: 'notification-outbox',
+    timezone: 'Asia/Seoul',
+    noOverlap: true,
+  });
 
   // 부팅 직후 1회 — 재시작으로 놓친 PENDING/stale PROCESSING 보정
-  runSafely();
+  void runSafely();
 };
