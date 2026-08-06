@@ -668,6 +668,7 @@ export const notifyChatRoomOpened = async (
 export const notifyChatRoomOpenedToCounterparts = async (
   params: NotifyChatRoomOpenedToCounterpartsParams
 ): Promise<void> => {
+  // creator 이름이 없으면 템플릿('{counterpartName}님과의…')이 깨지지 않도록 알림용 fallback
   const counterpartName =
     (await notificationRepository.findUserNameById(params.creatorId)) ??
     '상대방';
