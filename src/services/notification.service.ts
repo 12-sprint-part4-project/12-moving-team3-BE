@@ -144,17 +144,21 @@ export const markNotificationAsRead = async (
 };
 
 /**
- * 견적요청 제출 시 지정 기사에게 NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED 알림.
- * 제출 성공 후 호출 — 알림 실패는 제출을 롤백하지 않는다.
+ * 일반 견적 요청 제출 → 지역·이사유형 매칭 기사에게 NEW_QUOTE_REQUEST_ARRIVED.
+ * 지정 알림은 여기서 보내지 않는다(지정 API 시점).
  */
-export const notifyDesignatedMoversOnEstimateSubmit = async (params: {
+export const notifyMatchingMoversOnEstimateSubmit = async (params: {
   estimateRequestId: number;
   customerId: string;
   moveType: MoveType | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
 }): Promise<void> => {
-  const moverIds = await notificationRepository.findDesignatedMoverIds(
-    params.estimateRequestId
-  );
+  const moverIds = await notificationRepository.findMoverIdsForNewRequest({
+    departureAddress: params.departureAddress,
+    arrivalAddress: params.arrivalAddress,
+    moveType: params.moveType,
+  });
 
   if (moverIds.length === 0) {
     return;
@@ -169,12 +173,37 @@ export const notifyDesignatedMoversOnEstimateSubmit = async (params: {
     moverIds.map((moverId) =>
       createNotification({
         receiverId: moverId,
-        type: 'NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED',
+        type: 'NEW_QUOTE_REQUEST_ARRIVED',
         payload: { customerName, moveTypeLabel },
         estimateRequestId: params.estimateRequestId,
       })
     )
   );
+};
+
+/**
+ * 지정 견적 요청 생성 → 해당 기사에게 NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED.
+ * 이전에 일반 알림을 받았든 말든 항상 발송한다.
+ */
+export const notifyDesignatedQuoteRequestArrived = async (params: {
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string;
+  moveType: MoveType | null;
+}): Promise<void> => {
+  const customerName =
+    (await notificationRepository.findUserNameById(params.customerId)) ??
+    '고객';
+
+  await createNotification({
+    receiverId: params.moverId,
+    type: 'NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED',
+    payload: {
+      customerName,
+      moveTypeLabel: toMoveTypeLabel(params.moveType),
+    },
+    estimateRequestId: params.estimateRequestId,
+  });
 };
 
 /** 일반 견적 제안 도착 → 고객 (quote 도메인에서 호출용 export) */
@@ -295,6 +324,28 @@ export const notifyDesignatedQuoteRejected = async (params: {
     estimateRequestId: params.estimateRequestId,
     quoteId: params.quoteId,
     tx: params.tx,
+  });
+};
+
+/**
+ * quoteId만으로 지정 견적 반려 알림.
+ * REJECTED + isDesignated 인 경우만 고객에게 발송.
+ */
+export const notifyDesignatedQuoteRejectedByQuoteId = async (
+  quoteId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findQuoteNotificationContext(quoteId);
+
+  if (!ctx?.moverId || ctx.status !== 'REJECTED' || !ctx.isDesignated) {
+    return null;
+  }
+
+  return notifyDesignatedQuoteRejected({
+    customerId: ctx.customerId,
+    moverName: ctx.moverName ?? '기사',
+    estimateRequestId: ctx.estimateRequestId,
+    quoteId: ctx.quoteId,
   });
 };
 

@@ -631,16 +631,18 @@ export const submitEstimateRequest = async (
     throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
   }
 
-  // 지정 기사 알림 — 제출과 분리(알림 실패해도 제출은 유지)
+  // 일반 견적 요청 알림 — 제출과 분리(알림 실패해도 제출은 유지). 지정 알림은 지정 API에서.
   try {
-    await notificationService.notifyDesignatedMoversOnEstimateSubmit({
+    await notificationService.notifyMatchingMoversOnEstimateSubmit({
       estimateRequestId: updated.id,
       customerId: userId,
       moveType: updated.moveType,
+      departureAddress: updated.departureAddress,
+      arrivalAddress: updated.arrivalAddress,
     });
   } catch (error) {
     console.error(
-      `[submitEstimateRequest] designated mover notification failed id=${updated.id}`,
+      `[submitEstimateRequest] matching mover notification failed id=${updated.id}`,
       error
     );
   }

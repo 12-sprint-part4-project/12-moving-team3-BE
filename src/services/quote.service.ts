@@ -234,6 +234,20 @@ export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
     }
   }
 
+  // 지정 견적 반려 알림 — 지정 REJECTION만 고객에게
+  if (body.type === 'REJECTION' && quote.isDesignated) {
+    try {
+      await notificationService.notifyDesignatedQuoteRejectedByQuoteId(
+        quote.id
+      );
+    } catch (error) {
+      console.error(
+        `[submitQuote] designated rejection notification failed quoteId=${quote.id}`,
+        error
+      );
+    }
+  }
+
   return quote;
 };
 

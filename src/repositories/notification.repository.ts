@@ -3,8 +3,11 @@ import type {
   NotificationType,
   Prisma,
   QuoteStatus,
+  Region,
 } from '@prisma/client';
+import { Region as RegionEnum } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { getRegionAddressKeywords } from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -150,6 +153,54 @@ export const findDesignatedMoverIds = async (
   });
 
   return rows.map((row) => row.moverId);
+};
+
+/**
+ * 일반 견적 요청 알림 대상 — 출발/도착 주소가 서비스 지역과 매칭되고
+ * 프로필 service에 이사유형이 포함된 기사 (받은 견적 요청 serviceArea 필터와 동일 기준)
+ */
+export const findMoverIdsForNewRequest = async (params: {
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+  moveType: MoveType | null;
+}): Promise<string[]> => {
+  if (!params.moveType) {
+    return [];
+  }
+
+  const addressMatchesRegion = (
+    address: string | null | undefined,
+    region: Region
+  ): boolean => {
+    if (!address) {
+      return false;
+    }
+
+    return getRegionAddressKeywords(region).some((keyword) =>
+      address.startsWith(keyword)
+    );
+  };
+
+  const matchingRegions = Object.values(RegionEnum).filter(
+    (region) =>
+      addressMatchesRegion(params.departureAddress, region) ||
+      addressMatchesRegion(params.arrivalAddress, region)
+  );
+
+  if (matchingRegions.length === 0) {
+    return [];
+  }
+
+  const profiles = await prisma.moverProfile.findMany({
+    where: {
+      service: { has: params.moveType },
+      serviceRegions: { some: { region: { in: matchingRegions } } },
+      user: { deletedAt: null, userType: 'MOVER' },
+    },
+    select: { userId: true },
+  });
+
+  return profiles.map((profile) => profile.userId);
 };
 
 /** 유저 이름 조회 (알림 payload용) */
