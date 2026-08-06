@@ -68,9 +68,21 @@ const router = Router();
  *                               messageType:
  *                                 type: string
  *                                 enum: [TEXT, IMAGE]
+ *                               messageId:
+ *                                 type: integer
+ *                               senderId:
+ *                                 type: string
+ *                                 format: uuid
  *                               createdAt:
  *                                 type: string
  *                                 format: date-time
+ *                           partnerLastReadMessageId:
+ *                             type: integer
+ *                             nullable: true
+ *                           partnerLastReadAt:
+ *                             type: string
+ *                             format: date-time
+ *                             nullable: true
  *                           unreadCount:
  *                             type: integer
  *       401:
@@ -566,6 +578,11 @@ router.post(
  *                       type: integer
  *                       nullable: true
  *                       description: 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null
+ *                     partnerLastReadAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       description: 상대방이 마지막으로 읽은 시각(ISO). 읽음 기록 없으면 null
  *                     updatedAt:
  *                       type: string
  *                       format: date-time
