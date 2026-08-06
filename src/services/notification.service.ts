@@ -334,7 +334,13 @@ const processNewQuoteRequestFanout = async (job: {
       return;
     }
 
-    const nextCursor = moverIds[moverIds.length - 1]!;
+    // length 검사 후에도 타입상 undefined 가능 — ! 대신 명시 검증
+    const nextCursor = moverIds[moverIds.length - 1];
+    if (!nextCursor) {
+      await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
     await notificationRepository.updateOutboxCursor(job.id, nextCursor);
     cursorUserId = nextCursor;
   }
