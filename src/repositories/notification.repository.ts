@@ -1,5 +1,6 @@
 import type {
   MoveType,
+  NotificationOutboxJobType,
   NotificationType,
   Prisma,
   QuoteStatus,
@@ -13,6 +14,12 @@ import { prisma } from '../lib/prisma';
 import { getRegionAddressKeywords } from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
+
+export interface CreateOutboxJobData {
+  jobType: NotificationOutboxJobType;
+  sourceId: string;
+  snapshotAt?: Date | null;
+}
 
 const LIST_LIMIT = 10;
 
@@ -66,6 +73,27 @@ export const create = async (
       userReportId: data.userReportId ?? undefined,
     },
     select: notificationSelect,
+  });
+};
+
+/**
+ * 대량 fan-out Outbox 1건 enqueue.
+ * (jobType, sourceId) 유니크 — 이미 있으면 skipDuplicates로 무시(멱등).
+ */
+export const createOutboxJob = async (
+  data: CreateOutboxJobData,
+  db: DbClient = prisma
+): Promise<void> => {
+  await db.notificationOutbox.createMany({
+    data: [
+      {
+        jobType: data.jobType,
+        sourceId: data.sourceId,
+        snapshotAt: data.snapshotAt ?? undefined,
+        status: 'PENDING',
+      },
+    ],
+    skipDuplicates: true,
   });
 };
 

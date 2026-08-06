@@ -1,4 +1,9 @@
-import type { MoveType, NotificationType, Prisma } from '@prisma/client';
+import type {
+  MoveType,
+  NotificationOutboxJobType,
+  NotificationType,
+  Prisma,
+} from '@prisma/client';
 import {
   renderNotificationContent,
   toMoveTypeLabel,
@@ -38,14 +43,6 @@ export interface NotificationListItem {
   commentId: number | null;
   reviewId: number | null;
   userReportId: number | null;
-}
-
-export interface NotifyMatchingMoversOnEstimateSubmitParams {
-  estimateRequestId: number;
-  customerId: string;
-  moveType: MoveType | null;
-  departureAddress: string | null;
-  arrivalAddress: string | null;
 }
 
 export interface NotifyDesignatedQuoteRequestArrivedParams {
@@ -212,38 +209,38 @@ export const markNotificationAsRead = async (
   return toListItem(updated);
 };
 
+export interface EnqueueBulkNotificationInput {
+  jobType: NotificationOutboxJobType;
+  sourceId: string;
+  snapshotAt?: Date | null;
+}
+
 /**
- * 일반 견적 요청 제출 → 지역·이사유형 매칭 기사에게 NEW_QUOTE_REQUEST_ARRIVED.
- * 지정 알림은 여기서 보내지 않는다(지정 API 시점).
+ * 공용 대량 알림 Outbox enqueue — 본 거래와 분리된 PENDING 1건만 남긴다.
+ * 실제 fan-out은 Sprint 2 워커가 claim 후 createMany로 처리한다.
  */
-export const notifyMatchingMoversOnEstimateSubmit = async (
-  params: NotifyMatchingMoversOnEstimateSubmitParams
+export const enqueueBulkNotification = async (
+  input: EnqueueBulkNotificationInput
 ): Promise<void> => {
-  const moverIds = await notificationRepository.findMoverIdsForNewRequest({
-    departureAddress: params.departureAddress,
-    arrivalAddress: params.arrivalAddress,
-    moveType: params.moveType,
+  await notificationRepository.createOutboxJob({
+    jobType: input.jobType,
+    sourceId: input.sourceId,
+    snapshotAt: input.snapshotAt,
   });
+};
 
-  if (moverIds.length === 0) {
-    return;
-  }
-
-  const customerName =
-    (await notificationRepository.findUserNameById(params.customerId)) ??
-    '고객';
-  const moveTypeLabel = toMoveTypeLabel(params.moveType);
-
-  await Promise.all(
-    moverIds.map((moverId) =>
-      createNotification({
-        receiverId: moverId,
-        type: 'NEW_QUOTE_REQUEST_ARRIVED',
-        payload: { customerName, moveTypeLabel },
-        estimateRequestId: params.estimateRequestId,
-      })
-    )
-  );
+/**
+ * 일반 견적 요청 제출 → 매칭 기사 fan-out 잡 enqueue.
+ * 지정 알림은 여기 포함하지 않는다(지정 API 시점 단건 유지).
+ * 실제 발송은 Sprint 2 워커가 findMoverIdsForNewRequest + createMany로 처리.
+ */
+export const enqueueNewQuoteRequestFanout = async (
+  estimateRequestId: number
+): Promise<void> => {
+  await enqueueBulkNotification({
+    jobType: 'NEW_QUOTE_REQUEST_FANOUT',
+    sourceId: String(estimateRequestId),
+  });
 };
 
 /**
