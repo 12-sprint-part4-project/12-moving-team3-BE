@@ -202,6 +202,31 @@ export const notifyQuoteOfferArrived = async (params: {
   });
 };
 
+/**
+ * quoteId만으로 견적 제안 알림 발송.
+ * PENDING(PROPOSAL)만 처리 — 조회·문구 조립은 알림 도메인이 흡수한다.
+ */
+export const notifyQuoteOfferArrivedByQuoteId = async (
+  quoteId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findQuoteNotificationContext(quoteId);
+
+  // 견적 없음·기사 없음·PROPOSAL이 아니면 skip (REJECTION은 Sprint 3)
+  if (!ctx?.moverId || ctx.status !== 'PENDING') {
+    return null;
+  }
+
+  return notifyQuoteOfferArrived({
+    customerId: ctx.customerId,
+    moverName: ctx.moverName ?? '기사',
+    moveType: ctx.moveType,
+    quoteId: ctx.quoteId,
+    estimateRequestId: ctx.estimateRequestId,
+    isDesignated: ctx.isDesignated,
+  });
+};
+
 /** 견적 확정 → 고객/기사 (피그마: `{moverName} 기사님의 견적이 확정되었어요`) */
 export const notifyQuoteConfirmed = async (params: {
   receiverId: string;

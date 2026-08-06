@@ -1,4 +1,9 @@
-import type { NotificationType, Prisma } from '@prisma/client';
+import type {
+  MoveType,
+  NotificationType,
+  Prisma,
+  QuoteStatus,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
@@ -158,6 +163,60 @@ export const findUserNameById = async (
   });
 
   return user?.name ?? null;
+};
+
+/** 견적 알림용 컨텍스트 — quoteId만으로 고객·기사·이사유형·지정여부 조회 */
+export interface QuoteNotificationContext {
+  quoteId: number;
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string | null;
+  moverName: string | null;
+  moveType: MoveType | null;
+  isDesignated: boolean;
+  status: QuoteStatus;
+}
+
+export const findQuoteNotificationContext = async (
+  quoteId: number,
+  db: DbClient = prisma
+): Promise<QuoteNotificationContext | null> => {
+  const quote = await db.quote.findFirst({
+    where: { id: quoteId, deletedAt: null },
+    select: {
+      id: true,
+      estimateRequestId: true,
+      moverId: true,
+      isDesignated: true,
+      status: true,
+      estimateRequest: {
+        select: {
+          userId: true,
+          moveType: true,
+        },
+      },
+      mover: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!quote) {
+    return null;
+  }
+
+  return {
+    quoteId: quote.id,
+    estimateRequestId: quote.estimateRequestId,
+    customerId: quote.estimateRequest.userId,
+    moverId: quote.moverId,
+    moverName: quote.mover?.name ?? null,
+    moveType: quote.estimateRequest.moveType,
+    isDesignated: quote.isDesignated,
+    status: quote.status,
+  };
 };
 
 /**
