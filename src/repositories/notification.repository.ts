@@ -239,8 +239,10 @@ export const findUserNicknameById = async (
 /**
  * COMPLETED 인데 REVIEW_REQUESTED 가 아직 없는 견적요청.
  * 자정 cron·부팅 catch-up 에서 미발송분만 보낸다.
+ * take 로 1회 배치 상한 — 남은 건은 다음 실행에서 id 오름차순으로 이어서 처리.
  */
 export const findCompletedRequestsMissingReviewRequested = async (
+  take: number,
   db: DbClient = prisma
 ): Promise<
   Array<{ id: number; userId: string; moveType: MoveType | null }>
@@ -252,6 +254,8 @@ export const findCompletedRequestsMissingReviewRequested = async (
         none: { type: 'REVIEW_REQUESTED' },
       },
     },
+    orderBy: { id: 'asc' },
+    take,
     select: {
       id: true,
       userId: true,

@@ -457,6 +457,9 @@ export const notifyReviewRequested = async (
   });
 };
 
+/** catch-up 1회당 처리 상한 — 누적분은 다음 cron/부팅에서 이어서 발송 */
+const REVIEW_REQUESTED_CATCH_UP_LIMIT = 200;
+
 /**
  * COMPLETED 요청 중 REVIEW_REQUESTED 미발송분만 발송.
  * status-change cron 직후·부팅 catch-up 공용.
@@ -464,7 +467,9 @@ export const notifyReviewRequested = async (
 export const notifyMissingReviewRequestedForCompletedMoves =
   async (): Promise<void> => {
     const targets =
-      await notificationRepository.findCompletedRequestsMissingReviewRequested();
+      await notificationRepository.findCompletedRequestsMissingReviewRequested(
+        REVIEW_REQUESTED_CATCH_UP_LIMIT
+      );
 
     for (const request of targets) {
       try {
