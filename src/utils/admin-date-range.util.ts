@@ -36,6 +36,38 @@ export const createDateRange = (startDate?: Date, endDate?: Date) => {
   };
 };
 
+const toUtcDateFromKstDate = (date: Date): Date => {
+  // Date가 의미하는 KST 날짜를 구한다.
+  const kstDate = new Date(date.getTime() + KST_OFFSET_MS);
+
+  // 그 KST 날짜의 UTC 00:00을 만든다.
+  return new Date(
+    Date.UTC(
+      kstDate.getUTCFullYear(),
+      kstDate.getUTCMonth(),
+      kstDate.getUTCDate()
+    )
+  );
+};
+
+export const createDateRangeOnly = (startDate?: Date, endDate?: Date) => {
+  if (!startDate) {
+    return undefined;
+  }
+
+  const start = toUtcDateFromKstDate(startDate);
+  start.setUTCHours(0, 0, 0, 0);
+
+  const end = new Date(
+    toUtcDateFromKstDate(endDate ?? startDate).getTime() + DAY_MS
+  );
+
+  return {
+    gte: start,
+    lt: end,
+  };
+};
+
 export interface DashboardChartDateRange {
   start: Date;
   end: Date;
