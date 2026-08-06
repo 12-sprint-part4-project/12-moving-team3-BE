@@ -288,6 +288,42 @@ export const findAdminReportById = async (
 };
 
 /**
+ * USER 대상 상세 조회 전용 select.
+ * detailUserSummarySelect(reporter·다른 target 작성자)와 분리해,
+ * 프로필 보강 필드가 다른 조회 경로에 영향을 주지 않게 한다.
+ * 전화번호·비밀번호·인증 계정 등 민감 정보는 포함하지 않는다.
+ */
+const REPORT_DETAIL_TARGET_USER_SELECT = {
+  id: true,
+  name: true,
+  nickname: true,
+  email: true,
+  userType: true,
+  deletedAt: true,
+  createdAt: true,
+  profileImageKey: true,
+  customerProfile: {
+    select: {
+      region: true,
+      service: true,
+    },
+  },
+  moverProfile: {
+    select: {
+      service: true,
+      career: true,
+      shortDescription: true,
+      description: true,
+      serviceRegions: {
+        select: {
+          region: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+/**
  * USER 대상 단건.
  * User.id는 UUID 문자열이며 UserReport.targetId(VarChar)와 타입이 같다.
  * soft-delete도 포함해 탈퇴 여부를 Service에서 판단한다.
@@ -298,15 +334,7 @@ export const findReportDetailTargetUserById = async (
 ) => {
   return db.user.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      nickname: true,
-      email: true,
-      userType: true,
-      deletedAt: true,
-      createdAt: true,
-    },
+    select: REPORT_DETAIL_TARGET_USER_SELECT,
   });
 };
 

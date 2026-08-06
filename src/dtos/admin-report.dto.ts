@@ -1,7 +1,9 @@
 import type {
   ChatRoomType,
   MessageType,
+  MoveType,
   PostsCategory,
+  Region,
   UserReportCategory,
   UserReportStatus,
   UserReportTarget,
@@ -122,8 +124,53 @@ export interface AdminReportDetailReporterDto extends AdminReportReporterDto {
 }
 
 /**
+ * 일반 회원(CUSTOMER) 프로필 요약.
+ * 부적절한 프로필 신고 상세에서 희망 지역·이용 서비스를 보여주기 위해 둔다.
+ * 전화번호는 신고 상세에 포함하지 않는다.
+ */
+export interface AdminReportDetailCustomerProfileDto {
+  region: Region | null;
+  service: MoveType[];
+}
+
+/**
+ * 기사(MOVER) 서비스 가능 지역.
+ * 회원 상세의 serviceRegions 항목과 동일하게 region만 노출한다.
+ */
+export interface AdminReportDetailMoverServiceRegionDto {
+  region: Region;
+}
+
+/**
+ * 기사(MOVER) 프로필 요약.
+ * 소개글·경력·서비스 지역처럼 프로필 신고 검토에 필요한 필드만 담는다.
+ */
+export interface AdminReportDetailMoverProfileDto {
+  service: MoveType[];
+  career: number | null;
+  shortDescription: string | null;
+  description: string | null;
+  serviceRegions: AdminReportDetailMoverServiceRegionDto[];
+}
+
+/**
+ * 신고 대상 사용자의 역할별 프로필 묶음.
+ * CUSTOMER/MOVER 중 해당 타입만 채우고 나머지는 null로 둔다.
+ * 프로필 row 자체가 없으면 상위 profile을 null로 둔다.
+ */
+export interface AdminReportDetailUserProfileDto {
+  customer: AdminReportDetailCustomerProfileDto | null;
+  mover: AdminReportDetailMoverProfileDto | null;
+}
+
+/**
  * 대상·콘텐츠에 연결된 사용자 요약.
  * 작성자/발신자가 없거나 조회 실패여도 상위 DTO가 깨지지 않도록 nullable로 둔다.
+ * 기존 필드는 유지하고, 프로필 검토용 필드는 확장으로만 추가한다.
+ *
+ * profileImageKey·profile은 이번 커밋에서 타입만 추가한다.
+ * Service 매핑 전에는 응답에 없을 수 있어 optional로 두고,
+ * 다음 커밋에서 항상 string|null / object|null로 채운다.
  */
 export interface AdminReportDetailUserSummaryDto {
   id: string;
@@ -133,6 +180,13 @@ export interface AdminReportDetailUserSummaryDto {
   userType: UserType;
   isDeleted: boolean;
   deletedAt: Date | null;
+  /** User.profileImageKey. 없으면 null */
+  profileImageKey?: string | null;
+  /**
+   * 일반/기사 프로필.
+   * 프로필이 아직 없거나 USER 대상이 아니면 null.
+   */
+  profile?: AdminReportDetailUserProfileDto | null;
 }
 
 /**
