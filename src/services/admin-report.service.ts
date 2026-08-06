@@ -6,9 +6,12 @@ import {
 } from '@prisma/client';
 import type {
   AdminReportDetailContentDto,
+  AdminReportDetailCustomerProfileDto,
   AdminReportDetailDto,
+  AdminReportDetailMoverProfileDto,
   AdminReportDetailReporterDto,
   AdminReportDetailTargetDto,
+  AdminReportDetailUserProfileDto,
   AdminReportDetailUserSummaryDto,
   AdminReportListItemDto,
   AdminReportListResultDto,
@@ -279,6 +282,65 @@ const toDetailUserSummary = (
   };
 };
 
+/** USER 대상 Repository row — 프로필 select가 포함된 조회 결과 */
+type ReportDetailTargetUserRow = NonNullable<
+  Awaited<ReturnType<typeof findReportDetailTargetUserById>>
+>;
+
+/**
+ * customer/mover 프로필 row → DTO.
+ * 둘 다 없으면 null을 반환해 상위 profile 구조를 고정한다.
+ * 전화번호는 매핑하지 않는다.
+ */
+const toDetailUserProfile = (
+  customerProfile: ReportDetailTargetUserRow['customerProfile'],
+  moverProfile: ReportDetailTargetUserRow['moverProfile']
+): AdminReportDetailUserProfileDto | null => {
+  if (!customerProfile && !moverProfile) {
+    return null;
+  }
+
+  const customer: AdminReportDetailCustomerProfileDto | null = customerProfile
+    ? {
+        region: customerProfile.region,
+        service: customerProfile.service,
+      }
+    : null;
+
+  const mover: AdminReportDetailMoverProfileDto | null = moverProfile
+    ? {
+        service: moverProfile.service,
+        career: moverProfile.career,
+        shortDescription: moverProfile.shortDescription,
+        description: moverProfile.description,
+        // DTO는 { region }[] 형태 — Repository select와 동일하게 지역 값만 담는다.
+        serviceRegions: moverProfile.serviceRegions.map((item) => ({
+          region: item.region,
+        })),
+      }
+    : null;
+
+  return { customer, mover };
+};
+
+/**
+ * USER 대상 전용 사용자 요약.
+ * 다른 target의 toDetailUserSummary와 분리해 프로필 필드가 다른 응답을 건드리지 않게 한다.
+ */
+const toDetailTargetUserSummary = (
+  user: ReportDetailTargetUserRow
+): AdminReportDetailUserSummaryDto => ({
+  id: user.id,
+  name: user.name,
+  nickname: user.nickname,
+  email: user.email,
+  userType: user.userType,
+  isDeleted: user.deletedAt !== null,
+  deletedAt: user.deletedAt,
+  profileImageKey: user.profileImageKey,
+  profile: toDetailUserProfile(user.customerProfile, user.moverProfile),
+});
+
 /** 신고자 row → 상세 reporter DTO */
 const toDetailReporter = (
   reporter: AdminReportDetailRow['reporter']
@@ -339,7 +401,8 @@ const loadUserReportTarget = async (
     return toMissingTargetBundle('USER', targetId);
   }
 
-  const userSummary = toDetailUserSummary(user);
+  // INAPPROPRIATE_PROFILE 포함, USER 대상이면 항상 프로필을 내려 응답 구조를 고정한다.
+  const userSummary = toDetailTargetUserSummary(user);
   return {
     targetInfo: {
       type: 'USER',
@@ -355,6 +418,7 @@ const loadUserReportTarget = async (
       body: `${user.name} · ${user.email}`,
       createdAt: user.createdAt,
       deletedAt: user.deletedAt,
+      // 기존 metadata는 유지하고, 프로필 상세는 targetInfo.user.profile로 접근한다.
       metadata: { userType: user.userType },
     },
   };
