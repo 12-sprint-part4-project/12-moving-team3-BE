@@ -355,8 +355,11 @@ router.get(
  *     summary: 게시글 생성
  *     description: |
  *       로그인한 사용자가 게시글을 생성합니다.
- *       가구 나눔(FURNITURE_SHARE) 카테고리는 latitude, longitude가 필수입니다.
- *       imageKeys는 최대 5장까지 등록할 수 있습니다.
+ *       content는 Tiptap getMarkdown() 결과인 마크다운 문자열입니다.
+ *       서버는 빈 본문 여부만 검증하고 원문을 저장합니다.
+ *       가구 나눔(FURNITURE_SHARE) 카테고리는 region이 필수입니다.
+ *       imageKeys는 최대 5장까지 등록할 수 있으며, S3 posts/ prefix 업로드 완료 객체의
+ *       존재·MIME·용량(5MB)을 검증합니다.
  *       이미지는 `GET /api/presigned-upload-url?prefix=posts`로 업로드한 뒤 반환된 s3Key를 사용합니다.
  *     security:
  *       - bearerAuth: []
@@ -381,22 +384,15 @@ router.get(
  *               content:
  *                 type: string
  *                 minLength: 1
+ *                 description: Tiptap getMarkdown() 마크다운 본문 (원문 저장)
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
+ *                 description: presigned-upload-url(prefix=posts)로 발급·업로드된 s3Key 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
  *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$
- *               latitude:
- *                 type: number
- *                 minimum: -90
- *                 maximum: 90
- *               longitude:
- *                 type: number
- *                 minimum: -180
- *                 maximum: 180
  *     responses:
  *       201:
  *         description: 게시글 생성 성공
@@ -432,7 +428,9 @@ router.post(
  *     summary: 게시글 수정
  *     description: |
  *       본인 게시글의 content, imageKeys만 수정할 수 있습니다.
- *       imageKeys를 보내면 기존 이미지는 전체 교체됩니다.
+ *       content는 Tiptap getMarkdown() 마크다운 문자열이며, 서버는 빈 본문 여부만 검증합니다.
+ *       imageKeys를 보내면 기존 이미지는 전체 교체됩니다. imageKeys는 presigned-upload-url(prefix=posts)로
+ *       업로드 완료된 s3Key이며, S3 존재·MIME·용량(5MB)을 검증합니다.
  *       content, imageKeys 중 최소 1개는 포함해야 합니다.
  *     security:
  *       - bearerAuth: []
@@ -453,10 +451,11 @@ router.post(
  *               content:
  *                 type: string
  *                 minLength: 1
+ *                 description: Tiptap getMarkdown() 마크다운 본문 (원문 저장)
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
+ *                 description: presigned-upload-url(prefix=posts)로 업로드 완료된 s3Key 목록 (S3 존재·MIME·용량 검증)
  *                 items:
  *                   type: string
  *                   minLength: 1

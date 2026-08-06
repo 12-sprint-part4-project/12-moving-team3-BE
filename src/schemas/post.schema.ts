@@ -1,5 +1,6 @@
 import { PostsCategory, Region } from '@prisma/client';
 import { z } from 'zod';
+import { POST_IMAGE_S3_KEY_PATTERN } from '../constants/post-image.constants';
 
 export const POST_SORT_VALUES = [
   'LATEST',
@@ -16,22 +17,19 @@ export const CONTENT_PREVIEW_MAX_LENGTH = 100;
 export const COMMENT_CONTENT_MAX_LENGTH = 500;
 
 /** trim 후 빈 keyword는 undefined (검색 조건 미적용) */
-const optionalKeywordQuerySchema = z.preprocess(
-  (value) => {
-    if (value === undefined) {
-      return undefined;
-    }
+const optionalKeywordQuerySchema = z.preprocess((value) => {
+  if (value === undefined) {
+    return undefined;
+  }
 
-    if (typeof value !== 'string') {
-      return value;
-    }
+  if (typeof value !== 'string') {
+    return value;
+  }
 
-    const trimmed = value.trim();
+  const trimmed = value.trim();
 
-    return trimmed.length > 0 ? trimmed : undefined;
-  },
-  z.string().min(1).optional()
-);
+  return trimmed.length > 0 ? trimmed : undefined;
+}, z.string().min(1).optional());
 
 export const postListQuerySchema = z.object({
   category: z.enum(PostsCategory).optional(),
@@ -62,13 +60,14 @@ export type PostIdParams = z.infer<typeof postIdParamsSchema>;
 
 export const MAX_POST_IMAGES = 5;
 
-/** GET /api/presigned-upload-url (prefix=posts) 로 발급된 s3Key 형식 */
-const POST_IMAGE_S3_KEY_PATTERN =
-  /^posts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$/i;
-
 const postImageKeySchema = z.string().regex(POST_IMAGE_S3_KEY_PATTERN, {
   message: 'imageKey는 posts/{uuid}_{filename} 형식의 s3Key여야 합니다.',
 });
+
+const optionalPostImageKeysSchema = z.preprocess(
+  (value) => (value === null || value === undefined ? [] : value),
+  z.array(postImageKeySchema).max(MAX_POST_IMAGES).default([])
+);
 
 /** 게시글 생성 요청 바디 */
 export const createPostBodySchema = z.object({
@@ -76,13 +75,7 @@ export const createPostBodySchema = z.object({
   region: z.enum(Region).optional(),
   title: z.string().min(1).max(100),
   content: z.string().min(1),
-  imageKeys: z
-    .array(postImageKeySchema)
-    .max(MAX_POST_IMAGES)
-    .optional()
-    .default([]),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
+  imageKeys: optionalPostImageKeysSchema,
 });
 
 export type CreatePostBody = z.infer<typeof createPostBodySchema>;
