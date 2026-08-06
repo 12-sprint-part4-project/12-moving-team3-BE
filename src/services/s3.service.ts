@@ -19,11 +19,21 @@ export interface S3ObjectSummary {
   lastModified: Date;
 }
 
+export interface ListObjectsByPrefixOptions {
+  maxKeys?: number;
+  continuationToken?: string;
+}
+
+export interface ListObjectsByPrefixResult {
+  objects: S3ObjectSummary[];
+  continuationToken?: string;
+}
+
 /** prefix 하위 S3 객체 목록 (페이지 단위) */
 export const listObjectsByPrefix = async (
   prefix: string,
-  options?: { maxKeys?: number; continuationToken?: string }
-): Promise<{ objects: S3ObjectSummary[]; continuationToken?: string }> => {
+  options?: ListObjectsByPrefixOptions
+): Promise<ListObjectsByPrefixResult> => {
   const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
 
   const result = await s3Client.send(
