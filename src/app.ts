@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import env from './config/env';
 import { swaggerSpec } from './config/swagger';
+import { startCleanupOrphanPostImagesCron } from './jobs/cleanup-orphan-post-images.job';
 import { startEstimateRequestStatusChangeCron } from './jobs/estimate-request-status-change.job';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
 import { startReleaseExpiredSuspensionsCron } from './jobs/release-expired-suspensions.job';
@@ -94,10 +95,7 @@ app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/users/customers', customerRouter);
 app.use('/api/estimate-requests', estimateRequestRouter);
-app.use(
-  '/api/designated-estimate-requests',
-  designatedEstimateRequestRouter
-);
+app.use('/api/designated-estimate-requests', designatedEstimateRequestRouter);
 app.use('/api/users/movers', moverRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/review', reviewRouter);
@@ -120,5 +118,6 @@ httpServer.listen(env.port, () => {
   startReleaseExpiredSuspensionsCron();
   // 이사일 경과 견적 요청 status 전환 배치 (매일 00:00 Asia/Seoul)
   startEstimateRequestStatusChangeCron();
+  // posts/ prefix 고아 이미지 정리 (매일 03:00 Asia/Seoul)
+  startCleanupOrphanPostImagesCron();
 });
-
