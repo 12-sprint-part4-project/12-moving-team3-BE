@@ -3,6 +3,7 @@ import {
   POST_IMAGE_MAX_SIZE,
   isValidPostImageKey,
 } from '../constants/post-image.constants';
+import * as postRepository from '../repositories/post.repository';
 import { deleteImage, getObjectMetadata } from '../services/s3.service';
 import { AppError } from './app.error';
 
@@ -47,6 +48,40 @@ export const assertValidPostImageKeys = async (
       }
     })
   );
+};
+
+const assertImageKeysNotReferenced = async (
+  imageKeys: string[]
+): Promise<void> => {
+  if (imageKeys.length === 0) {
+    return;
+  }
+
+  const referencedKeys = await postRepository.findReferencedPostImageKeys(
+    imageKeys
+  );
+
+  if (referencedKeys.length > 0) {
+    throw new AppError('INVALID_REQUEST', '이미 사용 중인 imageKey입니다.');
+  }
+};
+
+export { assertImageKeysNotReferenced };
+
+/** imageKeys가 DB에 참조되지 않았을 때만 S3에서 삭제한다. */
+export const deleteUnreferencedPostImageKeys = async (
+  imageKeys: string[]
+): Promise<void> => {
+  if (imageKeys.length === 0) {
+    return;
+  }
+
+  const referencedKeys = new Set(
+    await postRepository.findReferencedPostImageKeys(imageKeys)
+  );
+  const deletableKeys = imageKeys.filter((key) => !referencedKeys.has(key));
+
+  await deletePostImageKeysSafely(deletableKeys);
 };
 
 /** S3 객체 best-effort 삭제 — 실패해도 throw하지 않는다. */

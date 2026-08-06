@@ -19,7 +19,8 @@ import {
 } from '../utils/post-content.util';
 import {
   assertValidPostImageKeys,
-  deletePostImageKeysSafely,
+  assertImageKeysNotReferenced,
+  deleteUnreferencedPostImageKeys,
 } from '../utils/post-image.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 import { toPresignedViewUrl } from './s3.service';
@@ -252,6 +253,7 @@ export const createPost = async (userId: string, body: CreatePostBody) => {
   }
 
   await assertValidPostImageKeys(body.imageKeys);
+  await assertImageKeysNotReferenced(body.imageKeys);
 
   const content = resolvePostContent(body.content);
 
@@ -263,7 +265,7 @@ export const createPost = async (userId: string, body: CreatePostBody) => {
 
     return { id: post.id };
   } catch (error) {
-    await deletePostImageKeysSafely(body.imageKeys);
+    await deleteUnreferencedPostImageKeys(body.imageKeys);
 
     const appError = toAppErrorFromPrisma(error);
 
@@ -300,31 +302,55 @@ export const updatePost = async (
       ? await postRepository.findImageKeysByPostId(postId)
       : [];
 
+  const newImageKeys =
+    body.imageKeys !== undefined
+      ? body.imageKeys.filter(
+          (imageKey) => !previousImageKeys.includes(imageKey)
+        )
+      : [];
+
   if (body.imageKeys !== undefined) {
     await assertValidPostImageKeys(body.imageKeys);
+    await assertImageKeysNotReferenced(newImageKeys);
   }
 
-  const updated = await postRepository.updatePost(postId, {
-    ...body,
-    ...(body.content !== undefined
-      ? { content: resolvePostContent(body.content) }
-      : {}),
-  });
+  try {
+    const updated = await postRepository.updatePost(postId, {
+      ...body,
+      ...(body.content !== undefined
+        ? { content: resolvePostContent(body.content) }
+        : {}),
+    });
 
-  if (!updated) {
-    throw new AppError('POST_NOT_FOUND');
+    if (!updated) {
+      throw new AppError('POST_NOT_FOUND');
+    }
+
+    if (body.imageKeys !== undefined) {
+      const nextImageKeySet = new Set(body.imageKeys);
+      const removedImageKeys = previousImageKeys.filter(
+        (imageKey) => !nextImageKeySet.has(imageKey)
+      );
+
+      await deleteUnreferencedPostImageKeys(removedImageKeys);
+    }
+
+    return { id: updated.id };
+  } catch (error) {
+    await deleteUnreferencedPostImageKeys(newImageKeys);
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
   }
-
-  if (body.imageKeys !== undefined) {
-    const nextImageKeySet = new Set(body.imageKeys);
-    const removedImageKeys = previousImageKeys.filter(
-      (imageKey) => !nextImageKeySet.has(imageKey)
-    );
-
-    await deletePostImageKeysSafely(removedImageKeys);
-  }
-
-  return { id: updated.id };
 };
 
 /** 게시글 삭제 (soft delete) */

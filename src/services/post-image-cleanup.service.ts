@@ -35,8 +35,19 @@ export const cleanupOrphanPostImages = async (): Promise<number> => {
 
     const orphanKeys = candidateKeys.filter((key) => !referencedKeys.has(key));
 
-    await deletePostImageKeysSafely(orphanKeys);
-    deletedCount += orphanKeys.length;
+    if (orphanKeys.length === 0) {
+      continue;
+    }
+
+    const stillReferencedKeys = new Set(
+      await postRepository.findReferencedPostImageKeys(orphanKeys)
+    );
+    const deletableKeys = orphanKeys.filter(
+      (key) => !stillReferencedKeys.has(key)
+    );
+
+    await deletePostImageKeysSafely(deletableKeys);
+    deletedCount += deletableKeys.length;
   } while (continuationToken);
 
   return deletedCount;

@@ -3,11 +3,7 @@ import { cleanupOrphanPostImages } from '../services/post-image-cleanup.service'
 
 export const runCleanupOrphanPostImagesJob = async (): Promise<void> => {
   try {
-    const deletedCount = await cleanupOrphanPostImages();
-
-    if (deletedCount > 0) {
-      console.log(`[cleanup-orphan-post-images] deleted count=${deletedCount}`);
-    }
+    await cleanupOrphanPostImages();
   } catch (error) {
     console.error('[cleanup-orphan-post-images] failed', error);
   }
@@ -24,6 +20,4 @@ export const startCleanupOrphanPostImagesCron = (): void => {
     },
     { timezone: 'Asia/Seoul' }
   );
-
-  console.log('[cron] cleanup orphan post images scheduled (03:00 Asia/Seoul)');
 };
