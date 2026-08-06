@@ -21,6 +21,10 @@ import {
   type SaveEstimateRequestStepBody,
 } from '../schemas/estimate-request.schema';
 import { AppError } from '../utils/app.error';
+import {
+  countQuotesByDesignation,
+  type QuoteCount,
+} from '../utils/quote-count.util';
 import { inferRegionLabelFromAddress } from '../utils/region.util';
 import * as notificationService from './notification.service';
 
@@ -44,6 +48,7 @@ export interface EstimateRequestListItem {
   arrival: { address: string | null; regionLabel: string | null };
   isDesignated: boolean;
   submittedAt: Date | null;
+  quoteCount: QuoteCount;
 }
 
 export interface EstimateRequestFilterCounts {
@@ -163,6 +168,7 @@ const toEstimateRequestListItem = (
   },
   isDesignated: row.designatedMovers.length > 0,
   submittedAt: row.submittedAt,
+  quoteCount: countQuotesByDesignation(row.quotes),
 });
 
 /**
