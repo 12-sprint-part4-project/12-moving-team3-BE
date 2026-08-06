@@ -25,6 +25,7 @@ import {
   emitChatMessageCreated,
   emitChatRoomRead,
 } from './chat-socket.service';
+import * as notificationService from './notification.service';
 import {
   createPresignedViewUrl,
   getObjectMetadata,
@@ -374,6 +375,20 @@ export const createChatRoom = async (
     roomType: body.roomType,
     participantIds,
   });
+
+  // 신규 생성(201)만 — 기존 방 재사용(200)에서는 발송하지 않음
+  try {
+    await notificationService.notifyChatRoomOpenedToCounterparts({
+      creatorId: authUser.userId,
+      participantIds,
+      chatRoomId: createdRoom.id,
+    });
+  } catch (error) {
+    console.error(
+      `[createChatRoom] chat room opened notification failed roomId=${createdRoom.id}`,
+      error
+    );
+  }
 
   return {
     status: 201,

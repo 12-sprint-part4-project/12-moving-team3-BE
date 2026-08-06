@@ -72,6 +72,7 @@ export interface NotifyCommunityCommentParams {
   receiverId: string;
   authorNickname: string;
   commentId: number;
+  postId: number;
 }
 
 export interface NotifySanctionParams {
@@ -82,6 +83,7 @@ export interface NotifyCommunityReplyParams {
   receiverId: string;
   authorNickname: string;
   commentId: number;
+  postId: number;
 }
 
 export interface NotifyPostRemovedByReportParams {
@@ -92,6 +94,7 @@ export interface NotifyPostRemovedByReportParams {
 export interface NotifyChatRoomOpenedParams {
   receiverId: string;
   counterpartName: string;
+  chatRoomId: number;
 }
 
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
@@ -520,7 +523,10 @@ export const notifyCommunityComment = async (
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_COMMENT',
-    payload: { authorNickname: params.authorNickname },
+    payload: {
+      authorNickname: params.authorNickname,
+      postId: String(params.postId),
+    },
     commentId: params.commentId,
   });
 };
@@ -543,7 +549,10 @@ export const notifyCommunityReply = async (
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_REPLY',
-    payload: { authorNickname: params.authorNickname },
+    payload: {
+      authorNickname: params.authorNickname,
+      postId: String(params.postId),
+    },
     commentId: params.commentId,
   });
 };
@@ -576,6 +585,7 @@ export const notifyCommunityCommentOrReplyByCommentId = async (
       receiverId,
       authorNickname,
       commentId: ctx.commentId,
+      postId: ctx.postId,
     });
   }
 
@@ -587,6 +597,7 @@ export const notifyCommunityCommentOrReplyByCommentId = async (
     receiverId: ctx.postAuthorId,
     authorNickname,
     commentId: ctx.commentId,
+    postId: ctx.postId,
   });
 };
 
@@ -602,6 +613,29 @@ export const notifyPostRemovedByReport = async (
   });
 };
 
+/**
+ * userReportId만으로 신고 게시글 삭제 알림.
+ * admin 신고 처리(삭제) mutation이 생기면 그 성공 직후 호출하면 된다.
+ * 예: `await notificationService.notifyPostRemovedByReportByUserReportId(reportId)`
+ */
+export const notifyPostRemovedByReportByUserReportId = async (
+  userReportId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findPostRemovedByReportNotificationContext(
+      userReportId
+    );
+
+  if (!ctx) {
+    return null;
+  }
+
+  return notifyPostRemovedByReport({
+    receiverId: ctx.postAuthorId,
+    userReportId: ctx.userReportId,
+  });
+};
+
 /** 채팅방 최초 생성 → 상대 참여자 (이름 — 이사 견적 채팅) */
 export const notifyChatRoomOpened = async (
   params: NotifyChatRoomOpenedParams
@@ -609,6 +643,37 @@ export const notifyChatRoomOpened = async (
   return createNotification({
     receiverId: params.receiverId,
     type: 'CHAT_ROOM_OPENED',
-    payload: { counterpartName: params.counterpartName },
+    payload: {
+      counterpartName: params.counterpartName,
+      chatRoomId: String(params.chatRoomId),
+    },
   });
+};
+
+/**
+ * 채팅방 신규 생성(201) 직후 — 개설자를 제외한 참여자에게 1회.
+ * 기존 방 재사용(200) 경로에서는 호출하지 않는다.
+ */
+export const notifyChatRoomOpenedToCounterparts = async (params: {
+  creatorId: string;
+  participantIds: string[];
+  chatRoomId: number;
+}): Promise<void> => {
+  const counterpartName =
+    (await notificationRepository.findUserNameById(params.creatorId)) ??
+    '상대방';
+
+  const receivers = params.participantIds.filter(
+    (id) => id !== params.creatorId
+  );
+
+  await Promise.all(
+    receivers.map((receiverId) =>
+      notifyChatRoomOpened({
+        receiverId,
+        counterpartName,
+        chatRoomId: params.chatRoomId,
+      })
+    )
+  );
 };

@@ -302,6 +302,7 @@ export const findCommunityCommentNotificationContext = async (
   db: DbClient = prisma
 ): Promise<{
   commentId: number;
+  postId: number;
   authorId: string;
   authorNickname: string | null;
   postAuthorId: string;
@@ -312,6 +313,7 @@ export const findCommunityCommentNotificationContext = async (
     where: { id: commentId, deletedAt: null },
     select: {
       id: true,
+      postId: true,
       userId: true,
       parentId: true,
       user: { select: { nickname: true } },
@@ -326,11 +328,58 @@ export const findCommunityCommentNotificationContext = async (
 
   return {
     commentId: comment.id,
+    postId: comment.postId,
     authorId: comment.userId,
     authorNickname: comment.user.nickname,
     postAuthorId: comment.post.userId,
     parentCommentAuthorId: comment.parent?.userId ?? null,
     isReply: comment.parentId !== null,
+  };
+};
+
+/**
+ * 신고로 삭제된 게시글 알림용.
+ * ARTICLE(Post) 신고 + 게시글 작성자. 삭제 mutation 연동 시 사용.
+ */
+export const findPostRemovedByReportNotificationContext = async (
+  userReportId: number,
+  db: DbClient = prisma
+): Promise<{
+  userReportId: number;
+  postAuthorId: string;
+} | null> => {
+  const report = await db.userReport.findFirst({
+    where: {
+      id: userReportId,
+      target: 'ARTICLE',
+    },
+    select: {
+      id: true,
+      targetId: true,
+    },
+  });
+
+  if (!report) {
+    return null;
+  }
+
+  const postId = Number(report.targetId);
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return null;
+  }
+
+  const post = await db.post.findFirst({
+    where: { id: postId },
+    select: { userId: true },
+  });
+
+  if (!post) {
+    return null;
+  }
+
+  return {
+    userReportId: report.id,
+    postAuthorId: post.userId,
   };
 };
 
