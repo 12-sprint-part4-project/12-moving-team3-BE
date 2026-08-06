@@ -63,14 +63,14 @@ export interface NotifyReviewRequestedParams {
 
 export interface NotifyReviewWrittenParams {
   moverId: string;
-  customerName: string;
+  customerNickname: string;
   reviewId: number;
   estimateRequestId?: number | null;
 }
 
 export interface NotifyCommunityCommentParams {
   receiverId: string;
-  authorName: string;
+  authorNickname: string;
   commentId: number;
 }
 
@@ -80,7 +80,7 @@ export interface NotifySanctionParams {
 
 export interface NotifyCommunityReplyParams {
   receiverId: string;
-  authorName: string;
+  authorNickname: string;
   commentId: number;
 }
 
@@ -454,27 +454,27 @@ export const notifyReviewRequested = async (
   });
 };
 
-/** 리뷰 작성 → 기사 */
+/** 리뷰 작성 → 기사 (고객 닉네임) */
 export const notifyReviewWritten = async (
   params: NotifyReviewWrittenParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.moverId,
     type: 'REVIEW_WRITTEN',
-    payload: { customerName: params.customerName },
+    payload: { customerNickname: params.customerNickname },
     reviewId: params.reviewId,
     estimateRequestId: params.estimateRequestId,
   });
 };
 
-/** 게시글 댓글 → 원글 작성자 */
+/** 게시글 댓글 → 원글 작성자 (닉네임) */
 export const notifyCommunityComment = async (
   params: NotifyCommunityCommentParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_COMMENT',
-    payload: { authorName: params.authorName },
+    payload: { authorNickname: params.authorNickname },
     commentId: params.commentId,
   });
 };
@@ -490,14 +490,14 @@ export const notifySanction = async (
   });
 };
 
-/** 대댓글 → 부모 댓글 작성자 */
+/** 대댓글 → 부모 댓글 작성자 (닉네임) */
 export const notifyCommunityReply = async (
   params: NotifyCommunityReplyParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_REPLY',
-    payload: { authorName: params.authorName },
+    payload: { authorNickname: params.authorNickname },
     commentId: params.commentId,
   });
 };
@@ -514,7 +514,7 @@ export const notifyPostRemovedByReport = async (
   });
 };
 
-/** 채팅방 최초 생성 → 상대 참여자 */
+/** 채팅방 최초 생성 → 상대 참여자 (이름 — 이사 견적 채팅) */
 export const notifyChatRoomOpened = async (
   params: NotifyChatRoomOpenedParams
 ): Promise<NotificationListItem> => {

@@ -207,7 +207,7 @@ export const findMoverIdsForNewRequest = async (
   return profiles.map((profile) => profile.userId);
 };
 
-/** 유저 이름 조회 (알림 payload용) */
+/** 유저 이름(이사·견적 알림 payload용) */
 export const findUserNameById = async (
   userId: string,
   db: DbClient = prisma
@@ -218,6 +218,19 @@ export const findUserNameById = async (
   });
 
   return user?.name ?? null;
+};
+
+/** 유저 닉네임(커뮤니티·리뷰 알림 payload용) */
+export const findUserNicknameById = async (
+  userId: string,
+  db: DbClient = prisma
+): Promise<string | null> => {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { nickname: true },
+  });
+
+  return user?.nickname ?? null;
 };
 
 /** 견적 알림용 컨텍스트 — quoteId만으로 고객·기사·이사유형·지정여부 조회 */
