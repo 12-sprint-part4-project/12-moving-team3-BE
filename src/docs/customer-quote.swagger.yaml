@@ -390,6 +390,7 @@ paths:
                   items:
                     - estimateRequestId: 99
                       submittedAt: '2024-05-05T10:00:00.000Z'
+                      confirmedAt: '2024-07-01T10:00:00.000Z'
                       serviceType: HOME
                       moveDate: '2024-05-10T00:00:00.000Z'
                       fromAddress: 서울 중구 삼일대로 343 5층
