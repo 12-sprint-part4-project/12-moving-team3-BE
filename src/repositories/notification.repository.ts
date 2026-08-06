@@ -223,19 +223,6 @@ export const findUserNameById = async (
   return user?.name ?? null;
 };
 
-/** 유저 닉네임(커뮤니티·리뷰 알림 payload용) */
-export const findUserNicknameById = async (
-  userId: string,
-  db: DbClient = prisma
-): Promise<string | null> => {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { nickname: true },
-  });
-
-  return user?.nickname ?? null;
-};
-
 /**
  * COMPLETED 인데 REVIEW_REQUESTED 가 아직 없는 견적요청.
  * 자정 cron·부팅 catch-up 에서 미발송분만 보낸다.

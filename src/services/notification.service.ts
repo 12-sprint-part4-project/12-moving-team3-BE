@@ -97,6 +97,12 @@ export interface NotifyChatRoomOpenedParams {
   chatRoomId: number;
 }
 
+export interface NotifyChatRoomOpenedToCounterpartsParams {
+  creatorId: string;
+  participantIds: string[];
+  chatRoomId: number;
+}
+
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
@@ -659,11 +665,9 @@ export const notifyChatRoomOpened = async (
  * 채팅방 신규 생성(201) 직후 — 개설자를 제외한 참여자에게 1회.
  * 기존 방 재사용(200) 경로에서는 호출하지 않는다.
  */
-export const notifyChatRoomOpenedToCounterparts = async (params: {
-  creatorId: string;
-  participantIds: string[];
-  chatRoomId: number;
-}): Promise<void> => {
+export const notifyChatRoomOpenedToCounterparts = async (
+  params: NotifyChatRoomOpenedToCounterpartsParams
+): Promise<void> => {
   const counterpartName =
     (await notificationRepository.findUserNameById(params.creatorId)) ??
     '상대방';
