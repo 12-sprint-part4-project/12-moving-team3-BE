@@ -1,10 +1,11 @@
 paths:
-  /api/notifications/customer:
+  /api/notifications:
     get:
       tags: [Notifications]
-      summary: 일반 유저 알림 목록 조회
+      summary: 알림 목록 조회
       description: |
-        로그인한 고객의 최신 알림을 최대 10개까지 반환합니다.
+        로그인한 유저(고객·기사 공통)의 최신 알림을 최대 10개까지 반환합니다.
+        수신자는 로그인 userId이며 역할별 path 분기는 없습니다.
         드롭다운용이며, 전체 모아보기(페이지네이션)는 심화 범위에서 제외합니다.
       security:
         - bearerAuth: []
@@ -32,43 +33,6 @@ paths:
                   totalCount: 7
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /api/notifications/mover:
-    get:
-      tags: [Notifications]
-      summary: 기사님 알림 목록 조회
-      description: |
-        로그인한 기사님의 최신 알림을 최대 10개까지 반환합니다.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: 조회 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationListResponse'
-              example:
-                data:
-                  items:
-                    - id: 2
-                      type: NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED
-                      content: 박소정 고객님의 소형이사 지정 견적 요청이 도착했어요
-                      payload:
-                        customerName: 박소정
-                        moveTypeLabel: 소형이사
-                      isRead: false
-                      createdAt: '2026-07-20T13:15:00.000Z'
-                      quoteId: null
-                      estimateRequestId: 5
-                meta:
-                  totalCount: 5
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
 
   /api/notifications/stream:
     get:
