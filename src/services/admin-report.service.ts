@@ -29,6 +29,7 @@ import {
   findReportTargetArticlesByIds,
   findReportTargetChatRoomsByIds,
   findReportTargetCommentsByIds,
+  findReportTargetIdsByTargetUserKeyword,
   findReportTargetMessagesByIds,
   findReportTargetReviewsByIds,
   findReportTargetUsersByIds,
@@ -36,6 +37,7 @@ import {
   parseNumericTargetId,
   type AdminReportDetailRow,
   type AdminReportListRow,
+  type AdminReportTargetIdsByKeyword,
 } from '../repositories/admin-report.repository';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
@@ -242,7 +244,20 @@ const toAdminReportListItem = (
 export const getAdminReportList = async (
   params: AdminReportListQuery
 ): Promise<AdminReportListResultDto> => {
-  const { items, totalCount } = await findAdminReportsWithCount(params);
+  // keyword가 있을 때만 targetId 후보를 조회한다. 없으면 undefined로 검색 필터를 끈다.
+  let targetIds: AdminReportTargetIdsByKeyword | undefined;
+
+  if (params.targetUserKeyword) {
+    targetIds = await findReportTargetIdsByTargetUserKeyword(
+      params.targetUserKeyword
+    );
+  }
+
+  // reportedFrom/reportedTo는 params에 실려 Repository where builder로 전달된다.
+  const { items, totalCount } = await findAdminReportsWithCount(
+    params,
+    targetIds
+  );
   const targetInfoMap = await loadTargetInfoMap(items);
 
   return {
