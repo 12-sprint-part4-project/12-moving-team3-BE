@@ -454,6 +454,31 @@ export const notifyReviewRequested = async (
   });
 };
 
+/**
+ * COMPLETED 요청 중 REVIEW_REQUESTED 미발송분만 발송.
+ * status-change cron 직후·부팅 catch-up 공용.
+ */
+export const notifyMissingReviewRequestedForCompletedMoves =
+  async (): Promise<void> => {
+    const targets =
+      await notificationRepository.findCompletedRequestsMissingReviewRequested();
+
+    for (const request of targets) {
+      try {
+        await notifyReviewRequested({
+          customerId: request.userId,
+          moveType: request.moveType,
+          estimateRequestId: request.id,
+        });
+      } catch (error) {
+        console.error(
+          `[notifyMissingReviewRequested] estimateRequestId=${request.id} failed`,
+          error
+        );
+      }
+    }
+  };
+
 /** 리뷰 작성 → 기사 (고객 닉네임) */
 export const notifyReviewWritten = async (
   params: NotifyReviewWrittenParams
@@ -464,6 +489,27 @@ export const notifyReviewWritten = async (
     payload: { customerNickname: params.customerNickname },
     reviewId: params.reviewId,
     estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** reviewId만으로 리뷰 작성 알림 */
+export const notifyReviewWrittenByReviewId = async (
+  reviewId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findReviewWrittenNotificationContext(
+      reviewId
+    );
+
+  if (!ctx) {
+    return null;
+  }
+
+  return notifyReviewWritten({
+    moverId: ctx.moverId,
+    customerNickname: ctx.customerNickname ?? '고객',
+    reviewId: ctx.reviewId,
+    estimateRequestId: ctx.estimateRequestId,
   });
 };
 
@@ -499,6 +545,48 @@ export const notifyCommunityReply = async (
     type: 'COMMUNITY_REPLY',
     payload: { authorNickname: params.authorNickname },
     commentId: params.commentId,
+  });
+};
+
+/**
+ * commentId만으로 원글 댓글/답글 알림.
+ * 자기 글·자기 댓글에는 발송하지 않는다.
+ */
+export const notifyCommunityCommentOrReplyByCommentId = async (
+  commentId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findCommunityCommentNotificationContext(
+      commentId
+    );
+
+  if (!ctx) {
+    return null;
+  }
+
+  const authorNickname = ctx.authorNickname ?? '사용자';
+
+  if (ctx.isReply) {
+    const receiverId = ctx.parentCommentAuthorId;
+    if (!receiverId || receiverId === ctx.authorId) {
+      return null;
+    }
+
+    return notifyCommunityReply({
+      receiverId,
+      authorNickname,
+      commentId: ctx.commentId,
+    });
+  }
+
+  if (ctx.postAuthorId === ctx.authorId) {
+    return null;
+  }
+
+  return notifyCommunityComment({
+    receiverId: ctx.postAuthorId,
+    authorNickname,
+    commentId: ctx.commentId,
   });
 };
 

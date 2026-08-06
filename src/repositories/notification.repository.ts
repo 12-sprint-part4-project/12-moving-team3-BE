@@ -5,7 +5,10 @@ import type {
   QuoteStatus,
   Region,
 } from '@prisma/client';
-import { Region as RegionEnum } from '@prisma/client';
+import {
+  EstimateRequestStatus,
+  Region as RegionEnum,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getRegionAddressKeywords } from '../utils/region.util';
 
@@ -231,6 +234,104 @@ export const findUserNicknameById = async (
   });
 
   return user?.nickname ?? null;
+};
+
+/**
+ * COMPLETED 인데 REVIEW_REQUESTED 가 아직 없는 견적요청.
+ * 자정 cron·부팅 catch-up 에서 미발송분만 보낸다.
+ */
+export const findCompletedRequestsMissingReviewRequested = async (
+  db: DbClient = prisma
+): Promise<
+  Array<{ id: number; userId: string; moveType: MoveType | null }>
+> => {
+  return db.estimateRequest.findMany({
+    where: {
+      status: EstimateRequestStatus.COMPLETED,
+      notifications: {
+        none: { type: 'REVIEW_REQUESTED' },
+      },
+    },
+    select: {
+      id: true,
+      userId: true,
+      moveType: true,
+    },
+  });
+};
+
+/** 리뷰 작성 알림용 — reviewId로 기사·고객 닉네임·견적요청 조회 */
+export const findReviewWrittenNotificationContext = async (
+  reviewId: number,
+  db: DbClient = prisma
+): Promise<{
+  reviewId: number;
+  moverId: string;
+  customerNickname: string | null;
+  estimateRequestId: number;
+} | null> => {
+  const review = await db.review.findFirst({
+    where: { id: reviewId, deletedAt: null },
+    select: {
+      id: true,
+      user: { select: { nickname: true } },
+      quote: {
+        select: {
+          moverId: true,
+          estimateRequestId: true,
+        },
+      },
+    },
+  });
+
+  if (!review?.quote.moverId) {
+    return null;
+  }
+
+  return {
+    reviewId: review.id,
+    moverId: review.quote.moverId,
+    customerNickname: review.user.nickname,
+    estimateRequestId: review.quote.estimateRequestId,
+  };
+};
+
+/** 댓글 알림용 — commentId로 작성자·원글/부모 수신자 조회 */
+export const findCommunityCommentNotificationContext = async (
+  commentId: number,
+  db: DbClient = prisma
+): Promise<{
+  commentId: number;
+  authorId: string;
+  authorNickname: string | null;
+  postAuthorId: string;
+  parentCommentAuthorId: string | null;
+  isReply: boolean;
+} | null> => {
+  const comment = await db.comment.findFirst({
+    where: { id: commentId, deletedAt: null },
+    select: {
+      id: true,
+      userId: true,
+      parentId: true,
+      user: { select: { nickname: true } },
+      post: { select: { userId: true } },
+      parent: { select: { userId: true } },
+    },
+  });
+
+  if (!comment) {
+    return null;
+  }
+
+  return {
+    commentId: comment.id,
+    authorId: comment.userId,
+    authorNickname: comment.user.nickname,
+    postAuthorId: comment.post.userId,
+    parentCommentAuthorId: comment.parent?.userId ?? null,
+    isReply: comment.parentId !== null,
+  };
 };
 
 /** 견적 알림용 컨텍스트 — quoteId만으로 고객·기사·이사유형·지정여부 조회 */
