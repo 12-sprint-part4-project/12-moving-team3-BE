@@ -132,6 +132,7 @@ model EstimateRequest {
   status                 EstimateRequestStatus     @default(DRAFT)
   confirmedQuoteId       Int?                      @unique @map("confirmed_quote_id")
   submittedAt            DateTime?                 @map("submitted_at")
+  confirmedAt            DateTime?                 @map("confirmed_at")
   createdAt              DateTime                  @default(now()) @map("created_at")
   updatedAt              DateTime                  @updatedAt @map("updated_at")
   chatRooms              ChatRoom[]
