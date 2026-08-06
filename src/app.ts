@@ -85,7 +85,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/posts', communityRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin/dashboard', adminDashboardRouter);
-app.use('/api/admin/estimate-request', adminEstimateRequestRouter);
+app.use('/api/admin/estimate-requests', adminEstimateRequestRouter);
 app.use('/api/admin/completed', adminCompletedRouter);
 app.use('/api/admin/members', adminMemberRouter);
 app.use('/api/admin/reviews', adminReviewRouter);

@@ -1,5 +1,5 @@
 paths:
-  /api/admin/estimate-request:
+  /api/admin/estimate-requests:
     get:
       tags: [Admin Estimate Requests]
       summary: 관리자 견적 요청 목록 조회
@@ -194,7 +194,7 @@ paths:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
 
-  /api/admin/estimate-request/statistics:
+  /api/admin/estimate-requests/statistics:
     get:
       tags: [Admin Estimate Requests]
       summary: 관리자 견적 요청 통계 조회
@@ -295,7 +295,7 @@ paths:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
 
-  /api/admin/estimate-request/{estimateRequestId}:
+  /api/admin/estimate-requests/{estimateRequestId}:
     get:
       tags: [Admin Estimate Requests]
       summary: 관리자 견적 요청 상세 조회
