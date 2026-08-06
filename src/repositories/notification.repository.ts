@@ -40,7 +40,7 @@ export interface CreateFanoutNotificationRow {
   sourceId: string;
 }
 
-/** createMany 청크 크기 — 타팀 공지 배치(~500)와 맞춤 */
+/** createMany 청크 크기 — 워커 createMany / SSE 부하 균형용 (200) */
 export const NOTIFICATION_OUTBOX_CHUNK_SIZE = 200;
 /** claim 재시도 상한 — 초과 시 FAILED */
 export const NOTIFICATION_OUTBOX_MAX_ATTEMPTS = 5;
