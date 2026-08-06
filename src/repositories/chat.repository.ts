@@ -566,11 +566,14 @@ export const createChatRoom = async (
 /**
  * 나간 상대(활성 참여 row 없음)를 재참여시킨다.
  * 이전 leftAt row는 유지하고, leftAt IS NULL인 새 row만 생성한다.
+ * joinedAt은 재참여를 유발한 메시지 createdAt과 같게 맞춰,
+ * 해당 메시지가 목록 lastMessage·이력 조회에서 빠지지 않게 한다.
  */
 const rejoinLeftParticipants = async (
   tx: ChatTransactionClient,
   roomId: number,
-  excludeUserId: string
+  excludeUserId: string,
+  joinedAt: Date
 ) => {
   const participations = await tx.chatRoomParticipant.findMany({
     where: {
@@ -603,6 +606,7 @@ const rejoinLeftParticipants = async (
     data: leftParticipantIds.map((participantId) => ({
       roomId,
       participantId,
+      joinedAt,
     })),
     skipDuplicates: true,
   });
@@ -625,7 +629,7 @@ const finalizeMessageCreation = async (
     data: { lastMessageAt: createdAt },
   });
 
-  await rejoinLeftParticipants(tx, roomId, senderId);
+  await rejoinLeftParticipants(tx, roomId, senderId, createdAt);
 };
 
 /**
