@@ -811,7 +811,7 @@ export const confirmQuote = async (
 ): Promise<ConfirmQuoteDto> => {
   const { customerId, quoteId } = input;
 
-  return quoteRepository.runInTransaction(async (tx) => {
+  const result = await quoteRepository.runInTransaction(async (tx) => {
     // 고객 소유 견적 조회
     const quote = await quoteRepository.findCustomerQuoteForConfirm(
       tx,
@@ -861,4 +861,16 @@ export const confirmQuote = async (
 
     return { confirmedQuoteId: quoteId };
   });
+
+  // 확정 알림(고객·기사) — 커밋 이후 호출(실패해도 확정은 유지)
+  try {
+    await notificationService.notifyQuoteConfirmedByQuoteId(quoteId);
+  } catch (error) {
+    console.error(
+      `[confirmQuote] quote confirmed notification failed quoteId=${quoteId}`,
+      error
+    );
+  }
+
+  return result;
 };

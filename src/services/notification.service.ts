@@ -247,6 +247,39 @@ export const notifyQuoteConfirmed = async (params: {
   });
 };
 
+/**
+ * quoteId만으로 견적 확정 알림 발송 — 고객·확정 기사 각 1건.
+ * 동일 문구(QUOTE_CONFIRMED). 기사 id가 없으면 고객만 발송.
+ */
+export const notifyQuoteConfirmedByQuoteId = async (
+  quoteId: number
+): Promise<void> => {
+  const ctx =
+    await notificationRepository.findQuoteNotificationContext(quoteId);
+
+  if (!ctx) {
+    return;
+  }
+
+  const moverName = ctx.moverName ?? '기사';
+  const base = {
+    moverName,
+    quoteId: ctx.quoteId,
+    estimateRequestId: ctx.estimateRequestId,
+  };
+
+  const receivers = [ctx.customerId];
+  if (ctx.moverId && ctx.moverId !== ctx.customerId) {
+    receivers.push(ctx.moverId);
+  }
+
+  await Promise.all(
+    receivers.map((receiverId) =>
+      notifyQuoteConfirmed({ ...base, receiverId })
+    )
+  );
+};
+
 /** 지정 견적 반려 → 고객 */
 export const notifyDesignatedQuoteRejected = async (params: {
   customerId: string;
