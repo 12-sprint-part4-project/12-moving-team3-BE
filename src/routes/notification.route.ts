@@ -1,9 +1,6 @@
 import { Router } from 'express';
 import * as notificationController from '../controllers/notification.controller';
-import {
-  requireAuth,
-  requireAuthAllowSuspended,
-} from '../middlewares/auth.middleware';
+import { requireAuthAllowSuspended } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { notificationIdParamsSchema } from '../schemas/notification.schema';
 
@@ -22,7 +19,7 @@ router.get(
 // EventSource는 Authorization 헤더를 못 보내므로 FE는 fetch 기반 SSE 클라이언트 사용
 router.get(
   '/stream',
-  requireAuth,
+  requireAuthAllowSuspended,
   notificationController.openNotificationStream
 );
 
