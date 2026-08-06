@@ -81,7 +81,7 @@ const router = Router();
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/rooms', requireAuth, chatController.getChatRoomList);
+router.get('/rooms', requireAuthAllowSuspended, chatController.getChatRoomList);
 
 /**
  * @swagger
