@@ -13,6 +13,15 @@ import {
 import * as postRepository from '../repositories/post.repository';
 import type { PostCursor } from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
+import {
+  isPostContentEmpty,
+  sanitizePostContent,
+} from '../utils/post-content-sanitize.util';
+import {
+  assertValidPostImageKeys,
+  deletePostImageKeysSafely,
+} from '../utils/post-image.util';
+import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 import { toPresignedViewUrl } from './s3.service';
 
 const isPostSort = (value: unknown): value is PostSort =>
@@ -98,6 +107,16 @@ const getCursorValue = (
   return { id: post.id, sort, value: post.createdAt.toISOString() };
 };
 
+const resolvePostContent = (content: string): string => {
+  const sanitized = sanitizePostContent(content);
+
+  if (isPostContentEmpty(sanitized)) {
+    throw new AppError('POST_CONTENT_EMPTY');
+  }
+
+  return sanitized;
+};
+
 const mapPostListItem = async (
   post: Awaited<ReturnType<typeof postRepository.findPosts>>[number],
   userId?: string
@@ -152,7 +171,9 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
   const lastRow = items.length > 0 ? items[items.length - 1] : undefined;
 
   return {
-    items: await Promise.all(items.map((post) => mapPostListItem(post, userId))),
+    items: await Promise.all(
+      items.map((post) => mapPostListItem(post, userId))
+    ),
     meta: {
       nextCursor:
         hasNextPage && lastRow
@@ -224,14 +245,33 @@ export const getPostById = async (postId: number, userId?: string) => {
 export const createPost = async (userId: string, body: CreatePostBody) => {
   if (
     body.category === PostsCategory.FURNITURE_SHARE &&
-    (body.latitude === undefined || body.longitude === undefined)
+    body.region === undefined
   ) {
-    throw new AppError('POST_LOCATION_REQUIRED');
+    throw new AppError('POST_REGION_REQUIRED');
   }
 
-  const post = await postRepository.createPost(userId, body);
+  await assertValidPostImageKeys(body.imageKeys);
 
-  return { id: post.id };
+  const sanitizedContent = resolvePostContent(body.content);
+
+  try {
+    const post = await postRepository.createPost(userId, {
+      ...body,
+      content: sanitizedContent,
+    });
+
+    return { id: post.id };
+  } catch (error) {
+    await deletePostImageKeysSafely(body.imageKeys);
+
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
 };
 
 const assertPostOwner = async (postId: number, userId: string) => {
@@ -254,10 +294,33 @@ export const updatePost = async (
 ) => {
   await assertPostOwner(postId, userId);
 
-  const updated = await postRepository.updatePost(postId, body);
+  const previousImageKeys =
+    body.imageKeys !== undefined
+      ? await postRepository.findImageKeysByPostId(postId)
+      : [];
+
+  if (body.imageKeys !== undefined) {
+    await assertValidPostImageKeys(body.imageKeys);
+  }
+
+  const updated = await postRepository.updatePost(postId, {
+    ...body,
+    ...(body.content !== undefined
+      ? { content: resolvePostContent(body.content) }
+      : {}),
+  });
 
   if (!updated) {
     throw new AppError('POST_NOT_FOUND');
+  }
+
+  if (body.imageKeys !== undefined) {
+    const nextImageKeySet = new Set(body.imageKeys);
+    const removedImageKeys = previousImageKeys.filter(
+      (imageKey) => !nextImageKeySet.has(imageKey)
+    );
+
+    await deletePostImageKeysSafely(removedImageKeys);
   }
 
   return { id: updated.id };

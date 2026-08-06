@@ -355,8 +355,9 @@ router.get(
  *     summary: 게시글 생성
  *     description: |
  *       로그인한 사용자가 게시글을 생성합니다.
- *       가구 나눔(FURNITURE_SHARE) 카테고리는 latitude, longitude가 필수입니다.
- *       imageKeys는 최대 5장까지 등록할 수 있습니다.
+ *       content는 Tiptap HTML 문자열이며, 저장 전 서버에서 sanitize됩니다.
+ *       가구 나눔(FURNITURE_SHARE) 카테고리는 region이 필수입니다.
+ *       imageKeys는 최대 5장까지 등록할 수 있으며, S3 posts/ prefix 업로드 객체를 검증합니다.
  *       이미지는 `GET /api/presigned-upload-url?prefix=posts`로 업로드한 뒤 반환된 s3Key를 사용합니다.
  *     security:
  *       - bearerAuth: []
@@ -381,22 +382,15 @@ router.get(
  *               content:
  *                 type: string
  *                 minLength: 1
+ *                 description: Tiptap HTML 본문 (서버 sanitize 후 저장)
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
- *                 description: presigned-upload-url(prefix=posts)로 발급받은 s3Key 목록
+ *                 description: presigned-upload-url(prefix=posts)로 발급·업로드된 s3Key 목록
  *                 items:
  *                   type: string
  *                   minLength: 1
  *                   pattern: ^posts/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_.+$
- *               latitude:
- *                 type: number
- *                 minimum: -90
- *                 maximum: 90
- *               longitude:
- *                 type: number
- *                 minimum: -180
- *                 maximum: 180
  *     responses:
  *       201:
  *         description: 게시글 생성 성공
