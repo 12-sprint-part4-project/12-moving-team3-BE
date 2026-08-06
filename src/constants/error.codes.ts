@@ -345,9 +345,13 @@ export const ERROR_CODES = {
     status: 400,
     message: '제목은 수정할 수 없습니다.',
   },
-  POST_LOCATION_REQUIRED: {
+  POST_REGION_REQUIRED: {
     status: 400,
-    message: '가구 나눔 게시글은 위치 정보가 필요합니다.',
+    message: '가구 나눔 게시글은 지역 선택이 필요합니다.',
+  },
+  POST_CONTENT_EMPTY: {
+    status: 400,
+    message: '게시글 내용을 입력해 주세요.',
   },
   POST_IMAGE_LIMIT_EXCEEDED: {
     status: 400,

@@ -13,6 +13,16 @@ import {
 import * as postRepository from '../repositories/post.repository';
 import type { PostCursor } from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
+import {
+  isPostContentEmpty,
+  stripPostMarkdown,
+} from '../utils/post-content.util';
+import {
+  assertValidPostImageKeys,
+  assertImageKeysNotReferenced,
+  deleteUnreferencedPostImageKeys,
+} from '../utils/post-image.util';
+import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 import { toPresignedViewUrl } from './s3.service';
 
 const isPostSort = (value: unknown): value is PostSort =>
@@ -98,6 +108,14 @@ const getCursorValue = (
   return { id: post.id, sort, value: post.createdAt.toISOString() };
 };
 
+const resolvePostContent = (content: string): string => {
+  if (isPostContentEmpty(content)) {
+    throw new AppError('POST_CONTENT_EMPTY');
+  }
+
+  return content;
+};
+
 const mapPostListItem = async (
   post: Awaited<ReturnType<typeof postRepository.findPosts>>[number],
   userId?: string
@@ -106,7 +124,10 @@ const mapPostListItem = async (
   category: post.category,
   region: post.region ?? null,
   title: post.title,
-  contentPreview: post.content.slice(0, CONTENT_PREVIEW_MAX_LENGTH),
+  contentPreview: stripPostMarkdown(post.content).slice(
+    0,
+    CONTENT_PREVIEW_MAX_LENGTH
+  ),
   thumbnailUrl: await toPresignedViewUrl(post.images[0]?.imageKey),
   author: {
     id: post.user.id,
@@ -152,7 +173,9 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
   const lastRow = items.length > 0 ? items[items.length - 1] : undefined;
 
   return {
-    items: await Promise.all(items.map((post) => mapPostListItem(post, userId))),
+    items: await Promise.all(
+      items.map((post) => mapPostListItem(post, userId))
+    ),
     meta: {
       nextCursor:
         hasNextPage && lastRow
@@ -224,14 +247,34 @@ export const getPostById = async (postId: number, userId?: string) => {
 export const createPost = async (userId: string, body: CreatePostBody) => {
   if (
     body.category === PostsCategory.FURNITURE_SHARE &&
-    (body.latitude === undefined || body.longitude === undefined)
+    body.region === undefined
   ) {
-    throw new AppError('POST_LOCATION_REQUIRED');
+    throw new AppError('POST_REGION_REQUIRED');
   }
 
-  const post = await postRepository.createPost(userId, body);
+  await assertValidPostImageKeys(body.imageKeys);
+  await assertImageKeysNotReferenced(body.imageKeys);
 
-  return { id: post.id };
+  const content = resolvePostContent(body.content);
+
+  try {
+    const post = await postRepository.createPost(userId, {
+      ...body,
+      content,
+    });
+
+    return { id: post.id };
+  } catch (error) {
+    await deleteUnreferencedPostImageKeys(body.imageKeys);
+
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
 };
 
 const assertPostOwner = async (postId: number, userId: string) => {
@@ -254,13 +297,60 @@ export const updatePost = async (
 ) => {
   await assertPostOwner(postId, userId);
 
-  const updated = await postRepository.updatePost(postId, body);
+  const previousImageKeys =
+    body.imageKeys !== undefined
+      ? await postRepository.findImageKeysByPostId(postId)
+      : [];
 
-  if (!updated) {
-    throw new AppError('POST_NOT_FOUND');
+  const newImageKeys =
+    body.imageKeys !== undefined
+      ? body.imageKeys.filter(
+          (imageKey) => !previousImageKeys.includes(imageKey)
+        )
+      : [];
+
+  if (body.imageKeys !== undefined) {
+    await assertValidPostImageKeys(body.imageKeys);
+    await assertImageKeysNotReferenced(newImageKeys);
   }
 
-  return { id: updated.id };
+  try {
+    const updated = await postRepository.updatePost(postId, {
+      ...body,
+      ...(body.content !== undefined
+        ? { content: resolvePostContent(body.content) }
+        : {}),
+    });
+
+    if (!updated) {
+      throw new AppError('POST_NOT_FOUND');
+    }
+
+    if (body.imageKeys !== undefined) {
+      const nextImageKeySet = new Set(body.imageKeys);
+      const removedImageKeys = previousImageKeys.filter(
+        (imageKey) => !nextImageKeySet.has(imageKey)
+      );
+
+      await deleteUnreferencedPostImageKeys(removedImageKeys);
+    }
+
+    return { id: updated.id };
+  } catch (error) {
+    await deleteUnreferencedPostImageKeys(newImageKeys);
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    const appError = toAppErrorFromPrisma(error);
+
+    if (appError) {
+      throw appError;
+    }
+
+    throw error;
+  }
 };
 
 /** 게시글 삭제 (soft delete) */

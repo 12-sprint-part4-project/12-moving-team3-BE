@@ -366,8 +366,6 @@ export const createPost = async (userId: string, body: CreatePostBody) => {
       region: body.region,
       title: body.title,
       content: body.content,
-      latitude: body.latitude,
-      longitude: body.longitude,
       images: {
         create: body.imageKeys.map((imageKey) => ({ imageKey })),
       },
@@ -425,6 +423,34 @@ export const softDeletePost = async (postId: number) => {
     where: { id: postId, deletedAt: null },
     data: { deletedAt: new Date() },
   });
+};
+
+/** 게시글에 연결된 imageKey 목록 */
+export const findImageKeysByPostId = async (
+  postId: number
+): Promise<string[]> => {
+  const rows = await prisma.postImage.findMany({
+    where: { postId },
+    select: { imageKey: true },
+  });
+
+  return rows.map((row) => row.imageKey);
+};
+
+/** post_images에 참조 중인 imageKey만 반환 */
+export const findReferencedPostImageKeys = async (
+  imageKeys: string[]
+): Promise<string[]> => {
+  if (imageKeys.length === 0) {
+    return [];
+  }
+
+  const rows = await prisma.postImage.findMany({
+    where: { imageKey: { in: imageKeys } },
+    select: { imageKey: true },
+  });
+
+  return rows.map((row) => row.imageKey);
 };
 
 /** 게시글 조회수 +1. 대상 없으면 0 반환 */
