@@ -1,6 +1,7 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, UserReportTarget } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
+import { createDateRange } from '../utils/admin-date-range.util';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -54,11 +55,92 @@ export type AdminReportListRow = Prisma.UserReportGetPayload<{
   select: typeof adminReportListSelect;
 }>;
 
-/** status·target이 있으면 AND로 좁히고, 없으면 전체 목록을 조회한다 */
+/** 검색어로 찾은 대상 사용자·콘텐츠의 targetId 후보 (UserReport.targetId와 맞춰 string) */
+export type AdminReportTargetIdsByKeyword = {
+  userIds: string[];
+  reviewIds: string[];
+  messageIds: string[];
+  articleIds: string[];
+  commentIds: string[];
+  chatRoomIds: string[];
+};
+
+type AdminReportListWhereParams = Pick<
+  AdminReportListQuery,
+  'status' | 'target' | 'reportedFrom' | 'reportedTo'
+> & {
+  /**
+   * 검색어로 미리 조회한 targetId 묶음.
+   * undefined면 검색 필터 미적용(기존 목록 호출과 동일), 빈 묶음이면 0건.
+   */
+  targetIds?: AdminReportTargetIdsByKeyword;
+};
+
+/** target별 id 묶음을 UserReport OR 조건으로 변환. 빈 배열 분기는 넣지 않는다. */
+const buildTargetIdSearchOrConditions = (
+  targetIds: AdminReportTargetIdsByKeyword
+): Prisma.UserReportWhereInput[] => {
+  const conditions: Prisma.UserReportWhereInput[] = [];
+
+  if (targetIds.userIds.length > 0) {
+    conditions.push({
+      target: UserReportTarget.USER,
+      targetId: { in: targetIds.userIds },
+    });
+  }
+
+  if (targetIds.reviewIds.length > 0) {
+    conditions.push({
+      target: UserReportTarget.REVIEW,
+      targetId: { in: targetIds.reviewIds },
+    });
+  }
+
+  if (targetIds.messageIds.length > 0) {
+    conditions.push({
+      target: UserReportTarget.MESSAGE,
+      targetId: { in: targetIds.messageIds },
+    });
+  }
+
+  if (targetIds.articleIds.length > 0) {
+    conditions.push({
+      target: UserReportTarget.ARTICLE,
+      targetId: { in: targetIds.articleIds },
+    });
+  }
+
+  if (targetIds.commentIds.length > 0) {
+    conditions.push({
+      target: UserReportTarget.COMMENT,
+      targetId: { in: targetIds.commentIds },
+    });
+  }
+
+  if (targetIds.chatRoomIds.length > 0) {
+    conditions.push({
+      target: UserReportTarget.CHAT_ROOM,
+      targetId: { in: targetIds.chatRoomIds },
+    });
+  }
+
+  return conditions;
+};
+
+/**
+ * status·target·신고일·대상 사용자 검색을 AND로 합친다.
+ * target + 검색이 함께 오면 Prisma가 둘 다 만족하는 행만 남긴다
+ * (예: target=REVIEW AND OR(... REVIEW targetId ...)).
+ */
 const buildAdminReportListWhere = (
-  params: Pick<AdminReportListQuery, 'status' | 'target'>
+  params: AdminReportListWhereParams
 ): Prisma.UserReportWhereInput => {
-  const where: Prisma.UserReportWhereInput = {};
+  // 회원 목록과 동일: reportedFrom이 없으면 기간 필터를 두지 않는다.
+  const dateRange = createDateRange(params.reportedFrom, params.reportedTo);
+
+  const where: Prisma.UserReportWhereInput = {
+    ...(dateRange && { createdAt: dateRange }),
+  };
 
   if (params.status) {
     where.status = params.status;
@@ -68,14 +150,36 @@ const buildAdminReportListWhere = (
     where.target = params.target;
   }
 
+  // keyword 자체는 where에 넣지 않고, Service가 넘긴 targetId 묶음만 반영한다.
+  if (params.targetIds) {
+    const targetIdOrConditions = buildTargetIdSearchOrConditions(
+      params.targetIds
+    );
+
+    if (targetIdOrConditions.length === 0) {
+      // 검색 후보가 하나도 없으면 IN []로 목록·count 모두 0건이 되게 한다.
+      where.id = { in: [] };
+    } else {
+      where.OR = targetIdOrConditions;
+    }
+  }
+
   return where;
 };
 
 /** 관리자 신고 목록 + 전체 건수 조회 (totalPages는 Service에서 계산) */
 export const findAdminReportsWithCount = async (
-  params: AdminReportListQuery
+  params: AdminReportListQuery,
+  // Service 연결 전에도 선택적으로 넘겨 같은 where를 list/count에 쓸 수 있게 둔다.
+  targetIds?: AdminReportTargetIdsByKeyword
 ): Promise<{ items: AdminReportListRow[]; totalCount: number }> => {
-  const where = buildAdminReportListWhere(params);
+  const where = buildAdminReportListWhere({
+    status: params.status,
+    target: params.target,
+    reportedFrom: params.reportedFrom,
+    reportedTo: params.reportedTo,
+    targetIds,
+  });
   const skip = (params.page - 1) * params.pageSize;
 
   const [items, totalCount] = await prisma.$transaction([
@@ -105,16 +209,6 @@ const REPORT_TARGET_USER_SEARCH_LIMIT = 100;
  */
 const REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT = 500;
 
-/** 검색어로 찾은 대상 사용자·콘텐츠의 targetId 후보 (UserReport.targetId와 맞춰 string) */
-export type AdminReportTargetIdsByKeyword = {
-  userIds: string[];
-  reviewIds: string[];
-  messageIds: string[];
-  articleIds: string[];
-  commentIds: string[];
-  chatRoomIds: string[];
-};
-
 const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
   userIds: [],
   reviewIds: [],
@@ -126,7 +220,7 @@ const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
 
 /**
  * 신고 대상 사용자 검색어로 target 타입별 targetId 목록을 조회한다.
- * 목록 where 조립은 이후 커밋에서 연결하고, 여기서는 ID 후보만 만든다.
+ * buildAdminReportListWhere가 이 결과를 OR 조건으로 받아 목록을 좁힌다.
  *
  * - USER: 일치 사용자 id
  * - REVIEW/ARTICLE/COMMENT: 작성자 userId
