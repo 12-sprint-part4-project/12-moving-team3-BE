@@ -245,6 +245,8 @@ export const enqueueNewQuoteRequestFanout = async (
 };
 
 const OUTBOX_MAX_CLAIMS_PER_TICK = 20;
+/** claim당 createMany 청크 상한 — 5×200 ≈ 1,000명 후 틱 양보 */
+const OUTBOX_MAX_CHUNKS_PER_CLAIM = 5;
 
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {
@@ -254,8 +256,9 @@ const toErrorMessage = (error: unknown): string => {
 };
 
 /**
- * NEW_QUOTE_REQUEST_FANOUT — 매칭 기사를 커서 청크로 createMany 후 DONE.
- * 지정 알림은 포함하지 않는다. 한 claim 안에서 끝까지 처리한다.
+ * NEW_QUOTE_REQUEST_FANOUT — 매칭 기사를 커서 청크로 createMany.
+ * claim당 청크 상한에 걸리면 PENDING 양보 → 다음 cron이 이어서 처리.
+ * 지정 알림은 포함하지 않는다.
  */
 const processNewQuoteRequestFanout = async (job: {
   id: number;
@@ -295,6 +298,8 @@ const processNewQuoteRequestFanout = async (job: {
   const chunkSize = notificationRepository.NOTIFICATION_OUTBOX_CHUNK_SIZE;
 
   let cursorUserId = job.cursorUserId;
+  let chunksProcessed = 0;
+
   while (true) {
     const moverIds =
       await notificationRepository.findMoverIdsForNewRequestChunk({
@@ -329,6 +334,8 @@ const processNewQuoteRequestFanout = async (job: {
       }
     }
 
+    chunksProcessed += 1;
+
     if (moverIds.length < chunkSize) {
       await notificationRepository.markOutboxDone(job.id);
       return;
@@ -338,6 +345,12 @@ const processNewQuoteRequestFanout = async (job: {
     const nextCursor = moverIds[moverIds.length - 1];
     if (!nextCursor) {
       await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
+    // 청크 상한 — PENDING 양보(cursor 유지). 다음 틱 claim은 attempts 미증가
+    if (chunksProcessed >= OUTBOX_MAX_CHUNKS_PER_CLAIM) {
+      await notificationRepository.markOutboxYield(job.id, nextCursor);
       return;
     }
 

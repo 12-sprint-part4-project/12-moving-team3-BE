@@ -123,8 +123,9 @@ export const createOutboxJob = async (
 
 /**
  * PENDING(또는 stale PROCESSING) 잡 1건 claim — FOR UPDATE SKIP LOCKED.
- * claim마다 attempts++ (PENDING·stale PROCESSING 동일). 상한 도달 시 FAILED로 전환하고
- * status=FAILED 행을 반환하므로 호출측은 PROCESSING만 처리한다.
+ * - 일반 claim / 실패 재시도 / stale PROCESSING 회수: attempts++
+ * - yield 재개(PENDING + cursor 있음 + lastError null): attempts 유지 (정상 진행 양보)
+ * 상한 도달 시 FAILED. status=FAILED 행은 호출측에서 처리 스킵.
  * Sprint 2: 매칭 fan-out만 claim. ADMIN_NOTICE는 후속 전략 추가 시 조건 확장.
  */
 export const claimOutboxJob = async (
@@ -133,7 +134,15 @@ export const claimOutboxJob = async (
 ): Promise<NotificationOutbox | null> => {
   const rows = await prisma.$queryRaw<NotificationOutbox[]>`
     WITH cte AS (
-      SELECT id
+      SELECT
+        id,
+        CASE
+          WHEN status = 'PENDING'::"NotificationOutboxStatus"
+            AND cursor_user_id IS NOT NULL
+            AND last_error IS NULL
+          THEN attempts
+          ELSE attempts + 1
+        END AS next_attempts
       FROM notification_outboxes
       WHERE attempts < ${maxAttempts}
         AND job_type = 'NEW_QUOTE_REQUEST_FANOUT'::"NotificationOutboxJobType"
@@ -150,15 +159,14 @@ export const claimOutboxJob = async (
     )
     UPDATE notification_outboxes AS o
     SET
-      -- PENDING·stale PROCESSING 모두 회수 시 attempts++ (워커 크래시 시 상한 동작)
-      attempts = o.attempts + 1,
+      attempts = cte.next_attempts,
       status = CASE
-        WHEN o.attempts + 1 >= ${maxAttempts}
+        WHEN cte.next_attempts >= ${maxAttempts}
           THEN 'FAILED'::"NotificationOutboxStatus"
         ELSE 'PROCESSING'::"NotificationOutboxStatus"
       END,
       last_error = CASE
-        WHEN o.attempts + 1 >= ${maxAttempts}
+        WHEN cte.next_attempts >= ${maxAttempts}
           THEN 'max attempts exceeded on claim'
         ELSE o.last_error
       END,
@@ -181,7 +189,7 @@ export const claimOutboxJob = async (
   return rows[0] ?? null;
 };
 
-/** 청크 진행 — 커서만 갱신하고 PROCESSING 유지 */
+/** 청크 진행 — 커서만 갱신하고 PROCESSING 유지 (같은 claim 안) */
 export const updateOutboxCursor = async (
   id: number,
   cursorUserId: string
@@ -191,6 +199,24 @@ export const updateOutboxCursor = async (
     data: {
       cursorUserId,
       status: 'PROCESSING',
+      lastError: null,
+    },
+  });
+};
+
+/**
+ * claim당 청크 상한 양보 — cursor 유지 후 PENDING 복귀.
+ * lastError=null + cursor 있음 → 다음 claim에서 attempts 미증가(yield 재개).
+ */
+export const markOutboxYield = async (
+  id: number,
+  cursorUserId: string
+): Promise<void> => {
+  await prisma.notificationOutbox.update({
+    where: { id },
+    data: {
+      cursorUserId,
+      status: 'PENDING',
       lastError: null,
     },
   });
