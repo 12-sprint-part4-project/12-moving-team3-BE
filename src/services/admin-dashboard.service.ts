@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import {
   createDateRange,
+  createDateRangeOnly,
   getDashboardChartDateRange,
 } from '../utils/admin-date-range.util';
 import {
@@ -35,6 +36,7 @@ export const getStatistics = async ({
   endDate,
 }: AdminStatisticsFilter) => {
   const dateRange = createDateRange(startDate, endDate);
+  const dateRangeOnly = createDateRangeOnly(startDate, endDate);
 
   const [
     userCount,
@@ -58,7 +60,7 @@ export const getStatistics = async ({
     }),
     getEstimateRequestCount({
       status: EstimateRequestStatus.COMPLETED,
-      ...(dateRange && { moveDate: dateRange }),
+      ...(dateRangeOnly && { moveDate: dateRangeOnly }),
     }),
     getTotalReportCount({
       status: UserReportStatus.PENDING,
@@ -163,6 +165,7 @@ export const getRequestStatus = async () => {
 export const getRecentActivities = async () => {
   const { start, end } = getDashboardChartDateRange('WEEK');
   const dateRange = { gte: start, lte: end };
+  const dateRangeOnly = createDateRangeOnly(start, end);
 
   const [recentReports, recentUsers, recentCompletedRequests] =
     await Promise.all([
@@ -176,7 +179,7 @@ export const getRecentActivities = async () => {
       }),
       getCompletedEstimateRequestRecentActivities({
         status: EstimateRequestStatus.COMPLETED,
-        moveDate: dateRange,
+        moveDate: dateRangeOnly,
       }),
     ]);
 

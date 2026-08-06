@@ -63,15 +63,16 @@ export interface NotifyReviewRequestedParams {
 
 export interface NotifyReviewWrittenParams {
   moverId: string;
-  customerName: string;
+  customerNickname: string;
   reviewId: number;
   estimateRequestId?: number | null;
 }
 
 export interface NotifyCommunityCommentParams {
   receiverId: string;
-  authorName: string;
+  authorNickname: string;
   commentId: number;
+  postId: number;
 }
 
 export interface NotifySanctionParams {
@@ -80,8 +81,9 @@ export interface NotifySanctionParams {
 
 export interface NotifyCommunityReplyParams {
   receiverId: string;
-  authorName: string;
+  authorNickname: string;
   commentId: number;
+  postId: number;
 }
 
 export interface NotifyPostRemovedByReportParams {
@@ -92,6 +94,13 @@ export interface NotifyPostRemovedByReportParams {
 export interface NotifyChatRoomOpenedParams {
   receiverId: string;
   counterpartName: string;
+  chatRoomId: number;
+}
+
+export interface NotifyChatRoomOpenedToCounterpartsParams {
+  creatorId: string;
+  participantIds: string[];
+  chatRoomId: number;
 }
 
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
@@ -454,27 +463,81 @@ export const notifyReviewRequested = async (
   });
 };
 
-/** 리뷰 작성 → 기사 */
+/** catch-up 1회당 처리 상한 — 누적분은 다음 cron/부팅에서 이어서 발송 */
+const REVIEW_REQUESTED_CATCH_UP_LIMIT = 200;
+
+/**
+ * COMPLETED 요청 중 REVIEW_REQUESTED 미발송분만 발송.
+ * status-change cron 직후·부팅 catch-up 공용.
+ */
+export const notifyMissingReviewRequestedForCompletedMoves =
+  async (): Promise<void> => {
+    const targets =
+      await notificationRepository.findCompletedRequestsMissingReviewRequested(
+        REVIEW_REQUESTED_CATCH_UP_LIMIT
+      );
+
+    for (const request of targets) {
+      try {
+        await notifyReviewRequested({
+          customerId: request.userId,
+          moveType: request.moveType,
+          estimateRequestId: request.id,
+        });
+      } catch (error) {
+        console.error(
+          `[notifyMissingReviewRequested] estimateRequestId=${request.id} failed`,
+          error
+        );
+      }
+    }
+  };
+
+/** 리뷰 작성 → 기사 (고객 닉네임) */
 export const notifyReviewWritten = async (
   params: NotifyReviewWrittenParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.moverId,
     type: 'REVIEW_WRITTEN',
-    payload: { customerName: params.customerName },
+    payload: { customerNickname: params.customerNickname },
     reviewId: params.reviewId,
     estimateRequestId: params.estimateRequestId,
   });
 };
 
-/** 게시글 댓글 → 원글 작성자 */
+/** reviewId만으로 리뷰 작성 알림 */
+export const notifyReviewWrittenByReviewId = async (
+  reviewId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findReviewWrittenNotificationContext(
+      reviewId
+    );
+
+  if (!ctx) {
+    return null;
+  }
+
+  return notifyReviewWritten({
+    moverId: ctx.moverId,
+    customerNickname: ctx.customerNickname ?? '고객',
+    reviewId: ctx.reviewId,
+    estimateRequestId: ctx.estimateRequestId,
+  });
+};
+
+/** 게시글 댓글 → 원글 작성자 (닉네임) */
 export const notifyCommunityComment = async (
   params: NotifyCommunityCommentParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_COMMENT',
-    payload: { authorName: params.authorName },
+    payload: {
+      authorNickname: params.authorNickname,
+      postId: String(params.postId),
+    },
     commentId: params.commentId,
   });
 };
@@ -490,15 +553,62 @@ export const notifySanction = async (
   });
 };
 
-/** 대댓글 → 부모 댓글 작성자 */
+/** 대댓글 → 부모 댓글 작성자 (닉네임) */
 export const notifyCommunityReply = async (
   params: NotifyCommunityReplyParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'COMMUNITY_REPLY',
-    payload: { authorName: params.authorName },
+    payload: {
+      authorNickname: params.authorNickname,
+      postId: String(params.postId),
+    },
     commentId: params.commentId,
+  });
+};
+
+/**
+ * commentId만으로 원글 댓글/답글 알림.
+ * 자기 글·자기 댓글에는 발송하지 않는다.
+ */
+export const notifyCommunityCommentOrReplyByCommentId = async (
+  commentId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findCommunityCommentNotificationContext(
+      commentId
+    );
+
+  if (!ctx) {
+    return null;
+  }
+
+  const authorNickname = ctx.authorNickname ?? '사용자';
+
+  if (ctx.isReply) {
+    const receiverId = ctx.parentCommentAuthorId;
+    if (!receiverId || receiverId === ctx.authorId) {
+      return null;
+    }
+
+    return notifyCommunityReply({
+      receiverId,
+      authorNickname,
+      commentId: ctx.commentId,
+      postId: ctx.postId,
+    });
+  }
+
+  if (ctx.postAuthorId === ctx.authorId) {
+    return null;
+  }
+
+  return notifyCommunityComment({
+    receiverId: ctx.postAuthorId,
+    authorNickname,
+    commentId: ctx.commentId,
+    postId: ctx.postId,
   });
 };
 
@@ -514,13 +624,66 @@ export const notifyPostRemovedByReport = async (
   });
 };
 
-/** 채팅방 최초 생성 → 상대 참여자 */
+/**
+ * userReportId만으로 신고 게시글 삭제 알림.
+ * admin 신고 처리(삭제) mutation이 생기면 그 성공 직후 호출하면 된다.
+ * 예: `await notificationService.notifyPostRemovedByReportByUserReportId(reportId)`
+ */
+export const notifyPostRemovedByReportByUserReportId = async (
+  userReportId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findPostRemovedByReportNotificationContext(
+      userReportId
+    );
+
+  if (!ctx) {
+    return null;
+  }
+
+  return notifyPostRemovedByReport({
+    receiverId: ctx.postAuthorId,
+    userReportId: ctx.userReportId,
+  });
+};
+
+/** 채팅방 최초 생성 → 상대 참여자 (이름 — 이사 견적 채팅) */
 export const notifyChatRoomOpened = async (
   params: NotifyChatRoomOpenedParams
 ): Promise<NotificationListItem> => {
   return createNotification({
     receiverId: params.receiverId,
     type: 'CHAT_ROOM_OPENED',
-    payload: { counterpartName: params.counterpartName },
+    payload: {
+      counterpartName: params.counterpartName,
+      chatRoomId: String(params.chatRoomId),
+    },
   });
+};
+
+/**
+ * 채팅방 신규 생성(201) 직후 — 개설자를 제외한 참여자에게 1회.
+ * 기존 방 재사용(200) 경로에서는 호출하지 않는다.
+ */
+export const notifyChatRoomOpenedToCounterparts = async (
+  params: NotifyChatRoomOpenedToCounterpartsParams
+): Promise<void> => {
+  // creator 이름이 없으면 템플릿('{counterpartName}님과의…')이 깨지지 않도록 알림용 fallback
+  const counterpartName =
+    (await notificationRepository.findUserNameById(params.creatorId)) ??
+    '상대방';
+
+  const receivers = params.participantIds.filter(
+    (id) => id !== params.creatorId
+  );
+
+  await Promise.all(
+    receivers.map((receiverId) =>
+      notifyChatRoomOpened({
+        receiverId,
+        counterpartName,
+        chatRoomId: params.chatRoomId,
+      })
+    )
+  );
 };

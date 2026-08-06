@@ -132,6 +132,7 @@ model EstimateRequest {
   status                 EstimateRequestStatus     @default(DRAFT)
   confirmedQuoteId       Int?                      @unique @map("confirmed_quote_id")
   submittedAt            DateTime?                 @map("submitted_at")
+  confirmedAt            DateTime?                 @map("confirmed_at")
   createdAt              DateTime                  @default(now()) @map("created_at")
   updatedAt              DateTime                  @updatedAt @map("updated_at")
   chatRooms              ChatRoom[]
@@ -233,6 +234,8 @@ model Notification {
   quoteId           Int?             @map("quote_id")
   reviewId          Int?             @map("review_id")
   userReportId      Int?             @map("user_report_id")
+  // 대량 fan-out 멱등 키(견적요청 ID·공지 ID 등). null이면 단건·기존 알림
+  sourceId          String?          @map("source_id") @db.VarChar(64)
   comment           Comment?         @relation(fields: [commentId], references: [id])
   estimateRequest   EstimateRequest? @relation(fields: [estimateRequestId], references: [id])
   quote             Quote?           @relation(fields: [quoteId], references: [id])
@@ -242,7 +245,29 @@ model Notification {
 
   @@index([receiverId, createdAt])
   @@index([receiverId, isRead])
+  // sourceId 있는 행만 유일 — createMany skipDuplicates / 재실행 멱등 (null은 기존 단건 허용)
+  @@unique([receiverId, type, sourceId], map: "notifications_receiver_type_source_unique", where: raw("(source_id IS NOT NULL)"))
   @@map("notifications")
+}
+
+/// 대량 알림 fan-out 작업 큐. jobType별로 대상 조회 전략만 갈아끼운다.
+model NotificationOutbox {
+  id           Int                       @id @default(autoincrement())
+  jobType      NotificationOutboxJobType @map("job_type")
+  // 견적요청 ID·공지 ID 등 — jobType과 함께 해석 (다형, FK 없음)
+  sourceId     String                    @map("source_id") @db.VarChar(64)
+  status       NotificationOutboxStatus  @default(PENDING)
+  cursorUserId String?                   @map("cursor_user_id") @db.Uuid
+  attempts     Int                       @default(0)
+  lastError    String?                   @map("last_error") @db.VarChar(1000)
+  // 공지 등: 이 시각 이전 가입자만 대상
+  snapshotAt   DateTime?                 @map("snapshot_at")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+
+  @@unique([jobType, sourceId])
+  @@index([status, updatedAt])
+  @@map("notification_outboxes")
 }
 
 /// userId, adminUserId는 배치/시스템 처리(예: move_date 경과로 자동 COMPLETED 전환) 시 null
@@ -531,6 +556,19 @@ enum NotificationType {
   POST_REMOVED_BY_REPORT
   CHAT_ROOM_OPENED
   SANCTION_NOTIFIED
+}
+
+/// 대량 fan-out 잡 종류 — 새 소비자 추가 시 enum만 확장
+enum NotificationOutboxJobType {
+  NEW_QUOTE_REQUEST_FANOUT
+  ADMIN_NOTICE_FANOUT
+}
+
+enum NotificationOutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
 }
 
 enum HistoryAction {

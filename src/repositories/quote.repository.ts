@@ -388,6 +388,7 @@ export interface CustomerPastEstimateRequestRow {
   id: number;
   status: EstimateRequestStatus;
   submittedAt: Date | null;
+  confirmedAt: Date | null;
   moveType: MoveType | null;
   moveDate: Date | null;
   departureAddress: string | null;
@@ -581,6 +582,7 @@ export const findCustomerPastEstimateRequests = async (
         id: true,
         status: true,
         submittedAt: true,
+        confirmedAt: true,
         moveType: true,
         moveDate: true,
         departureAddress: true,
@@ -627,6 +629,7 @@ export const findCustomerPastEstimateRequests = async (
       id: true,
       status: true,
       submittedAt: true,
+      confirmedAt: true,
       moveType: true,
       moveDate: true,
       departureAddress: true,
@@ -744,6 +747,7 @@ export const confirmQuoteWithEstimateRequest = async (
     data: {
       status: EstimateRequestStatus.CONFIRMED,
       confirmedQuoteId: quoteId,
+      confirmedAt: new Date(),
     },
   });
 
