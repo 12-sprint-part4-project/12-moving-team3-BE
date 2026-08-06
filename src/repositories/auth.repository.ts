@@ -46,6 +46,17 @@ export const findLocalPasswordHashByUserId = async (
   });
 };
 
+/** 계정 상태 조회 — row가 없으면 null (호출측에서 ACTIVE로 정규화) */
+export const findUserStatusByUserId = async (
+  userId: string,
+  db: DbClient = prisma
+) => {
+  return db.userStatusInfo.findUnique({
+    where: { userId },
+    select: { status: true },
+  });
+};
+
 const userAuthSelect = {
   id: true,
   userType: true,

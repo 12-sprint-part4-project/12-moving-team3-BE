@@ -1,4 +1,6 @@
+import { UserStatus } from '@prisma/client';
 import type { RequestHandler, Response } from 'express';
+import * as authRepository from '../repositories/auth.repository';
 import type { ApiUserType } from '../schemas/auth.schema';
 import { AppError } from '../utils/app.error';
 import { verifyAccessToken } from '../utils/auth-jwt.util';
@@ -8,8 +10,8 @@ export interface AuthenticatedUser {
   userType: ApiUserType;
 }
 
-/** Access Token 필수. 성공 시 res.locals.user에 저장 */
-export const requireAuth: RequestHandler = (req, res, next) => {
+/** Access Token 필수. 정지 계정이면 USER_SUSPENDED. 성공 시 res.locals.user에 저장 */
+export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
     const header = req.get('authorization');
     const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
@@ -19,6 +21,11 @@ export const requireAuth: RequestHandler = (req, res, next) => {
     }
 
     const payload = verifyAccessToken(token);
+    const userStatus = await authRepository.findUserStatusByUserId(payload.sub);
+
+    if (userStatus?.status === UserStatus.SUSPENDED) {
+      throw new AppError('USER_SUSPENDED');
+    }
 
     res.locals.user = {
       userId: payload.sub,
@@ -26,7 +33,12 @@ export const requireAuth: RequestHandler = (req, res, next) => {
     } satisfies AuthenticatedUser;
 
     next();
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) {
+      next(error);
+      return;
+    }
+
     next(new AppError('UNAUTHORIZED'));
   }
 };
@@ -63,6 +75,7 @@ export const getAuthenticatedUser = (res: Response): AuthenticatedUser => {
 /**
  * Access Token 선택. 토큰이 없거나 유효하지 않으면 비로그인으로 통과하고,
  * 유효한 토큰이 있으면 검증 후 res.locals.user에 저장한다.
+ * 정지 여부는 검사하지 않는다 — 공개/둘러보기 API용.
  */
 export const optionalAuth: RequestHandler = (req, res, next) => {
   const header = req.get('authorization');
