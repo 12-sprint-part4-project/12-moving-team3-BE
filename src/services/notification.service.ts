@@ -232,7 +232,7 @@ export const enqueueBulkNotification = async (
 /**
  * 일반 견적 요청 제출 → 매칭 기사 fan-out 잡 enqueue.
  * 지정 알림은 여기 포함하지 않는다(지정 API 시점 단건 유지).
- * 실제 발송은 Sprint 2 워커가 findMoverIdsForNewRequest + createMany로 처리.
+ * 실제 발송은 워커가 createMany 청크로 처리한다.
  */
 export const enqueueNewQuoteRequestFanout = async (
   estimateRequestId: number
@@ -241,6 +241,144 @@ export const enqueueNewQuoteRequestFanout = async (
     jobType: 'NEW_QUOTE_REQUEST_FANOUT',
     sourceId: String(estimateRequestId),
   });
+};
+
+const OUTBOX_MAX_CLAIMS_PER_TICK = 20;
+
+const toErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+};
+
+/**
+ * NEW_QUOTE_REQUEST_FANOUT — 매칭 기사를 커서 청크로 createMany 후 DONE.
+ * 지정 알림은 포함하지 않는다. 한 claim 안에서 끝까지 처리한다.
+ */
+const processNewQuoteRequestFanout = async (job: {
+  id: number;
+  sourceId: string;
+  cursorUserId: string | null;
+}): Promise<void> => {
+  const estimateRequestId = Number(job.sourceId);
+  if (!Number.isInteger(estimateRequestId) || estimateRequestId <= 0) {
+    throw new Error(`invalid estimateRequestId sourceId=${job.sourceId}`);
+  }
+
+  const request =
+    await notificationRepository.findEstimateRequestForFanout(
+      estimateRequestId
+    );
+  if (!request) {
+    // 원본 삭제 등으로 대상 없음 — 재시도 의미 없으므로 DONE
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+
+  const customerName =
+    (await notificationRepository.findUserNameById(request.userId)) ?? '고객';
+  const moveTypeLabel = toMoveTypeLabel(request.moveType);
+  const payload = { customerName, moveTypeLabel };
+  const content = renderNotificationContent(
+    'NEW_QUOTE_REQUEST_ARRIVED',
+    payload
+  );
+  const sourceId = String(request.id);
+  const chunkSize = notificationRepository.NOTIFICATION_OUTBOX_CHUNK_SIZE;
+
+  let cursorUserId = job.cursorUserId;
+  while (true) {
+    const moverIds =
+      await notificationRepository.findMoverIdsForNewRequestChunk({
+        departureAddress: request.departureAddress,
+        arrivalAddress: request.arrivalAddress,
+        moveType: request.moveType,
+        cursorUserId,
+        take: chunkSize,
+      });
+
+    if (moverIds.length === 0) {
+      await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
+    const inserted =
+      await notificationRepository.createManyFanoutNotifications(
+        moverIds.map((receiverId) => ({
+          receiverId,
+          type: 'NEW_QUOTE_REQUEST_ARRIVED' as const,
+          content,
+          payload,
+          estimateRequestId: request.id,
+          sourceId,
+        }))
+      );
+
+    // 신규 삽입이 있을 때만 refresh — FE는 후속 핸들러로 목록 재조회
+    if (inserted > 0) {
+      for (const receiverId of moverIds) {
+        notificationSse.publishNotificationRefresh(receiverId);
+      }
+    }
+
+    if (moverIds.length < chunkSize) {
+      await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
+    const nextCursor = moverIds[moverIds.length - 1]!;
+    await notificationRepository.updateOutboxCursor(job.id, nextCursor);
+    cursorUserId = nextCursor;
+  }
+};
+
+/** jobType별 전략 — 신규 소비자는 여기 switch만 확장 */
+const processClaimedOutboxJob = async (job: {
+  id: number;
+  jobType: NotificationOutboxJobType;
+  sourceId: string;
+  cursorUserId: string | null;
+  attempts: number;
+}): Promise<void> => {
+  try {
+    switch (job.jobType) {
+      case 'NEW_QUOTE_REQUEST_FANOUT':
+        await processNewQuoteRequestFanout(job);
+        break;
+      default:
+        throw new Error(`unsupported outbox jobType=${job.jobType}`);
+    }
+  } catch (error) {
+    await notificationRepository.markOutboxFailure(
+      job.id,
+      toErrorMessage(error),
+      job.attempts
+    );
+    throw error;
+  }
+};
+
+/**
+ * Outbox 워커 1틱 — claim → createMany 청크 → cursor/DONE/FAILED.
+ * cron·부팅 catch-up 공용.
+ */
+export const processNotificationOutboxTick = async (): Promise<void> => {
+  for (let i = 0; i < OUTBOX_MAX_CLAIMS_PER_TICK; i++) {
+    const job = await notificationRepository.claimOutboxJob();
+    if (!job) {
+      return;
+    }
+
+    try {
+      await processClaimedOutboxJob(job);
+    } catch (error) {
+      console.error(
+        `[notification-outbox] job id=${job.id} type=${job.jobType} sourceId=${job.sourceId} failed`,
+        error
+      );
+    }
+  }
 };
 
 /**

@@ -1,5 +1,6 @@
 import type {
   MoveType,
+  NotificationOutbox,
   NotificationOutboxJobType,
   NotificationType,
   Prisma,
@@ -20,6 +21,28 @@ export interface CreateOutboxJobData {
   sourceId: string;
   snapshotAt?: Date | null;
 }
+
+export interface FanoutEstimateRequestRow {
+  id: number;
+  userId: string;
+  moveType: MoveType | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+}
+
+export interface CreateFanoutNotificationRow {
+  receiverId: string;
+  type: NotificationType;
+  content: string;
+  payload: Prisma.InputJsonValue;
+  estimateRequestId?: number | null;
+  sourceId: string;
+}
+
+/** createMany 청크 크기 — 타팀 공지 배치(~500)와 맞춤 */
+export const NOTIFICATION_OUTBOX_CHUNK_SIZE = 200;
+/** claim 재시도 상한 — 초과 시 FAILED */
+export const NOTIFICATION_OUTBOX_MAX_ATTEMPTS = 5;
 
 const LIST_LIMIT = 10;
 
@@ -95,6 +118,202 @@ export const createOutboxJob = async (
     ],
     skipDuplicates: true,
   });
+};
+
+/**
+ * PENDING(또는 stale PROCESSING) 잡 1건 claim — FOR UPDATE SKIP LOCKED.
+ * PENDING→PROCESSING 시에만 attempts++. 동시 워커 중복 claim 방지.
+ * Sprint 2: 매칭 fan-out만 claim. ADMIN_NOTICE는 후속 전략 추가 시 조건 확장.
+ */
+export const claimOutboxJob = async (
+  maxAttempts: number = NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
+  staleBefore: Date = new Date(Date.now() - 5 * 60 * 1000)
+): Promise<NotificationOutbox | null> => {
+  const rows = await prisma.$queryRaw<NotificationOutbox[]>`
+    WITH cte AS (
+      SELECT id
+      FROM notification_outboxes
+      WHERE attempts < ${maxAttempts}
+        AND job_type = 'NEW_QUOTE_REQUEST_FANOUT'::"NotificationOutboxJobType"
+        AND (
+          status = 'PENDING'::"NotificationOutboxStatus"
+          OR (
+            status = 'PROCESSING'::"NotificationOutboxStatus"
+            AND updated_at < ${staleBefore}
+          )
+        )
+      ORDER BY updated_at ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE notification_outboxes AS o
+    SET
+      status = 'PROCESSING'::"NotificationOutboxStatus",
+      attempts = CASE
+        WHEN o.status = 'PENDING'::"NotificationOutboxStatus" THEN o.attempts + 1
+        ELSE o.attempts
+      END,
+      updated_at = NOW()
+    FROM cte
+    WHERE o.id = cte.id
+    RETURNING
+      o.id,
+      o.job_type AS "jobType",
+      o.source_id AS "sourceId",
+      o.status,
+      o.cursor_user_id AS "cursorUserId",
+      o.attempts,
+      o.last_error AS "lastError",
+      o.snapshot_at AS "snapshotAt",
+      o.created_at AS "createdAt",
+      o.updated_at AS "updatedAt"
+  `;
+
+  return rows[0] ?? null;
+};
+
+/** 청크 진행 — 커서만 갱신하고 PROCESSING 유지 */
+export const updateOutboxCursor = async (
+  id: number,
+  cursorUserId: string
+): Promise<void> => {
+  await prisma.notificationOutbox.update({
+    where: { id },
+    data: {
+      cursorUserId,
+      status: 'PROCESSING',
+      lastError: null,
+    },
+  });
+};
+
+export const markOutboxDone = async (id: number): Promise<void> => {
+  await prisma.notificationOutbox.update({
+    where: { id },
+    data: {
+      status: 'DONE',
+      lastError: null,
+    },
+  });
+};
+
+/**
+ * 실패 시 lastError 기록. attempts는 claim 시 이미 증가했으므로 여기선 상태만 전환.
+ * 상한 도달이면 FAILED, 아니면 PENDING 재대기(커서는 유지되어 이어서 보낼 수 있음).
+ */
+export const markOutboxFailure = async (
+  id: number,
+  lastError: string,
+  attempts: number,
+  maxAttempts: number = NOTIFICATION_OUTBOX_MAX_ATTEMPTS
+): Promise<void> => {
+  const truncated =
+    lastError.length > 1000 ? lastError.slice(0, 1000) : lastError;
+
+  await prisma.notificationOutbox.update({
+    where: { id },
+    data: {
+      lastError: truncated,
+      status: attempts >= maxAttempts ? 'FAILED' : 'PENDING',
+    },
+  });
+};
+
+/** fan-out용 견적요청 요약 */
+export const findEstimateRequestForFanout = async (
+  estimateRequestId: number
+): Promise<FanoutEstimateRequestRow | null> => {
+  return prisma.estimateRequest.findUnique({
+    where: { id: estimateRequestId },
+    select: {
+      id: true,
+      userId: true,
+      moveType: true,
+      departureAddress: true,
+      arrivalAddress: true,
+    },
+  });
+};
+
+/**
+ * 매칭 기사 userId 청크 — userId 오름차순 커서 페이징.
+ * (기존 전체 조회 findMoverIdsForNewRequest 와 동일 매칭 조건)
+ */
+export const findMoverIdsForNewRequestChunk = async (params: {
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+  moveType: MoveType | null;
+  cursorUserId?: string | null;
+  take: number;
+}): Promise<string[]> => {
+  if (!params.moveType) {
+    return [];
+  }
+
+  const addressMatchesRegion = (
+    address: string | null | undefined,
+    region: Region
+  ): boolean => {
+    if (!address) {
+      return false;
+    }
+
+    return getRegionAddressKeywords(region).some((keyword) =>
+      address.startsWith(keyword)
+    );
+  };
+
+  const matchingRegions = Object.values(RegionEnum).filter(
+    (region) =>
+      addressMatchesRegion(params.departureAddress, region) ||
+      addressMatchesRegion(params.arrivalAddress, region)
+  );
+
+  if (matchingRegions.length === 0) {
+    return [];
+  }
+
+  const profiles = await prisma.moverProfile.findMany({
+    where: {
+      service: { has: params.moveType },
+      serviceRegions: { some: { region: { in: matchingRegions } } },
+      user: { deletedAt: null, userType: 'MOVER' },
+      ...(params.cursorUserId
+        ? { userId: { gt: params.cursorUserId } }
+        : {}),
+    },
+    select: { userId: true },
+    orderBy: { userId: 'asc' },
+    take: params.take,
+  });
+
+  return profiles.map((profile) => profile.userId);
+};
+
+/**
+ * 대량 알림 insert — Unique(receiverId, type, sourceId) + skipDuplicates 멱등.
+ * 실제 삽입 건수를 반환한다.
+ */
+export const createManyFanoutNotifications = async (
+  rows: CreateFanoutNotificationRow[]
+): Promise<number> => {
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  const result = await prisma.notification.createMany({
+    data: rows.map((row) => ({
+      receiverId: row.receiverId,
+      type: row.type,
+      content: row.content,
+      payload: row.payload,
+      estimateRequestId: row.estimateRequestId ?? undefined,
+      sourceId: row.sourceId,
+    })),
+    skipDuplicates: true,
+  });
+
+  return result.count;
 };
 
 /** 수신자 최신 알림 최대 10개 + 전체 건수 */
@@ -184,58 +403,6 @@ export const findDesignatedMoverIds = async (
   });
 
   return rows.map((row) => row.moverId);
-};
-
-/**
- * 일반 견적 요청 알림 대상 — 출발/도착 주소가 서비스 지역과 매칭되고
- * 프로필 service에 이사유형이 포함된 기사 (받은 견적 요청 serviceArea 필터와 동일 기준)
- */
-export interface FindMoverIdsForNewRequestParams {
-  departureAddress: string | null;
-  arrivalAddress: string | null;
-  moveType: MoveType | null;
-}
-
-export const findMoverIdsForNewRequest = async (
-  params: FindMoverIdsForNewRequestParams
-): Promise<string[]> => {
-  if (!params.moveType) {
-    return [];
-  }
-
-  const addressMatchesRegion = (
-    address: string | null | undefined,
-    region: Region
-  ): boolean => {
-    if (!address) {
-      return false;
-    }
-
-    return getRegionAddressKeywords(region).some((keyword) =>
-      address.startsWith(keyword)
-    );
-  };
-
-  const matchingRegions = Object.values(RegionEnum).filter(
-    (region) =>
-      addressMatchesRegion(params.departureAddress, region) ||
-      addressMatchesRegion(params.arrivalAddress, region)
-  );
-
-  if (matchingRegions.length === 0) {
-    return [];
-  }
-
-  const profiles = await prisma.moverProfile.findMany({
-    where: {
-      service: { has: params.moveType },
-      serviceRegions: { some: { region: { in: matchingRegions } } },
-      user: { deletedAt: null, userType: 'MOVER' },
-    },
-    select: { userId: true },
-  });
-
-  return profiles.map((profile) => profile.userId);
 };
 
 /** 유저 이름(이사·견적 알림 payload용) */
