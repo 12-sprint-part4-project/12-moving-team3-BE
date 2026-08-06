@@ -355,7 +355,8 @@ router.get(
  *     summary: 게시글 생성
  *     description: |
  *       로그인한 사용자가 게시글을 생성합니다.
- *       content는 Tiptap HTML 문자열이며, 저장 전 서버에서 sanitize됩니다.
+ *       content는 Tiptap getMarkdown() 결과인 마크다운 문자열입니다.
+ *       서버는 빈 본문 여부만 검증하고 원문을 저장합니다.
  *       가구 나눔(FURNITURE_SHARE) 카테고리는 region이 필수입니다.
  *       imageKeys는 최대 5장까지 등록할 수 있으며, S3 posts/ prefix 업로드 객체를 검증합니다.
  *       이미지는 `GET /api/presigned-upload-url?prefix=posts`로 업로드한 뒤 반환된 s3Key를 사용합니다.
@@ -382,7 +383,7 @@ router.get(
  *               content:
  *                 type: string
  *                 minLength: 1
- *                 description: Tiptap HTML 본문 (서버 sanitize 후 저장)
+ *                 description: Tiptap getMarkdown() 마크다운 본문 (원문 저장)
  *               imageKeys:
  *                 type: array
  *                 maxItems: 5
@@ -426,6 +427,7 @@ router.post(
  *     summary: 게시글 수정
  *     description: |
  *       본인 게시글의 content, imageKeys만 수정할 수 있습니다.
+ *       content는 Tiptap getMarkdown() 마크다운 문자열이며, 서버는 빈 본문 여부만 검증합니다.
  *       imageKeys를 보내면 기존 이미지는 전체 교체됩니다.
  *       content, imageKeys 중 최소 1개는 포함해야 합니다.
  *     security:

@@ -15,8 +15,8 @@ import type { PostCursor } from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
 import {
   isPostContentEmpty,
-  sanitizePostContent,
-} from '../utils/post-content-sanitize.util';
+  stripPostMarkdown,
+} from '../utils/post-content.util';
 import {
   assertValidPostImageKeys,
   deletePostImageKeysSafely,
@@ -108,13 +108,11 @@ const getCursorValue = (
 };
 
 const resolvePostContent = (content: string): string => {
-  const sanitized = sanitizePostContent(content);
-
-  if (isPostContentEmpty(sanitized)) {
+  if (isPostContentEmpty(content)) {
     throw new AppError('POST_CONTENT_EMPTY');
   }
 
-  return sanitized;
+  return content;
 };
 
 const mapPostListItem = async (
@@ -125,7 +123,10 @@ const mapPostListItem = async (
   category: post.category,
   region: post.region ?? null,
   title: post.title,
-  contentPreview: post.content.slice(0, CONTENT_PREVIEW_MAX_LENGTH),
+  contentPreview: stripPostMarkdown(post.content).slice(
+    0,
+    CONTENT_PREVIEW_MAX_LENGTH
+  ),
   thumbnailUrl: await toPresignedViewUrl(post.images[0]?.imageKey),
   author: {
     id: post.user.id,
@@ -252,12 +253,12 @@ export const createPost = async (userId: string, body: CreatePostBody) => {
 
   await assertValidPostImageKeys(body.imageKeys);
 
-  const sanitizedContent = resolvePostContent(body.content);
+  const content = resolvePostContent(body.content);
 
   try {
     const post = await postRepository.createPost(userId, {
       ...body,
-      content: sanitizedContent,
+      content,
     });
 
     return { id: post.id };
