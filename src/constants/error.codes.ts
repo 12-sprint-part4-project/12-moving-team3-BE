@@ -206,6 +206,10 @@ export const ERROR_CODES = {
     status: 403,
     message: '해당 사용자 유형으로 가입된 계정이 아닙니다.',
   },
+  USER_SUSPENDED: {
+    status: 403,
+    message: '정지된 계정입니다. 해당 기능을 이용할 수 없습니다.',
+  },
   CURRENT_PASSWORD_REQUIRED: {
     status: 400,
     message: '현재 비밀번호를 입력해 주세요.',

@@ -14,23 +14,25 @@ import {
   quoteListQuerySchema,
   quoteParamsSchema,
 } from '../schemas/quote.schema';
-import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
 import { requireCompletedMoverProfile } from '../middlewares/profile.middleware';
 
 const router = Router();
 
-// 기사님 본인 프로필 조회 (Swagger: src/docs/mover-profile.swagger.yaml)
+// 기사님 본인 프로필 조회 — 헤더용, 정지 유저도 허용
+// (Swagger: src/docs/mover-profile.swagger.yaml)
 router.get(
   '/profile',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('MOVER'),
   moverProfileController.getMoverProfile
 );
 
-// 기사님 프로필 등록/수정 (Swagger: src/docs/mover-profile.swagger.yaml)
+// 기사님 프로필 등록/수정 — 정지 유저도 허용
+// (Swagger: src/docs/mover-profile.swagger.yaml)
 router.patch(
   '/profile',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('MOVER'),
   validateRequest({
     body: moverProfileBodySchema,
@@ -39,10 +41,11 @@ router.patch(
   moverProfileController.saveMoverProfile
 );
 
-// 기사님 기본정보 수정 (Swagger: src/docs/mover-profile.swagger.yaml)
+// 기사님 기본정보 수정 — 정지 유저도 허용
+// (Swagger: src/docs/mover-profile.swagger.yaml)
 router.patch(
   '/basic-info',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('MOVER'),
   validateRequest({
     body: moverBasicInfoBodySchema,

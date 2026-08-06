@@ -1,4 +1,6 @@
+import { UserStatus } from '@prisma/client';
 import type { ExtendedError } from 'socket.io';
+import * as authRepository from '../repositories/auth.repository';
 import { verifyAccessToken } from '../utils/auth-jwt.util';
 import type { ChatSocket } from './socket.types';
 
@@ -7,7 +9,7 @@ import type { ChatSocket } from './socket.types';
  * - `auth.token` 또는 `Authorization: Bearer ...` 헤더를 허용한다.
  * - 실패 시 연결을 거부한다.
  */
-export const socketAuthMiddleware = (
+export const socketAuthMiddleware = async (
   socket: ChatSocket,
   next: (err?: ExtendedError) => void
 ) => {
@@ -31,6 +33,12 @@ export const socketAuthMiddleware = (
     }
 
     const payload = verifyAccessToken(token);
+    const userStatus = await authRepository.findUserStatusByUserId(payload.sub);
+
+    if (userStatus?.status === UserStatus.SUSPENDED) {
+      next(new Error('USER_SUSPENDED'));
+      return;
+    }
 
     socket.data.user = {
       userId: payload.sub,

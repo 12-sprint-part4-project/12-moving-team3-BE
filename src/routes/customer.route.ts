@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as customerProfileController from '../controllers/customer-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
-import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
 import {
@@ -11,18 +11,20 @@ import {
 
 const router = Router();
 
-// 일반 유저 본인 프로필 조회 (Swagger: src/docs/customer-profile.swagger.yaml)
+// 일반 유저 본인 프로필 조회 — 헤더용, 정지 유저도 허용
+// (Swagger: src/docs/customer-profile.swagger.yaml)
 router.get(
   '/profile',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('CUSTOMER'),
   customerProfileController.getCustomerProfile
 );
 
-// 일반 유저 프로필 등록 (Swagger: src/docs/customer-profile.swagger.yaml)
+// 일반 유저 프로필 등록/수정 — 정지 유저도 허용
+// (Swagger: src/docs/customer-profile.swagger.yaml)
 router.patch(
   '/profile',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('CUSTOMER'),
   validateRequest({
     body: customerProfileBodySchema,

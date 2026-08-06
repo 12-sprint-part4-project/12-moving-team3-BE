@@ -1,4 +1,4 @@
-import { UserType, type DeviceType } from '@prisma/client';
+import { UserStatus, UserType, type DeviceType } from '@prisma/client';
 import { JsonWebTokenError } from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import * as authRepository from '../repositories/auth.repository';
@@ -28,6 +28,8 @@ import {
   type KakaoUserInfo,
 } from '../utils/kakao-oauth.util';
 import { resolveIsProfileCompleted } from '../utils/profile.util';
+
+export type ApiUserStatus = 'ACTIVE' | 'SUSPENDED';
 
 export interface SignupServiceInput extends SignupBody {
   device: DeviceType;
@@ -65,6 +67,7 @@ export interface LoginServiceResult {
     email: string;
     phoneNumber: string;
     isProfileCompleted: boolean;
+    status: ApiUserStatus;
   };
   accessToken: string;
   refreshToken: string;
@@ -83,6 +86,7 @@ interface KakaoAuthUser {
   phoneNumber: string | null;
   customerProfile: { id: number; service: unknown[] } | null;
   moverProfile: { id: number; service: unknown[] } | null;
+  userStatus: { status: UserStatus } | null;
 }
 
 const toPrismaUserType = (userType: ApiUserType): UserType => {
@@ -91,6 +95,13 @@ const toPrismaUserType = (userType: ApiUserType): UserType => {
 
 const toApiUserType = (userType: UserType): ApiUserType => {
   return userType === UserType.MOVER ? 'MOVER' : 'CUSTOMER';
+};
+
+/** UserStatusInfo가 없으면 ACTIVE로 정규화한다 */
+const resolveUserStatus = (
+  userStatus: { status: UserStatus } | null | undefined
+): ApiUserStatus => {
+  return userStatus?.status === UserStatus.SUSPENDED ? 'SUSPENDED' : 'ACTIVE';
 };
 
 const issueAuthSession = async (
@@ -127,6 +138,7 @@ const issueAuthSession = async (
         user.customerProfile,
         user.moverProfile
       ),
+      status: resolveUserStatus(user.userStatus),
     },
     accessToken,
     refreshToken,
@@ -231,6 +243,7 @@ const createKakaoUser = async (
         result.user.customerProfile,
         result.user.moverProfile
       ),
+      status: resolveUserStatus(result.user.userStatus),
     },
     accessToken: result.accessToken,
     refreshToken: result.refreshToken,
@@ -298,6 +311,7 @@ const linkKakaoToExistingUser = async (
         user.customerProfile,
         user.moverProfile
       ),
+      status: resolveUserStatus(user.userStatus),
     },
     accessToken,
     refreshToken,
@@ -363,6 +377,7 @@ export const login = async (
         user.customerProfile,
         user.moverProfile
       ),
+      status: resolveUserStatus(user.userStatus),
     },
     accessToken,
     refreshToken,

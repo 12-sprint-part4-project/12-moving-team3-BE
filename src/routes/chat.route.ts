@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import * as chatController from '../controllers/chat.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
+import {
+  requireAuth,
+  requireAuthAllowSuspended,
+} from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   chatRoomIdParamsSchema,
@@ -90,7 +93,7 @@ const router = Router();
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/rooms', requireAuth, chatController.getChatRoomList);
+router.get('/rooms', requireAuthAllowSuspended, chatController.getChatRoomList);
 
 /**
  * @swagger
@@ -124,7 +127,11 @@ router.get('/rooms', requireAuth, chatController.getChatRoomList);
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.get('/unread-count', requireAuth, chatController.getUnreadCount);
+router.get(
+  '/unread-count',
+  requireAuthAllowSuspended,
+  chatController.getUnreadCount
+);
 
 /**
  * @swagger

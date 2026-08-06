@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import * as designatedEstimateRequestController from '../controllers/designated-estimate-request.controller';
-import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import {
+  allowUserTypes,
+  requireAuth,
+  requireAuthAllowSuspended,
+} from '../middlewares/auth.middleware';
 import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
@@ -26,7 +30,7 @@ router.post(
 // 지정 견적 존재 여부 조회 (Swagger: src/docs/designated-estimate-request.swagger.yaml)
 router.get(
   '/:estimateRequestId/movers/:moverId',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('CUSTOMER'),
   requireCompletedCustomerProfile,
   validateRequest({
