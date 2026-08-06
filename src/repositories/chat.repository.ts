@@ -602,14 +602,15 @@ const rejoinLeftParticipants = async (
     return;
   }
 
-  await tx.chatRoomParticipant.createMany({
-    data: leftParticipantIds.map((participantId) => ({
-      roomId,
-      participantId,
-      joinedAt,
-    })),
-    skipDuplicates: true,
-  });
+  for (const participantId of leftParticipantIds) {
+    await tx.chatRoomParticipant.create({
+      data: {
+        roomId,
+        participantId,
+        joinedAt,
+      },
+    });
+  }
 };
 
 /**
