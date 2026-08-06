@@ -1,5 +1,13 @@
-import type { NotificationType, Prisma } from '@prisma/client';
+import type {
+  MoveType,
+  NotificationType,
+  Prisma,
+  QuoteStatus,
+  Region,
+} from '@prisma/client';
+import { Region as RegionEnum } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { getRegionAddressKeywords } from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -147,6 +155,58 @@ export const findDesignatedMoverIds = async (
   return rows.map((row) => row.moverId);
 };
 
+/**
+ * 일반 견적 요청 알림 대상 — 출발/도착 주소가 서비스 지역과 매칭되고
+ * 프로필 service에 이사유형이 포함된 기사 (받은 견적 요청 serviceArea 필터와 동일 기준)
+ */
+export interface FindMoverIdsForNewRequestParams {
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+  moveType: MoveType | null;
+}
+
+export const findMoverIdsForNewRequest = async (
+  params: FindMoverIdsForNewRequestParams
+): Promise<string[]> => {
+  if (!params.moveType) {
+    return [];
+  }
+
+  const addressMatchesRegion = (
+    address: string | null | undefined,
+    region: Region
+  ): boolean => {
+    if (!address) {
+      return false;
+    }
+
+    return getRegionAddressKeywords(region).some((keyword) =>
+      address.startsWith(keyword)
+    );
+  };
+
+  const matchingRegions = Object.values(RegionEnum).filter(
+    (region) =>
+      addressMatchesRegion(params.departureAddress, region) ||
+      addressMatchesRegion(params.arrivalAddress, region)
+  );
+
+  if (matchingRegions.length === 0) {
+    return [];
+  }
+
+  const profiles = await prisma.moverProfile.findMany({
+    where: {
+      service: { has: params.moveType },
+      serviceRegions: { some: { region: { in: matchingRegions } } },
+      user: { deletedAt: null, userType: 'MOVER' },
+    },
+    select: { userId: true },
+  });
+
+  return profiles.map((profile) => profile.userId);
+};
+
 /** 유저 이름 조회 (알림 payload용) */
 export const findUserNameById = async (
   userId: string,
@@ -158,6 +218,60 @@ export const findUserNameById = async (
   });
 
   return user?.name ?? null;
+};
+
+/** 견적 알림용 컨텍스트 — quoteId만으로 고객·기사·이사유형·지정여부 조회 */
+export interface QuoteNotificationContext {
+  quoteId: number;
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string | null;
+  moverName: string | null;
+  moveType: MoveType | null;
+  isDesignated: boolean;
+  status: QuoteStatus;
+}
+
+export const findQuoteNotificationContext = async (
+  quoteId: number,
+  db: DbClient = prisma
+): Promise<QuoteNotificationContext | null> => {
+  const quote = await db.quote.findFirst({
+    where: { id: quoteId, deletedAt: null },
+    select: {
+      id: true,
+      estimateRequestId: true,
+      moverId: true,
+      isDesignated: true,
+      status: true,
+      estimateRequest: {
+        select: {
+          userId: true,
+          moveType: true,
+        },
+      },
+      mover: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!quote) {
+    return null;
+  }
+
+  return {
+    quoteId: quote.id,
+    estimateRequestId: quote.estimateRequestId,
+    customerId: quote.estimateRequest.userId,
+    moverId: quote.moverId,
+    moverName: quote.mover?.name ?? null,
+    moveType: quote.estimateRequest.moveType,
+    isDesignated: quote.isDesignated,
+    status: quote.status,
+  };
 };
 
 /**

@@ -9,6 +9,7 @@ import * as designatedEstimateRequestRepository from '../repositories/designated
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import { findUserById } from '../repositories/user.repository';
 import { AppError } from '../utils/app.error';
+import * as notificationService from './notification.service';
 
 interface DesignatedEstimateMoverRow {
   id: number;
@@ -114,7 +115,7 @@ export const createDesignatedEstimateRequest = async (
   }
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const touchedCount =
         await estimateRequestRepository.touchSubmittedEstimateRequestForOwner(
           estimateRequestId,
@@ -154,6 +155,23 @@ export const createDesignatedEstimateRequest = async (
         )
       );
     });
+
+    // 지정 알림 — 커밋 이후(실패해도 지정 생성은 유지). 일반 알림과 별도 사건.
+    try {
+      await notificationService.notifyDesignatedQuoteRequestArrived({
+        estimateRequestId,
+        customerId: userId,
+        moverId,
+        moveType: estimateRequest.moveType,
+      });
+    } catch (error) {
+      console.error(
+        `[createDesignatedEstimateRequest] designated notification failed estimateId=${estimateRequestId} moverId=${moverId}`,
+        error
+      );
+    }
+
+    return created;
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       throw new AppError('DESIGNATED_ALREADY_EXISTS');

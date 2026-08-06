@@ -35,6 +35,63 @@ export interface NotificationListItem {
   createdAt: string;
   quoteId: number | null;
   estimateRequestId: number | null;
+  commentId: number | null;
+  reviewId: number | null;
+  userReportId: number | null;
+}
+
+export interface NotifyMatchingMoversOnEstimateSubmitParams {
+  estimateRequestId: number;
+  customerId: string;
+  moveType: MoveType | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+}
+
+export interface NotifyDesignatedQuoteRequestArrivedParams {
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string;
+  moveType: MoveType | null;
+}
+
+export interface NotifyReviewRequestedParams {
+  customerId: string;
+  moveType: MoveType | null;
+  estimateRequestId: number;
+}
+
+export interface NotifyReviewWrittenParams {
+  moverId: string;
+  customerName: string;
+  reviewId: number;
+  estimateRequestId?: number | null;
+}
+
+export interface NotifyCommunityCommentParams {
+  receiverId: string;
+  authorName: string;
+  commentId: number;
+}
+
+export interface NotifySanctionParams {
+  receiverId: string;
+}
+
+export interface NotifyCommunityReplyParams {
+  receiverId: string;
+  authorName: string;
+  commentId: number;
+}
+
+export interface NotifyPostRemovedByReportParams {
+  receiverId: string;
+  userReportId?: number | null;
+}
+
+export interface NotifyChatRoomOpenedParams {
+  receiverId: string;
+  counterpartName: string;
 }
 
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
@@ -60,6 +117,9 @@ const toListItem = (row: NotificationRow): NotificationListItem => ({
   createdAt: row.createdAt.toISOString(),
   quoteId: row.quoteId,
   estimateRequestId: row.estimateRequestId,
+  commentId: row.commentId,
+  reviewId: row.reviewId,
+  userReportId: row.userReportId,
 });
 
 /**
@@ -144,17 +204,17 @@ export const markNotificationAsRead = async (
 };
 
 /**
- * 견적요청 제출 시 지정 기사에게 NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED 알림.
- * 제출 성공 후 호출 — 알림 실패는 제출을 롤백하지 않는다.
+ * 일반 견적 요청 제출 → 지역·이사유형 매칭 기사에게 NEW_QUOTE_REQUEST_ARRIVED.
+ * 지정 알림은 여기서 보내지 않는다(지정 API 시점).
  */
-export const notifyDesignatedMoversOnEstimateSubmit = async (params: {
-  estimateRequestId: number;
-  customerId: string;
-  moveType: MoveType | null;
-}): Promise<void> => {
-  const moverIds = await notificationRepository.findDesignatedMoverIds(
-    params.estimateRequestId
-  );
+export const notifyMatchingMoversOnEstimateSubmit = async (
+  params: NotifyMatchingMoversOnEstimateSubmitParams
+): Promise<void> => {
+  const moverIds = await notificationRepository.findMoverIdsForNewRequest({
+    departureAddress: params.departureAddress,
+    arrivalAddress: params.arrivalAddress,
+    moveType: params.moveType,
+  });
 
   if (moverIds.length === 0) {
     return;
@@ -169,12 +229,34 @@ export const notifyDesignatedMoversOnEstimateSubmit = async (params: {
     moverIds.map((moverId) =>
       createNotification({
         receiverId: moverId,
-        type: 'NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED',
+        type: 'NEW_QUOTE_REQUEST_ARRIVED',
         payload: { customerName, moveTypeLabel },
         estimateRequestId: params.estimateRequestId,
       })
     )
   );
+};
+
+/**
+ * 지정 견적 요청 생성 → 해당 기사에게 NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED.
+ * 이전에 일반 알림을 받았든 말든 항상 발송한다.
+ */
+export const notifyDesignatedQuoteRequestArrived = async (
+  params: NotifyDesignatedQuoteRequestArrivedParams
+): Promise<void> => {
+  const customerName =
+    (await notificationRepository.findUserNameById(params.customerId)) ??
+    '고객';
+
+  await createNotification({
+    receiverId: params.moverId,
+    type: 'NEW_DESIGNATED_QUOTE_REQUEST_ARRIVED',
+    payload: {
+      customerName,
+      moveTypeLabel: toMoveTypeLabel(params.moveType),
+    },
+    estimateRequestId: params.estimateRequestId,
+  });
 };
 
 /** 일반 견적 제안 도착 → 고객 (quote 도메인에서 호출용 export) */
@@ -202,6 +284,31 @@ export const notifyQuoteOfferArrived = async (params: {
   });
 };
 
+/**
+ * quoteId만으로 견적 제안 알림 발송.
+ * PENDING(PROPOSAL)만 처리 — 조회·문구 조립은 알림 도메인이 흡수한다.
+ */
+export const notifyQuoteOfferArrivedByQuoteId = async (
+  quoteId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findQuoteNotificationContext(quoteId);
+
+  // 견적 없음·기사 없음·PROPOSAL이 아니면 skip (REJECTION은 Sprint 3)
+  if (!ctx?.moverId || ctx.status !== 'PENDING') {
+    return null;
+  }
+
+  return notifyQuoteOfferArrived({
+    customerId: ctx.customerId,
+    moverName: ctx.moverName ?? '기사',
+    moveType: ctx.moveType,
+    quoteId: ctx.quoteId,
+    estimateRequestId: ctx.estimateRequestId,
+    isDesignated: ctx.isDesignated,
+  });
+};
+
 /** 견적 확정 → 고객/기사 (피그마: `{moverName} 기사님의 견적이 확정되었어요`) */
 export const notifyQuoteConfirmed = async (params: {
   receiverId: string;
@@ -222,6 +329,39 @@ export const notifyQuoteConfirmed = async (params: {
   });
 };
 
+/**
+ * quoteId만으로 견적 확정 알림 발송 — 고객·확정 기사 각 1건.
+ * 동일 문구(QUOTE_CONFIRMED). 기사 id가 없으면 고객만 발송.
+ */
+export const notifyQuoteConfirmedByQuoteId = async (
+  quoteId: number
+): Promise<void> => {
+  const ctx =
+    await notificationRepository.findQuoteNotificationContext(quoteId);
+
+  if (!ctx) {
+    return;
+  }
+
+  const moverName = ctx.moverName ?? '기사';
+  const base = {
+    moverName,
+    quoteId: ctx.quoteId,
+    estimateRequestId: ctx.estimateRequestId,
+  };
+
+  const receivers = [ctx.customerId];
+  if (ctx.moverId && ctx.moverId !== ctx.customerId) {
+    receivers.push(ctx.moverId);
+  }
+
+  await Promise.all(
+    receivers.map((receiverId) =>
+      notifyQuoteConfirmed({ ...base, receiverId })
+    )
+  );
+};
+
 /** 지정 견적 반려 → 고객 */
 export const notifyDesignatedQuoteRejected = async (params: {
   customerId: string;
@@ -237,6 +377,28 @@ export const notifyDesignatedQuoteRejected = async (params: {
     estimateRequestId: params.estimateRequestId,
     quoteId: params.quoteId,
     tx: params.tx,
+  });
+};
+
+/**
+ * quoteId만으로 지정 견적 반려 알림.
+ * REJECTED + isDesignated 인 경우만 고객에게 발송.
+ */
+export const notifyDesignatedQuoteRejectedByQuoteId = async (
+  quoteId: number
+): Promise<NotificationListItem | null> => {
+  const ctx =
+    await notificationRepository.findQuoteNotificationContext(quoteId);
+
+  if (!ctx?.moverId || ctx.status !== 'REJECTED' || !ctx.isDesignated) {
+    return null;
+  }
+
+  return notifyDesignatedQuoteRejected({
+    customerId: ctx.customerId,
+    moverName: ctx.moverName ?? '기사',
+    estimateRequestId: ctx.estimateRequestId,
+    quoteId: ctx.quoteId,
   });
 };
 
@@ -266,5 +428,99 @@ export const createMoveDayReminderIfAbsent = async (params: {
     type: params.type,
     payload: params.payload,
     estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** 이사 완료 → 고객 리뷰 요청 (동일 estimateRequestId 중복 skip) */
+export const notifyReviewRequested = async (
+  params: NotifyReviewRequestedParams
+): Promise<NotificationListItem | null> => {
+  const exists =
+    await notificationRepository.existsByReceiverTypeAndEstimate(
+      params.customerId,
+      'REVIEW_REQUESTED',
+      params.estimateRequestId
+    );
+
+  if (exists) {
+    return null;
+  }
+
+  return createNotification({
+    receiverId: params.customerId,
+    type: 'REVIEW_REQUESTED',
+    payload: { moveTypeLabel: toMoveTypeLabel(params.moveType) },
+    estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** 리뷰 작성 → 기사 */
+export const notifyReviewWritten = async (
+  params: NotifyReviewWrittenParams
+): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.moverId,
+    type: 'REVIEW_WRITTEN',
+    payload: { customerName: params.customerName },
+    reviewId: params.reviewId,
+    estimateRequestId: params.estimateRequestId,
+  });
+};
+
+/** 게시글 댓글 → 원글 작성자 */
+export const notifyCommunityComment = async (
+  params: NotifyCommunityCommentParams
+): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'COMMUNITY_COMMENT',
+    payload: { authorName: params.authorName },
+    commentId: params.commentId,
+  });
+};
+
+/** 유저 정지 → 정지 당한 유저 */
+export const notifySanction = async (
+  params: NotifySanctionParams
+): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'SANCTION_NOTIFIED',
+    payload: {},
+  });
+};
+
+/** 대댓글 → 부모 댓글 작성자 */
+export const notifyCommunityReply = async (
+  params: NotifyCommunityReplyParams
+): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'COMMUNITY_REPLY',
+    payload: { authorName: params.authorName },
+    commentId: params.commentId,
+  });
+};
+
+/** 신고로 게시글 삭제 → 원글 작성자 */
+export const notifyPostRemovedByReport = async (
+  params: NotifyPostRemovedByReportParams
+): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'POST_REMOVED_BY_REPORT',
+    payload: {},
+    userReportId: params.userReportId,
+  });
+};
+
+/** 채팅방 최초 생성 → 상대 참여자 */
+export const notifyChatRoomOpened = async (
+  params: NotifyChatRoomOpenedParams
+): Promise<NotificationListItem> => {
+  return createNotification({
+    receiverId: params.receiverId,
+    type: 'CHAT_ROOM_OPENED',
+    payload: { counterpartName: params.counterpartName },
   });
 };
