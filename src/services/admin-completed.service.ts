@@ -9,7 +9,7 @@ import {
 } from '../repositories/admin-quote.repository';
 import { AdminCompletedListQuery } from '../schemas/admin-estimate-request.schema';
 import { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
-import { createDateRange } from '../utils/admin-date-range.util';
+import { createDateRangeOnly } from '../utils/admin-date-range.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import { createEstimateRequestCommonWhere } from './admin-estimate-request.service';
 import {
@@ -25,7 +25,7 @@ export const getCompletedStatistics = async ({
   startDate,
   endDate,
 }: AdminStatisticsFilter) => {
-  const dateRange = createDateRange(startDate, endDate);
+  const dateRange = createDateRangeOnly(startDate, endDate);
   const estimateRequestWhere: Prisma.EstimateRequestWhereInput = {
     ...(dateRange && { moveDate: dateRange }),
     status: { in: [EstimateRequestStatus.COMPLETED] },
@@ -57,13 +57,14 @@ export const getCompletedList = async (
   query: AdminCompletedListQuery
 ): Promise<AdminCompletedListDto> => {
   const { page, pageSize, moveType, search, startDate, endDate } = query;
+  const dateRange = createDateRangeOnly(startDate, endDate);
+
   const where: Prisma.EstimateRequestWhereInput = {
     ...createEstimateRequestCommonWhere({
       search,
-      startDate,
-      endDate,
     }),
     ...(moveType && { moveType }),
+    ...(dateRange && { moveDate: dateRange }),
     status: EstimateRequestStatus.COMPLETED,
   };
 
