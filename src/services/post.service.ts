@@ -212,6 +212,7 @@ export const getPostById = async (postId: number, userId?: string) => {
     likeCount: post.likeCount,
     commentCount: post.commentCount,
     isLiked: userId ? (post.likes?.length ?? 0) > 0 : null,
+    isMine: userId ? post.user.id === userId : null,
     isCompleted:
       post.category === PostsCategory.FURNITURE_SHARE ? post.isCompleted : null,
     createdAt: post.createdAt,

@@ -315,6 +315,10 @@ router.get(
  *                     isLiked:
  *                       type: boolean
  *                       nullable: true
+ *                     isMine:
+ *                       type: boolean
+ *                       nullable: true
+ *                       description: 로그인 시 본인 글이면 true, 비로그인 시 null
  *                     isCompleted:
  *                       type: boolean
  *                       nullable: true
