@@ -42,6 +42,7 @@ import { AppError } from '../utils/app.error';
 import { isMoveDateExpired } from '../utils/date.util';
 import { countQuotesByDesignation } from '../utils/quote-count.util';
 import { inferDistrictLabelFromAddress } from '../utils/region.util';
+import * as notificationService from './notification.service';
 import { toPresignedViewUrl } from './s3.service';
 
 // --- [기사님(MOVER)용 API] ---
@@ -162,7 +163,7 @@ const createQuote = async (
 export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
   const { moverId, estimateRequestId, body } = input;
 
-  return quoteRepository.runInTransaction(async (tx) => {
+  const quote = await quoteRepository.runInTransaction(async (tx) => {
     // 견적 요청 비관적 락 조회
     const estimateRequest = await quoteRepository.findEstimateRequestForUpdate(
       tx,
@@ -220,6 +221,34 @@ export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
       existingQuote,
     });
   });
+
+  // 견적 제안 알림 — 커밋 이후 호출(실패해도 견적 트랜잭션은 유지)
+  if (body.type === 'PROPOSAL') {
+    try {
+      await notificationService.notifyQuoteOfferArrivedByQuoteId(quote.id);
+    } catch (error) {
+      console.error(
+        `[submitQuote] quote offer notification failed quoteId=${quote.id}`,
+        error
+      );
+    }
+  }
+
+  // 지정 견적 반려 알림 — 지정 REJECTION만 고객에게
+  if (body.type === 'REJECTION' && quote.isDesignated) {
+    try {
+      await notificationService.notifyDesignatedQuoteRejectedByQuoteId(
+        quote.id
+      );
+    } catch (error) {
+      console.error(
+        `[submitQuote] designated rejection notification failed quoteId=${quote.id}`,
+        error
+      );
+    }
+  }
+
+  return quote;
 };
 
 interface CreateProposalParams {
@@ -796,7 +825,7 @@ export const confirmQuote = async (
 ): Promise<ConfirmQuoteDto> => {
   const { customerId, quoteId } = input;
 
-  return quoteRepository.runInTransaction(async (tx) => {
+  const result = await quoteRepository.runInTransaction(async (tx) => {
     // 고객 소유 견적 조회
     const quote = await quoteRepository.findCustomerQuoteForConfirm(
       tx,
@@ -846,4 +875,16 @@ export const confirmQuote = async (
 
     return { confirmedQuoteId: quoteId };
   });
+
+  // 확정 알림(고객·기사) — 커밋 이후 호출(실패해도 확정은 유지)
+  try {
+    await notificationService.notifyQuoteConfirmedByQuoteId(quoteId);
+  } catch (error) {
+    console.error(
+      `[confirmQuote] quote confirmed notification failed quoteId=${quoteId}`,
+      error
+    );
+  }
+
+  return result;
 };

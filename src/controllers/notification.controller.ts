@@ -15,7 +15,7 @@ const getValidatedParams = <T>(res: Response): T => {
   return value as T;
 };
 
-/** GET /api/notifications/customer | /mover — 최신 최대 10개 */
+/** GET /api/notifications — 최신 최대 10개 (수신자 = 로그인 userId) */
 export const getNotifications = async (
   _req: Request,
   res: Response,
