@@ -23,9 +23,6 @@ export const startNotificationOutboxCron = (): void => {
   // minute hour day-of-month month day-of-week
   cron.schedule('* * * * *', runSafely, { timezone: 'Asia/Seoul' });
 
+  // 부팅 직후 1회 — 재시작으로 놓친 PENDING/stale PROCESSING 보정
   runSafely();
-
-  console.log(
-    '[cron] notification outbox scheduled (* * * * * Asia/Seoul) + boot catch-up'
-  );
 };
