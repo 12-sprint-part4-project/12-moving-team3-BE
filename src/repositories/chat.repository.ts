@@ -566,11 +566,15 @@ export const createChatRoom = async (
 /**
  * 나간 상대(활성 참여 row 없음)를 재참여시킨다.
  * 이전 leftAt row는 유지하고, leftAt IS NULL인 새 row만 생성한다.
+ * joinedAt은 재참여를 유발한 메시지 createdAt과 같게 맞춰,
+ * 해당 메시지가 목록 lastMessage·이력 조회에서 빠지지 않게 한다.
+ * 동시 재참여 unique 충돌(P2002)은 이미 재참여된 것으로 보고 무시한다.
  */
 const rejoinLeftParticipants = async (
   tx: ChatTransactionClient,
   roomId: number,
-  excludeUserId: string
+  excludeUserId: string,
+  joinedAt: Date
 ) => {
   const participations = await tx.chatRoomParticipant.findMany({
     where: {
@@ -599,13 +603,39 @@ const rejoinLeftParticipants = async (
     return;
   }
 
-  await tx.chatRoomParticipant.createMany({
-    data: leftParticipantIds.map((participantId) => ({
-      roomId,
-      participantId,
-    })),
-    skipDuplicates: true,
-  });
+  for (const participantId of leftParticipantIds) {
+    const active = await tx.chatRoomParticipant.findFirst({
+      where: {
+        roomId,
+        participantId,
+        leftAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (active) {
+      continue;
+    }
+
+    try {
+      await tx.chatRoomParticipant.create({
+        data: {
+          roomId,
+          participantId,
+          joinedAt,
+        },
+      });
+    } catch (error) {
+      // 동시 재참여로 활성 unique(roomId, participantId WHERE left_at IS NULL) 충돌 시
+      // 이미 다른 트랜잭션이 재참여했으므로 성공으로 본다.
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
+      }
+    }
+  }
 };
 
 /**
@@ -625,7 +655,7 @@ const finalizeMessageCreation = async (
     data: { lastMessageAt: createdAt },
   });
 
-  await rejoinLeftParticipants(tx, roomId, senderId);
+  await rejoinLeftParticipants(tx, roomId, senderId, createdAt);
 };
 
 /**
