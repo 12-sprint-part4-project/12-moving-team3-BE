@@ -1,4 +1,4 @@
-import { Prisma, UserReportTarget } from '@prisma/client';
+import { Prisma, UserReportStatus, UserReportTarget } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
@@ -1145,4 +1145,94 @@ export const softDeleteReportReportedContent = async (
     default:
       return { kind: 'unsupported_target' };
   }
+};
+
+// --- 신고 처리/반려: 행 잠금 및 상태 변경 ---
+
+/** FOR UPDATE로 잠근 신고 행 — Service가 PENDING 여부를 검사할 최소 필드 */
+export type AdminReportLockRow = {
+  id: number;
+  target: UserReportTarget;
+  targetId: string;
+  status: UserReportStatus;
+  adminId: number | null;
+};
+
+/**
+ * 처리·반려에서만 허용하는 최종 상태.
+ * 호출자가 PENDING 등 임의 상태로 바꾸지 못하게 타입으로 제한한다.
+ */
+export type AdminReportDecisionStatus =
+  | typeof UserReportStatus.RESOLVED
+  | typeof UserReportStatus.REJECTED;
+
+export type UpdateAdminReportDecisionStatusResult =
+  | {
+      kind: 'updated';
+      report: {
+        id: number;
+        status: AdminReportDecisionStatus;
+        adminId: number;
+      };
+    }
+  | { kind: 'not_updated' };
+
+/**
+ * 신고 행을 FOR UPDATE로 잠근다.
+ * 반드시 전달받은 Transaction Client에서만 실행한다 — 전역 prisma로 잠그지 않는다.
+ * 행이 없으면 null (HTTP 판단은 Service).
+ */
+export const lockAdminReportForStatusChange = async (
+  reportId: number,
+  tx: Prisma.TransactionClient
+): Promise<AdminReportLockRow | null> => {
+  const lockedReports = await tx.$queryRaw<AdminReportLockRow[]>`
+    SELECT
+      id,
+      target,
+      target_id AS "targetId",
+      status,
+      admin_id AS "adminId"
+    FROM user_reports
+    WHERE id = ${reportId}
+    FOR UPDATE
+  `;
+
+  return lockedReports[0] ?? null;
+};
+
+/**
+ * PENDING 신고만 RESOLVED/REJECTED로 변경하고 adminId를 기록한다.
+ * status = PENDING 조건으로 동시 처리 시 두 번째 갱신은 not_updated가 된다.
+ * 잠금과 같은 Transaction Client를 넘기는 것을 전제로 한다.
+ */
+export const updateAdminReportDecisionStatus = async (
+  reportId: number,
+  adminId: number,
+  status: AdminReportDecisionStatus,
+  db: DbClient
+): Promise<UpdateAdminReportDecisionStatusResult> => {
+  const updateResult = await db.userReport.updateMany({
+    where: {
+      id: reportId,
+      status: UserReportStatus.PENDING,
+    },
+    data: {
+      status,
+      adminId,
+    },
+  });
+
+  if (updateResult.count === 0) {
+    return { kind: 'not_updated' };
+  }
+
+  return {
+    kind: 'updated',
+    report: {
+      id: reportId,
+      status,
+      adminId,
+    },
+  };
 };
