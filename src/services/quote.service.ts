@@ -308,7 +308,7 @@ interface CreateRejectionParams {
 
 /**
  * 반려하기(REJECTION) 처리
- * 반려 건은 마감 인원 카운트에서 제외
+ * 지정 견적 요청만 반려 가능. 반려 건은 마감 인원 카운트에서 제외
  */
 const createRejection = async ({
   tx,
@@ -318,6 +318,11 @@ const createRejection = async ({
   isDesignatedTarget,
   existingQuote,
 }: CreateRejectionParams): Promise<Quote> => {
+  // 일반 요청은 반려 불가 — 지정 견적 대상만 허용
+  if (!isDesignatedTarget) {
+    throw new AppError('NOT_DESIGNATED_TARGET');
+  }
+
   assertNoExistingQuote(existingQuote);
 
   // REJECTED 견적 생성
