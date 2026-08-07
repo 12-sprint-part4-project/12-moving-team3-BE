@@ -417,7 +417,7 @@ const moversRepository = {
 
     const rows = await dbClient.moverProfile.findMany({
       where,
-      orderBy: [{ career: 'desc' }, { id: 'desc' }],
+      orderBy: [{ career: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
       include: moverListInclude,
       take: limit + 1,
     });
