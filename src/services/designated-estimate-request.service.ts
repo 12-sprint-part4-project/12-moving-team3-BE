@@ -13,10 +13,10 @@ import { AppError } from '../utils/app.error';
 import * as notificationService from './notification.service';
 
 /** 지정 요청을 막을 수신 견적 상태 (대기·확정) */
-const BLOCKING_QUOTE_STATUSES = [
+const BLOCKING_QUOTE_STATUSES: readonly QuoteStatus[] = [
   QuoteStatus.PENDING,
   QuoteStatus.CONFIRMED,
-] as const;
+];
 
 interface DesignatedEstimateMoverRow {
   id: number;
