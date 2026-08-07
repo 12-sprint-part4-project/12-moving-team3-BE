@@ -483,6 +483,7 @@ paths:
         삭제된 대상 사용자는 canSuspendUser가 false이다.
         CHAT_ROOM은 상태가 PENDING이어도
         canSuspendUser와 canDeleteContent가 모두 false이다.
+        USER와 MESSAGE는 canDeleteContent가 항상 false이다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
