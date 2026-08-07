@@ -3,12 +3,12 @@ import type {
   NotificationOutbox,
   NotificationOutboxJobType,
   NotificationType,
-  Prisma,
   QuoteStatus,
   Region,
 } from '@prisma/client';
 import {
   EstimateRequestStatus,
+  Prisma,
   Region as RegionEnum,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -121,17 +121,36 @@ export const createOutboxJob = async (
   });
 };
 
+export interface ClaimOutboxJobOptions {
+  maxAttempts?: number;
+  staleBefore?: Date;
+  /** 같은 틱에서 이미 실패한 잡 — 재claim 시 attempts 조기 소진 방지 */
+  excludeIds?: readonly number[];
+}
+
 /**
  * PENDING(또는 stale PROCESSING) 잡 1건 claim — FOR UPDATE SKIP LOCKED.
  * - 일반 claim / 실패 재시도 / stale PROCESSING 회수: attempts++
  * - yield 재개(PENDING + cursor 있음 + lastError null): attempts 유지 (정상 진행 양보)
+ * - excludeIds: 같은 틱에서 이미 실패한 잡 재claim 방지(attempts 조기 소진 완화)
  * 상한 도달 시 FAILED. status=FAILED 행은 호출측에서 처리 스킵.
  * Sprint 2: 매칭 fan-out만 claim. ADMIN_NOTICE는 후속 전략 추가 시 조건 확장.
  */
 export const claimOutboxJob = async (
-  maxAttempts: number = NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
-  staleBefore: Date = new Date(Date.now() - 5 * 60 * 1000)
+  options: ClaimOutboxJobOptions = {}
 ): Promise<NotificationOutbox | null> => {
+  const maxAttempts =
+    options.maxAttempts ?? NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
+  const staleBefore =
+    options.staleBefore ?? new Date(Date.now() - 5 * 60 * 1000);
+  const excludeIds = options.excludeIds ?? [];
+
+  // 틱 내 실패 잡 제외 — NOT IN 없을 때는 조건 생략
+  const excludeClause =
+    excludeIds.length > 0
+      ? Prisma.sql`AND id NOT IN (${Prisma.join(excludeIds)})`
+      : Prisma.empty;
+
   const rows = await prisma.$queryRaw<NotificationOutbox[]>`
     WITH cte AS (
       SELECT
@@ -153,6 +172,7 @@ export const claimOutboxJob = async (
             AND updated_at < ${staleBefore}
           )
         )
+        ${excludeClause}
       ORDER BY updated_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED

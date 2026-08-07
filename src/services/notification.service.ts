@@ -388,10 +388,15 @@ const processClaimedOutboxJob = async (job: {
 /**
  * Outbox 워커 1틱 — claim → createMany 청크 → cursor/DONE/FAILED.
  * cron·부팅 catch-up 공용.
+ * 같은 틱에서 실패한 잡은 excludeIds로 재claim하지 않아 attempts 조기 소진을 막는다.
  */
 export const processNotificationOutboxTick = async (): Promise<void> => {
+  const failedJobIds = new Set<number>();
+
   for (let i = 0; i < OUTBOX_MAX_CLAIMS_PER_TICK; i++) {
-    const job = await notificationRepository.claimOutboxJob();
+    const job = await notificationRepository.claimOutboxJob({
+      excludeIds: [...failedJobIds],
+    });
     if (!job) {
       return;
     }
@@ -401,6 +406,7 @@ export const processNotificationOutboxTick = async (): Promise<void> => {
       console.error(
         `[notification-outbox] job id=${job.id} type=${job.jobType} sourceId=${job.sourceId} marked FAILED (max attempts)`
       );
+      failedJobIds.add(job.id);
       continue;
     }
 
@@ -408,6 +414,8 @@ export const processNotificationOutboxTick = async (): Promise<void> => {
       // markOutboxFailure에는 claim 반환 attempts(회수 포함 증가분)를 그대로 전달
       await processClaimedOutboxJob(job);
     } catch (error) {
+      // PENDING으로 돌아간 실패 잡을 이 틱에서 다시 집지 않음
+      failedJobIds.add(job.id);
       console.error(
         `[notification-outbox] job id=${job.id} type=${job.jobType} sourceId=${job.sourceId} failed`,
         error
