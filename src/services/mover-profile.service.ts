@@ -6,7 +6,7 @@ import type {
   MoverProfileBody,
 } from '../schemas/mover-profile.schema';
 import { resolvePasswordHashForUpdate } from '../utils/auth-password.util';
-import { deleteImage, toPresignedViewUrl } from './s3.service';
+import { deleteImage, toPublicViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 
@@ -29,11 +29,11 @@ export const getMoverProfile = async (userId: string) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
-  const [profileImageUrl, confirmedCount, localAuth] = await Promise.all([
-    toPresignedViewUrl(profile.user.profileImageKey),
+  const [confirmedCount, localAuth] = await Promise.all([
     countConfirmedQuotesByMoverId(userId),
     authRepository.findLocalPasswordHashByUserId(userId),
   ]);
+  const profileImageUrl = toPublicViewUrl(profile.user.profileImageKey);
 
   return {
     profileId: profile.id,
@@ -98,7 +98,7 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
       description: profile.description,
       service: profile.service,
       serviceRegions: profile.serviceRegions,
-      profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+      profileImageUrl: toPublicViewUrl(profile.profileImageKey),
       updatedAt: profile.updatedAt,
     };
   } catch (error) {

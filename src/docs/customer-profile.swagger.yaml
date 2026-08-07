@@ -42,7 +42,7 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              description: 공개/CDN URL. 이미지 없으면 null
               example: null
             service:
               type: array
@@ -120,7 +120,7 @@ components:
             profileImageUrl:
               type: string
               nullable: true
-              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              description: 공개/CDN URL. 이미지 없으면 null
               example: null
             service:
               type: array
