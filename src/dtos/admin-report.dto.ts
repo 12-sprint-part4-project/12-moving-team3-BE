@@ -10,6 +10,7 @@ import type {
   UserStatus,
   UserType,
 } from '@prisma/client';
+import type { AdminReportProcessAction } from '../schemas/admin-report.schema';
 import type { PaginationDto } from './admin-member.dto';
 
 /** 신고자 요약 — 관리자 회원 목록의 기본 유저 필드와 맞춘다 */
@@ -303,6 +304,24 @@ export type AdminReportDetailReportedContentDto =
   | AdminReportDetailReportedArticleContentDto
   | AdminReportDetailReportedCommentContentDto
   | AdminReportDetailReportedMessageContentDto;
+
+/**
+ * 관리자 신고 처리(resolve) 결과.
+ * Action은 UserReport에 저장하지 않으므로 응답으로만 돌려준다.
+ */
+export interface AdminReportResolveResultDto {
+  reportId: number;
+  status: UserReportStatus;
+  adminId: number;
+  /** 요청·적용한 Action 목록 (저장 컬럼 없음) */
+  actions: AdminReportProcessAction[];
+  processedAt: Date;
+  /**
+   * DELETE_REPORTED_CONTENT가 포함된 경우에만 채운다.
+   * true면 이미 삭제된 콘텐츠를 성공으로 간주한 경우.
+   */
+  contentAlreadyDeleted: boolean | null;
+}
 
 /**
  * 관리자 신고 상세 조회 응답 DTO.

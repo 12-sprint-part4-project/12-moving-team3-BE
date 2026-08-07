@@ -19,8 +19,10 @@ import type {
   AdminReportDetailUserSummaryDto,
   AdminReportListItemDto,
   AdminReportListResultDto,
+  AdminReportResolveResultDto,
   AdminReportTargetInfoDto,
 } from '../dtos/admin-report.dto';
+import { prisma } from '../lib/prisma';
 import {
   findAdminReportById,
   findAdminReportsWithCount,
@@ -40,7 +42,10 @@ import {
   findReportTargetReviewsByIds,
   findReportTargetUsersByIds,
   getTotalReportCount,
+  lockAdminReportForStatusChange,
   parseNumericTargetId,
+  softDeleteReportReportedContent,
+  updateAdminReportDecisionStatus,
   type AdminReportDetailRow,
   type AdminReportListRow,
   type AdminReportTargetIdsByKeyword,
@@ -48,10 +53,31 @@ import {
   type FindReportSanctionTargetUserResult,
   type ReportSanctionTargetUserRow,
 } from '../repositories/admin-report.repository';
-import type { AdminReportListQuery } from '../schemas/admin-report.schema';
+import { lockAdminMemberForStatusChange } from '../repositories/admin-member.repository';
+import { upsertSuspendedUserStatus } from '../repositories/user-status.repository';
+import type {
+  AdminReportListQuery,
+  AdminReportProcessAction,
+} from '../schemas/admin-report.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { AppError } from '../utils/app.error';
 import { createDateRange } from '../utils/admin-date-range.util';
+
+/** 관리자 신고 정지 기간 — 회원 수동 정지와 동일하게 7일 고정 */
+const ADMIN_REPORT_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** 신고 대상별 허용 Action — DTO 통과 후에도 Service에서 다시 검증한다 */
+const ALLOWED_ACTIONS_BY_TARGET: Record<
+  UserReportTarget,
+  ReadonlySet<AdminReportProcessAction>
+> = {
+  USER: new Set(['SUSPEND_TARGET_USER']),
+  MESSAGE: new Set(['SUSPEND_TARGET_USER']),
+  REVIEW: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
+  ARTICLE: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
+  COMMENT: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
+  CHAT_ROOM: new Set(),
+};
 
 export const getReportStatistics = async ({
   startDate,
@@ -840,4 +866,184 @@ export const getAdminReportDetail = async (
       reportedContentResult
     ),
   };
+};
+
+export type ResolveAdminReportInput = {
+  reportId: number;
+  adminId: number;
+  actions: AdminReportProcessAction[];
+};
+
+/** 신고 대상에 요청 Action이 모두 허용되는지 검사한다 */
+const assertActionsAllowedForTarget = (
+  target: UserReportTarget,
+  actions: AdminReportProcessAction[]
+) => {
+  if (target === 'CHAT_ROOM') {
+    throw new AppError('ADMIN_REPORT_UNSUPPORTED_TARGET');
+  }
+
+  // DTO min(1)과 별도로, 빈 actions로 조치 없이 RESOLVED 되는 경로를 막는다.
+  if (actions.length === 0) {
+    throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+  }
+
+  const allowed = ALLOWED_ACTIONS_BY_TARGET[target];
+
+  for (const action of actions) {
+    if (!allowed.has(action)) {
+      throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+    }
+  }
+};
+
+/**
+ * SUSPEND_TARGET_USER — 대상 사용자 조회·잠금 후 7일 정지.
+ * 기존 종료일이 더 미래면 upsertSuspendedUserStatus가 기간을 보존한다.
+ */
+const executeSuspendTargetUser = async (
+  target: UserReportTarget,
+  targetId: string,
+  processedAt: Date,
+  tx: Prisma.TransactionClient
+) => {
+  const userResult = await findReportSanctionTargetUser(target, targetId, tx);
+
+  if (userResult.kind === 'invalid_target_id') {
+    // 저장된 신고 targetId 이상 — 요청 400이 아니다.
+    throw new AppError('INTERNAL_SERVER_ERROR');
+  }
+
+  if (
+    userResult.kind === 'not_found' ||
+    userResult.kind === 'unsupported_target'
+  ) {
+    throw new AppError('ADMIN_REPORT_TARGET_USER_NOT_FOUND');
+  }
+
+  const lockedUser = await lockAdminMemberForStatusChange(
+    userResult.user.id,
+    tx
+  );
+
+  // soft-delete 회원은 잠금 대상에서 제외되므로 대상 없음으로 본다.
+  if (!lockedUser) {
+    throw new AppError('ADMIN_REPORT_TARGET_USER_NOT_FOUND');
+  }
+
+  await upsertSuspendedUserStatus(
+    {
+      userId: userResult.user.id,
+      suspendedAt: processedAt,
+      suspendedUntil: new Date(
+        processedAt.getTime() + ADMIN_REPORT_SUSPEND_DURATION_MS
+      ),
+    },
+    tx
+  );
+};
+
+/**
+ * DELETE_REPORTED_CONTENT — Repository soft delete 결과를 Service 오류로 매핑한다.
+ * already_deleted는 성공으로 보고 신고 처리를 계속한다.
+ */
+const executeDeleteReportedContent = async (
+  target: UserReportTarget,
+  targetId: string,
+  processedAt: Date,
+  tx: Prisma.TransactionClient
+): Promise<boolean> => {
+  const deleteResult = await softDeleteReportReportedContent(
+    target,
+    targetId,
+    processedAt,
+    tx
+  );
+
+  switch (deleteResult.kind) {
+    case 'deleted':
+      return false;
+    case 'already_deleted':
+      return true;
+    case 'not_found':
+      throw new AppError('ADMIN_REPORT_CONTENT_NOT_FOUND');
+    case 'invalid_target_id':
+      throw new AppError('INTERNAL_SERVER_ERROR');
+    case 'unsupported_target':
+      throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+    default:
+      throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+  }
+};
+
+/**
+ * 관리자 신고 처리.
+ * 신고 잠금 → Action 검증·실행 → RESOLVED를 한 트랜잭션으로 묶는다.
+ * adminId는 인증 정보에서 전달받으며 요청 body에 두지 않는다.
+ */
+export const resolveAdminReport = async ({
+  reportId,
+  adminId,
+  actions,
+}: ResolveAdminReportInput): Promise<AdminReportResolveResultDto> => {
+  // 정지·삭제·상태 변경에 동일 시각을 쓴다.
+  const processedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    const report = await lockAdminReportForStatusChange(reportId, tx);
+
+    if (!report) {
+      throw new AppError('ADMIN_REPORT_NOT_FOUND');
+    }
+
+    if (report.status !== UserReportStatus.PENDING) {
+      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+    }
+
+    assertActionsAllowedForTarget(report.target, actions);
+
+    const shouldSuspend = actions.includes('SUSPEND_TARGET_USER');
+    const shouldDelete = actions.includes('DELETE_REPORTED_CONTENT');
+
+    if (shouldSuspend) {
+      await executeSuspendTargetUser(
+        report.target,
+        report.targetId,
+        processedAt,
+        tx
+      );
+    }
+
+    let contentAlreadyDeleted: boolean | null = null;
+
+    if (shouldDelete) {
+      contentAlreadyDeleted = await executeDeleteReportedContent(
+        report.target,
+        report.targetId,
+        processedAt,
+        tx
+      );
+    }
+
+    const statusUpdate = await updateAdminReportDecisionStatus(
+      reportId,
+      adminId,
+      UserReportStatus.RESOLVED,
+      tx
+    );
+
+    // 같은 트랜잭션에서 PENDING을 확인했으므로 실패는 경합·이상 상태로 본다.
+    if (statusUpdate.kind === 'not_updated') {
+      throw new AppError('ADMIN_REPORT_CONFLICT');
+    }
+
+    return {
+      reportId: statusUpdate.report.id,
+      status: statusUpdate.report.status,
+      adminId: statusUpdate.report.adminId,
+      actions,
+      processedAt,
+      contentAlreadyDeleted,
+    };
+  });
 };
