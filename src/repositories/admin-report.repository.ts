@@ -980,15 +980,11 @@ const resolveSoftDeleteMiss = async (
   id: number,
   deletedAt: Date | null | undefined
 ): Promise<SoftDeleteReportReportedContentResult> => {
+  // 행 없음만 not_found. deletedAt이 있거나(이미 삭제) null인 경합도 already_deleted.
   if (deletedAt === undefined) {
     return { kind: 'not_found' };
   }
 
-  if (deletedAt !== null) {
-    return { kind: 'already_deleted', target, id };
-  }
-
-  // 행은 있는데 deletedAt이 null인데도 updateMany가 0이면 경합으로 직후 삭제된 경우다.
   return { kind: 'already_deleted', target, id };
 };
 

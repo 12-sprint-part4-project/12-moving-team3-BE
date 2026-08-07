@@ -79,65 +79,54 @@ export interface SuspendUserStatusInput {
 /** 정지 저장 결과 — admin-member StatusRow와 동일한 최소 필드 */
 export type SuspendedUserStatusRow = ExpiredSuspendedStatusRow;
 
-const suspendedUserStatusSelect = {
-  userId: true,
-  status: true,
-  suspendedAt: true,
-  suspendedUntil: true,
-} satisfies Prisma.UserStatusInfoSelect;
-
-/**
- * 기존 종료 시각과 새 종료 시각 중 더 늦은 값을 고른다.
- * 이미 더 긴 정지가 있으면 신고 처리의 7일이 그 기간을 단축하지 않게 한다.
- */
-const resolveSuspendedUntil = (
-  existingUntil: Date | null | undefined,
-  nextUntil: Date
-): Date => {
-  if (existingUntil && existingUntil > nextUntil) {
-    return existingUntil;
-  }
-
-  return nextUntil;
-};
-
 /**
  * 사용자를 SUSPENDED로 저장한다.
  * UserStatusInfo가 없으면 생성하고, 있으면 정지 상태로 갱신한다.
  *
- * admin-member의 upsertAdminMemberStatus와 달리 suspendedUntil은 더 늦은 쪽을 유지한다.
- * (회원 수동 정지는 전달값을 그대로 덮어쓰고, 신고 정지는 기존 장기 정지를 보존한다.)
+ * 사전 조회 없이 INSERT … ON CONFLICT로 원자적으로 처리한다.
+ * - ACTIVE(또는 신규): 전달받은 suspendedUntil 사용
+ * - SUSPENDED: 기존·신규 종료 시각 중 더 늦은 값 유지 (기존이 null이면 신규)
+ * - suspendedAt: 항상 전달받은 처리 시각
  *
- * 날짜는 Service가 계산해 넘긴다 — Repository는 new Date()를 만들지 않는다.
+ * admin-member의 upsertAdminMemberStatus와 달리 장기 정지를 단축하지 않는다.
+ * 날짜는 Service가 계산해 넘긴다 — Repository는 new Date()·트랜잭션을 만들지 않는다.
  */
 export const upsertSuspendedUserStatus = async (
   data: SuspendUserStatusInput,
   db: DbClient = prisma
 ): Promise<SuspendedUserStatusRow> => {
-  // create 경로에서도 기간 보존 규칙을 쓰려면 기존 row를 먼저 읽는다.
-  const existing = await db.userStatusInfo.findUnique({
-    where: { userId: data.userId },
-    select: { suspendedUntil: true },
-  });
+  // PK(user_id) 충돌 시 한 문장으로 갱신해 동시 정지 요청이 기간을 짧게 덮어쓰지 않게 한다.
+  const rows = await db.$queryRaw<SuspendedUserStatusRow[]>`
+    INSERT INTO user_statuses (user_id, status, suspended_at, suspended_until)
+    VALUES (
+      ${data.userId}::uuid,
+      'SUSPENDED'::"UserStatus",
+      ${data.suspendedAt},
+      ${data.suspendedUntil}
+    )
+    ON CONFLICT (user_id)
+    DO UPDATE SET
+      status = 'SUSPENDED'::"UserStatus",
+      suspended_at = EXCLUDED.suspended_at,
+      suspended_until = CASE
+        WHEN user_statuses.status = 'SUSPENDED'::"UserStatus"
+          AND user_statuses.suspended_until IS NOT NULL
+          AND user_statuses.suspended_until > EXCLUDED.suspended_until
+        THEN user_statuses.suspended_until
+        ELSE EXCLUDED.suspended_until
+      END
+    RETURNING
+      user_id AS "userId",
+      status,
+      suspended_at AS "suspendedAt",
+      suspended_until AS "suspendedUntil"
+  `;
 
-  const suspendedUntil = resolveSuspendedUntil(
-    existing?.suspendedUntil,
-    data.suspendedUntil
-  );
+  const row = rows[0];
+  if (!row) {
+    // RETURNING이 비는 경우는 DB 이상으로 보고 호출부에 숨기지 않는다.
+    throw new Error('Failed to upsert suspended user status');
+  }
 
-  return db.userStatusInfo.upsert({
-    where: { userId: data.userId },
-    create: {
-      userId: data.userId,
-      status: UserStatus.SUSPENDED,
-      suspendedAt: data.suspendedAt,
-      suspendedUntil,
-    },
-    update: {
-      status: UserStatus.SUSPENDED,
-      suspendedAt: data.suspendedAt,
-      suspendedUntil,
-    },
-    select: suspendedUserStatusSelect,
-  });
+  return row;
 };

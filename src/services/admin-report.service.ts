@@ -67,6 +67,12 @@ import { createDateRange } from '../utils/admin-date-range.util';
 /** 관리자 신고 정지 기간 — 회원 수동 정지와 동일하게 7일 고정 */
 const ADMIN_REPORT_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** 처리·반려 interactive transaction — 잠금 대기·전체 실행 상한 */
+const ADMIN_REPORT_DECISION_TX_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 10_000,
+} as const;
+
 /** 신고 대상별 허용 Action — DTO 통과 후에도 Service에서 다시 검증한다 */
 const ALLOWED_ACTIONS_BY_TARGET: Record<
   UserReportTarget,
@@ -1049,7 +1055,7 @@ export const resolveAdminReport = async ({
       processedAt,
       contentAlreadyDeleted,
     };
-  });
+  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
 };
 
 export type RejectAdminReportInput = {
@@ -1097,5 +1103,5 @@ export const rejectAdminReport = async ({
       adminId: statusUpdate.report.adminId,
       processedAt,
     };
-  });
+  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
 };
