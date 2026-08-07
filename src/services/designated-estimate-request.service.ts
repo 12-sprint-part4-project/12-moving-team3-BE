@@ -82,7 +82,7 @@ export const checkDesignatedEstimateExistence = async (
 
 /**
  * 지정 견적 요청 생성 — SUBMITTED 상태의 본인 견적요청에만 가능
- * updateMany(소유·SUBMITTED) + create를 트랜잭션으로 묶어 race condition을 차단
+ * 트랜잭션에서 estimate_request FOR UPDATE 후 Quote/지정 검사·생성으로 race를 차단
  */
 export const createDesignatedEstimateRequest = async (
   params: DesignatedEstimateRequestServiceParams
@@ -136,34 +136,51 @@ export const createDesignatedEstimateRequest = async (
 
   try {
     const created = await prisma.$transaction(async (tx) => {
-      const touchedCount =
-        await estimateRequestRepository.touchSubmittedEstimateRequestForOwner(
-          estimateRequestId,
-          userId,
-          tx
+      const locked = await quoteRepository.findEstimateRequestForUpdate(
+        tx,
+        estimateRequestId
+      );
+
+      if (!locked) {
+        throw new AppError(
+          'ESTIMATE_REQUEST_NOT_FOUND',
+          '일반 견적 요청이 존재하지 않습니다.'
         );
+      }
 
-      if (touchedCount === 0) {
-        const current = await estimateRequestRepository.findEstimateRequestById(
-          estimateRequestId,
-          tx
-        );
-
-        if (!current) {
-          throw new AppError(
-            'ESTIMATE_REQUEST_NOT_FOUND',
-            '일반 견적 요청이 존재하지 않습니다.'
-          );
-        }
-
-        if (current.userId !== userId) {
-          throw new AppError(
-            'FORBIDDEN',
-            '본인의 견적 요청만 지정할 수 있습니다.'
-          );
-        }
-
+      if (locked.status !== EstimateRequestStatus.SUBMITTED) {
         throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
+      }
+
+      const lockedDetail =
+        await estimateRequestRepository.findEstimateRequestById(
+          estimateRequestId,
+          tx
+        );
+
+      if (!lockedDetail) {
+        throw new AppError(
+          'ESTIMATE_REQUEST_NOT_FOUND',
+          '일반 견적 요청이 존재하지 않습니다.'
+        );
+      }
+
+      if (lockedDetail.userId !== userId) {
+        throw new AppError(
+          'FORBIDDEN',
+          '본인의 견적 요청만 지정할 수 있습니다.'
+        );
+      }
+
+      const designatedInTx =
+        await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+          estimateRequestId,
+          moverId,
+          tx
+        );
+
+      if (designatedInTx) {
+        throw new AppError('DESIGNATED_ALREADY_EXISTS');
       }
 
       const quoteInTx = await quoteRepository.findExistingQuoteByStatuses(
