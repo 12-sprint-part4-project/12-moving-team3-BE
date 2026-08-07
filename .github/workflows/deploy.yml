@@ -20,7 +20,7 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
-            npm install
+            npm ci --omit=dev
             npx prisma generate
             npx prisma migrate deploy
             npm run build
