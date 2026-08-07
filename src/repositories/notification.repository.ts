@@ -132,7 +132,8 @@ export interface ClaimOutboxJobOptions {
  * Sprint 2: 매칭 fan-out만 claim. ADMIN_NOTICE는 후속 전략 추가 시 조건 확장.
  */
 export const claimOutboxJob = async (
-  options: ClaimOutboxJobOptions = {}
+  options: ClaimOutboxJobOptions = {},
+  db: DbClient = prisma
 ): Promise<NotificationOutbox | null> => {
   const maxAttempts =
     options.maxAttempts ?? NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
@@ -146,7 +147,8 @@ export const claimOutboxJob = async (
       ? Prisma.sql`AND id NOT IN (${Prisma.join(excludeIds)})`
       : Prisma.empty;
 
-  const rows = await prisma.$queryRaw<NotificationOutbox[]>`
+  // TX 합류 가능하도록 db 사용 (기본은 글로벌 prisma)
+  const rows = await db.$queryRaw<NotificationOutbox[]>`
     WITH cte AS (
       SELECT
         id,
@@ -207,9 +209,10 @@ export const claimOutboxJob = async (
 /** 청크 진행 — 커서만 갱신하고 PROCESSING 유지 (같은 claim 안) */
 export const updateOutboxCursor = async (
   id: number,
-  cursorUserId: string
+  cursorUserId: string,
+  db: DbClient = prisma
 ): Promise<void> => {
-  await prisma.notificationOutbox.update({
+  await db.notificationOutbox.update({
     where: { id },
     data: {
       cursorUserId,
@@ -225,9 +228,10 @@ export const updateOutboxCursor = async (
  */
 export const markOutboxYield = async (
   id: number,
-  cursorUserId: string
+  cursorUserId: string,
+  db: DbClient = prisma
 ): Promise<void> => {
-  await prisma.notificationOutbox.update({
+  await db.notificationOutbox.update({
     where: { id },
     data: {
       cursorUserId,
@@ -237,8 +241,11 @@ export const markOutboxYield = async (
   });
 };
 
-export const markOutboxDone = async (id: number): Promise<void> => {
-  await prisma.notificationOutbox.update({
+export const markOutboxDone = async (
+  id: number,
+  db: DbClient = prisma
+): Promise<void> => {
+  await db.notificationOutbox.update({
     where: { id },
     data: {
       status: 'DONE',
@@ -255,12 +262,13 @@ export const markOutboxFailure = async (
   id: number,
   lastError: string,
   attempts: number,
-  maxAttempts: number = NOTIFICATION_OUTBOX_MAX_ATTEMPTS
+  maxAttempts: number = NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
+  db: DbClient = prisma
 ): Promise<void> => {
   const truncated =
     lastError.length > 1000 ? lastError.slice(0, 1000) : lastError;
 
-  await prisma.notificationOutbox.update({
+  await db.notificationOutbox.update({
     where: { id },
     data: {
       lastError: truncated,
@@ -271,9 +279,10 @@ export const markOutboxFailure = async (
 
 /** fan-out용 견적요청 요약 — status로 SUBMITTED만 발송할지 판단 */
 export const findEstimateRequestForFanout = async (
-  estimateRequestId: number
+  estimateRequestId: number,
+  db: DbClient = prisma
 ): Promise<FanoutEstimateRequestRow | null> => {
-  return prisma.estimateRequest.findUnique({
+  return db.estimateRequest.findUnique({
     where: { id: estimateRequestId },
     select: {
       id: true,
@@ -299,13 +308,14 @@ export interface FindMoverIdsChunkParams {
  * 주소→지역 해석은 하지 않고, 전달받은 regions로 Prisma 필터만 수행한다.
  */
 export const findMoverIdsForNewRequestChunk = async (
-  params: FindMoverIdsChunkParams
+  params: FindMoverIdsChunkParams,
+  db: DbClient = prisma
 ): Promise<string[]> => {
   if (params.regions.length === 0) {
     return [];
   }
 
-  const profiles = await prisma.moverProfile.findMany({
+  const profiles = await db.moverProfile.findMany({
     where: {
       service: { has: params.moveType },
       serviceRegions: { some: { region: { in: params.regions } } },
@@ -327,13 +337,14 @@ export const findMoverIdsForNewRequestChunk = async (
  * 실제 삽입 건수를 반환한다.
  */
 export const createManyFanoutNotifications = async (
-  rows: CreateFanoutNotificationRow[]
+  rows: CreateFanoutNotificationRow[],
+  db: DbClient = prisma
 ): Promise<number> => {
   if (rows.length === 0) {
     return 0;
   }
 
-  const result = await prisma.notification.createMany({
+  const result = await db.notification.createMany({
     data: rows.map((row) => ({
       receiverId: row.receiverId,
       type: row.type,
