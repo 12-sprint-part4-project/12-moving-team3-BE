@@ -1,4 +1,11 @@
-import type { MoveType, NotificationType, Prisma } from '@prisma/client';
+import {
+  EstimateRequestStatus,
+  Region,
+  type MoveType,
+  type NotificationOutboxJobType,
+  type NotificationType,
+  type Prisma,
+} from '@prisma/client';
 import {
   renderNotificationContent,
   toMoveTypeLabel,
@@ -6,6 +13,7 @@ import {
 import * as notificationRepository from '../repositories/notification.repository';
 import type { NotificationRow } from '../repositories/notification.repository';
 import { AppError } from '../utils/app.error';
+import { getRegionAddressKeywords } from '../utils/region.util';
 import * as notificationSse from './notification-sse.service';
 
 type DbClient = Prisma.TransactionClient;
@@ -38,14 +46,6 @@ export interface NotificationListItem {
   commentId: number | null;
   reviewId: number | null;
   userReportId: number | null;
-}
-
-export interface NotifyMatchingMoversOnEstimateSubmitParams {
-  estimateRequestId: number;
-  customerId: string;
-  moveType: MoveType | null;
-  departureAddress: string | null;
-  arrivalAddress: string | null;
 }
 
 export interface NotifyDesignatedQuoteRequestArrivedParams {
@@ -212,38 +212,267 @@ export const markNotificationAsRead = async (
   return toListItem(updated);
 };
 
-/**
- * 일반 견적 요청 제출 → 지역·이사유형 매칭 기사에게 NEW_QUOTE_REQUEST_ARRIVED.
- * 지정 알림은 여기서 보내지 않는다(지정 API 시점).
- */
-export const notifyMatchingMoversOnEstimateSubmit = async (
-  params: NotifyMatchingMoversOnEstimateSubmitParams
-): Promise<void> => {
-  const moverIds = await notificationRepository.findMoverIdsForNewRequest({
-    departureAddress: params.departureAddress,
-    arrivalAddress: params.arrivalAddress,
-    moveType: params.moveType,
-  });
+export interface EnqueueBulkNotificationInput {
+  jobType: NotificationOutboxJobType;
+  sourceId: string;
+  snapshotAt?: Date | null;
+}
 
-  if (moverIds.length === 0) {
+/**
+ * 공용 대량 알림 Outbox enqueue — 본 거래와 분리된 PENDING 1건만 남긴다.
+ * 실제 fan-out은 Sprint 2 워커가 claim 후 createMany로 처리한다.
+ */
+export const enqueueBulkNotification = async (
+  input: EnqueueBulkNotificationInput
+): Promise<void> => {
+  await notificationRepository.createOutboxJob({
+    jobType: input.jobType,
+    sourceId: input.sourceId,
+    snapshotAt: input.snapshotAt,
+  });
+};
+
+/**
+ * 일반 견적 요청 제출 → 매칭 기사 fan-out 잡 enqueue.
+ * 지정 알림은 여기 포함하지 않는다(지정 API 시점 단건 유지).
+ * 실제 발송은 워커가 createMany 청크로 처리한다.
+ */
+export const enqueueNewQuoteRequestFanout = async (
+  estimateRequestId: number
+): Promise<void> => {
+  await enqueueBulkNotification({
+    jobType: 'NEW_QUOTE_REQUEST_FANOUT',
+    sourceId: String(estimateRequestId),
+  });
+};
+
+const OUTBOX_MAX_CLAIMS_PER_TICK = 20;
+/** claim당 createMany 청크 상한 — 5×200 ≈ 1,000명 후 틱 양보 */
+const OUTBOX_MAX_CHUNKS_PER_CLAIM = 5;
+
+/** fan-out 전략이 공통으로 쓰는 Outbox 잡 필드 */
+interface OutboxFanoutJobParams {
+  id: number;
+  sourceId: string;
+  cursorUserId: string | null;
+}
+
+/** claim 직후 워커가 넘기는 잡 — jobType 분기·실패 시 attempts 기록용 */
+interface ClaimedOutboxJobParams extends OutboxFanoutJobParams {
+  jobType: NotificationOutboxJobType;
+  attempts: number;
+}
+
+const toErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+};
+
+/** 주소가 해당 Region 키워드로 시작하는지 — fan-out 매칭 정책 */
+const addressMatchesRegion = (
+  address: string | null | undefined,
+  region: Region
+): boolean => {
+  if (!address) {
+    return false;
+  }
+
+  return getRegionAddressKeywords(region).some((keyword) =>
+    address.startsWith(keyword)
+  );
+};
+
+/**
+ * 출발/도착 주소로 매칭 서비스 지역 목록을 한 번 계산한다.
+ * 청크 루프마다 반복하지 않도록 claim당 1회만 호출한다.
+ */
+const resolveMatchingRegionsForMoveAddresses = (
+  departureAddress: string | null,
+  arrivalAddress: string | null
+): Region[] => {
+  return Object.values(Region).filter(
+    (region) =>
+      addressMatchesRegion(departureAddress, region) ||
+      addressMatchesRegion(arrivalAddress, region)
+  );
+};
+
+/**
+ * NEW_QUOTE_REQUEST_FANOUT — 매칭 기사를 커서 청크로 createMany.
+ * claim당 청크 상한에 걸리면 PENDING 양보 → 다음 cron이 이어서 처리.
+ * 지정 알림은 포함하지 않는다.
+ */
+const processNewQuoteRequestFanout = async (
+  job: OutboxFanoutJobParams
+): Promise<void> => {
+  const estimateRequestId = Number(job.sourceId);
+  if (!Number.isInteger(estimateRequestId) || estimateRequestId <= 0) {
+    throw new Error(`invalid estimateRequestId sourceId=${job.sourceId}`);
+  }
+
+  const request =
+    await notificationRepository.findEstimateRequestForFanout(
+      estimateRequestId
+    );
+  if (!request) {
+    // 원본 삭제 등으로 대상 없음 — 재시도 의미 없으므로 DONE
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+
+  // 제출 직후 취소·만료 등이면 매칭 알림 불필요 — DONE으로 종료
+  if (request.status !== EstimateRequestStatus.SUBMITTED) {
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+
+  // 매칭 정책은 서비스에서 1회 계산 — repo는 regions로 조회만
+  if (!request.moveType) {
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+  const matchingRegions = resolveMatchingRegionsForMoveAddresses(
+    request.departureAddress,
+    request.arrivalAddress
+  );
+  if (matchingRegions.length === 0) {
+    await notificationRepository.markOutboxDone(job.id);
     return;
   }
 
   const customerName =
-    (await notificationRepository.findUserNameById(params.customerId)) ??
-    '고객';
-  const moveTypeLabel = toMoveTypeLabel(params.moveType);
-
-  await Promise.all(
-    moverIds.map((moverId) =>
-      createNotification({
-        receiverId: moverId,
-        type: 'NEW_QUOTE_REQUEST_ARRIVED',
-        payload: { customerName, moveTypeLabel },
-        estimateRequestId: params.estimateRequestId,
-      })
-    )
+    (await notificationRepository.findUserNameById(request.userId)) ?? '고객';
+  const moveTypeLabel = toMoveTypeLabel(request.moveType);
+  const payload = { customerName, moveTypeLabel };
+  const content = renderNotificationContent(
+    'NEW_QUOTE_REQUEST_ARRIVED',
+    payload
   );
+  const sourceId = String(request.id);
+  const chunkSize = notificationRepository.NOTIFICATION_OUTBOX_CHUNK_SIZE;
+
+  let cursorUserId = job.cursorUserId;
+  let chunksProcessed = 0;
+
+  while (true) {
+    const moverIds =
+      await notificationRepository.findMoverIdsForNewRequestChunk({
+        regions: matchingRegions,
+        moveType: request.moveType,
+        cursorUserId,
+        take: chunkSize,
+      });
+
+    if (moverIds.length === 0) {
+      await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
+    const inserted =
+      await notificationRepository.createManyFanoutNotifications(
+        moverIds.map((receiverId) => ({
+          receiverId,
+          type: 'NEW_QUOTE_REQUEST_ARRIVED' as const,
+          content,
+          payload,
+          estimateRequestId: request.id,
+          sourceId,
+        }))
+      );
+
+    // 신규 삽입이 있을 때만 refresh — FE는 후속 핸들러로 목록 재조회
+    if (inserted > 0) {
+      for (const receiverId of moverIds) {
+        notificationSse.publishNotificationRefresh(receiverId);
+      }
+    }
+
+    chunksProcessed += 1;
+
+    if (moverIds.length < chunkSize) {
+      await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
+    // length 검사 후에도 타입상 undefined 가능 — ! 대신 명시 검증
+    const nextCursor = moverIds[moverIds.length - 1];
+    if (!nextCursor) {
+      await notificationRepository.markOutboxDone(job.id);
+      return;
+    }
+
+    // 청크 상한 — PENDING 양보(cursor 유지). 다음 틱 claim은 attempts 미증가
+    if (chunksProcessed >= OUTBOX_MAX_CHUNKS_PER_CLAIM) {
+      await notificationRepository.markOutboxYield(job.id, nextCursor);
+      return;
+    }
+
+    await notificationRepository.updateOutboxCursor(job.id, nextCursor);
+    cursorUserId = nextCursor;
+  }
+};
+
+/** jobType별 전략 — 신규 소비자는 여기 switch만 확장 */
+const processClaimedOutboxJob = async (
+  job: ClaimedOutboxJobParams
+): Promise<void> => {
+  try {
+    switch (job.jobType) {
+      case 'NEW_QUOTE_REQUEST_FANOUT':
+        await processNewQuoteRequestFanout(job);
+        break;
+      default:
+        throw new Error(`unsupported outbox jobType=${job.jobType}`);
+    }
+  } catch (error) {
+    await notificationRepository.markOutboxFailure(
+      job.id,
+      toErrorMessage(error),
+      job.attempts
+    );
+    throw error;
+  }
+};
+
+/**
+ * Outbox 워커 1틱 — claim → createMany 청크 → cursor/DONE/FAILED.
+ * cron·부팅 catch-up 공용.
+ * 같은 틱에서 실패한 잡은 excludeIds로 재claim하지 않아 attempts 조기 소진을 막는다.
+ */
+export const processNotificationOutboxTick = async (): Promise<void> => {
+  const failedJobIds = new Set<number>();
+
+  for (let i = 0; i < OUTBOX_MAX_CLAIMS_PER_TICK; i++) {
+    const job = await notificationRepository.claimOutboxJob({
+      excludeIds: [...failedJobIds],
+    });
+    if (!job) {
+      return;
+    }
+
+    // claim 시 attempts 상한 도달로 FAILED 전환된 행 — 처리하지 않고 다음 claim
+    if (job.status === 'FAILED') {
+      console.error(
+        `[notification-outbox] job id=${job.id} type=${job.jobType} sourceId=${job.sourceId} marked FAILED (max attempts)`
+      );
+      failedJobIds.add(job.id);
+      continue;
+    }
+
+    try {
+      // markOutboxFailure에는 claim 반환 attempts(회수 포함 증가분)를 그대로 전달
+      await processClaimedOutboxJob(job);
+    } catch (error) {
+      // PENDING으로 돌아간 실패 잡을 이 틱에서 다시 집지 않음
+      failedJobIds.add(job.id);
+      console.error(
+        `[notification-outbox] job id=${job.id} type=${job.jobType} sourceId=${job.sourceId} failed`,
+        error
+      );
+    }
+  }
 };
 
 /**

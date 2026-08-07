@@ -9,6 +9,7 @@ import { swaggerSpec } from './config/swagger';
 import { startCleanupOrphanPostImagesCron } from './jobs/cleanup-orphan-post-images.job';
 import { startEstimateRequestStatusChangeCron } from './jobs/estimate-request-status-change.job';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
+import { startNotificationOutboxCron } from './jobs/notification-outbox.job';
 import { startReleaseExpiredSuspensionsCron } from './jobs/release-expired-suspensions.job';
 import { errorHandler } from './middlewares/error.handler';
 import adminAuthRouter from './routes/admin-auth.route';
@@ -120,4 +121,6 @@ httpServer.listen(env.port, () => {
   startEstimateRequestStatusChangeCron();
   // posts/ prefix 고아 이미지 정리 (매일 03:00 Asia/Seoul)
   startCleanupOrphanPostImagesCron();
+  // 대량 알림 Outbox 워커 (매분 Asia/Seoul + boot catch-up)
+  startNotificationOutboxCron();
 });

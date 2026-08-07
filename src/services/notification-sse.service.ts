@@ -86,3 +86,11 @@ export const publishNotification = (userId: string, notification: unknown) => {
 export const publishUnreadCount = (userId: string, unreadCount: number) => {
   publish(userId, 'unread-count', { unreadCount });
 };
+
+/**
+ * 대량 fan-out 후 FE가 목록·미읽음을 재조회하도록 하는 이벤트.
+ * FE 핸들러는 후속 — BE는 이벤트만 예약해 둔다.
+ */
+export const publishNotificationRefresh = (userId: string) => {
+  publish(userId, 'notification-refresh', {});
+};

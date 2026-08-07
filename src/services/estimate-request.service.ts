@@ -631,18 +631,12 @@ export const submitEstimateRequest = async (
     throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
   }
 
-  // 일반 견적 요청 알림 — 제출과 분리(알림 실패해도 제출은 유지). 지정 알림은 지정 API에서.
+  // 매칭 기사 대량 알림 — Outbox 1건만 enqueue(본 거래와 분리). 실제 발송은 outbox 워커.
   try {
-    await notificationService.notifyMatchingMoversOnEstimateSubmit({
-      estimateRequestId: updated.id,
-      customerId: userId,
-      moveType: updated.moveType,
-      departureAddress: updated.departureAddress,
-      arrivalAddress: updated.arrivalAddress,
-    });
+    await notificationService.enqueueNewQuoteRequestFanout(updated.id);
   } catch (error) {
     console.error(
-      `[submitEstimateRequest] matching mover notification failed id=${updated.id}`,
+      `[submitEstimateRequest] matching mover outbox enqueue failed id=${updated.id}`,
       error
     );
   }

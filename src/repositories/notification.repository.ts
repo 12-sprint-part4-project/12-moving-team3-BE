@@ -1,18 +1,44 @@
 import type {
   MoveType,
+  NotificationOutbox,
+  NotificationOutboxJobType,
   NotificationType,
-  Prisma,
   QuoteStatus,
   Region,
 } from '@prisma/client';
-import {
-  EstimateRequestStatus,
-  Region as RegionEnum,
-} from '@prisma/client';
+import { EstimateRequestStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { getRegionAddressKeywords } from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
+
+export interface CreateOutboxJobData {
+  jobType: NotificationOutboxJobType;
+  sourceId: string;
+  snapshotAt?: Date | null;
+}
+
+export interface FanoutEstimateRequestRow {
+  id: number;
+  userId: string;
+  status: EstimateRequestStatus;
+  moveType: MoveType | null;
+  departureAddress: string | null;
+  arrivalAddress: string | null;
+}
+
+export interface CreateFanoutNotificationRow {
+  receiverId: string;
+  type: NotificationType;
+  content: string;
+  payload: Prisma.InputJsonValue;
+  estimateRequestId?: number | null;
+  sourceId: string;
+}
+
+/** createMany 청크 크기 — 워커 createMany / SSE 부하 균형용 (200) */
+export const NOTIFICATION_OUTBOX_CHUNK_SIZE = 200;
+/** claim 재시도 상한 — 초과 시 FAILED */
+export const NOTIFICATION_OUTBOX_MAX_ATTEMPTS = 5;
 
 const LIST_LIMIT = 10;
 
@@ -67,6 +93,270 @@ export const create = async (
     },
     select: notificationSelect,
   });
+};
+
+/**
+ * 대량 fan-out Outbox 1건 enqueue.
+ * (jobType, sourceId) 유니크 — 이미 있으면 skipDuplicates로 무시(멱등).
+ */
+export const createOutboxJob = async (
+  data: CreateOutboxJobData,
+  db: DbClient = prisma
+): Promise<void> => {
+  await db.notificationOutbox.createMany({
+    data: [
+      {
+        jobType: data.jobType,
+        sourceId: data.sourceId,
+        snapshotAt: data.snapshotAt ?? undefined,
+        status: 'PENDING',
+      },
+    ],
+    skipDuplicates: true,
+  });
+};
+
+export interface ClaimOutboxJobOptions {
+  maxAttempts?: number;
+  staleBefore?: Date;
+  /** 같은 틱에서 이미 실패한 잡 — 재claim 시 attempts 조기 소진 방지 */
+  excludeIds?: readonly number[];
+}
+
+/**
+ * PENDING(또는 stale PROCESSING) 잡 1건 claim — FOR UPDATE SKIP LOCKED.
+ * - 일반 claim / 실패 재시도 / stale PROCESSING 회수: attempts++
+ * - yield 재개(PENDING + cursor 있음 + lastError null): attempts 유지 (정상 진행 양보)
+ * - excludeIds: 같은 틱에서 이미 실패한 잡 재claim 방지(attempts 조기 소진 완화)
+ * 상한 도달 시 FAILED. status=FAILED 행은 호출측에서 처리 스킵.
+ * Sprint 2: 매칭 fan-out만 claim. ADMIN_NOTICE는 후속 전략 추가 시 조건 확장.
+ */
+export const claimOutboxJob = async (
+  options: ClaimOutboxJobOptions = {},
+  db: DbClient = prisma
+): Promise<NotificationOutbox | null> => {
+  const maxAttempts =
+    options.maxAttempts ?? NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
+  const staleBefore =
+    options.staleBefore ?? new Date(Date.now() - 5 * 60 * 1000);
+  const excludeIds = options.excludeIds ?? [];
+
+  // 틱 내 실패 잡 제외 — NOT IN 없을 때는 조건 생략
+  const excludeClause =
+    excludeIds.length > 0
+      ? Prisma.sql`AND id NOT IN (${Prisma.join(excludeIds)})`
+      : Prisma.empty;
+
+  // TX 합류 가능하도록 db 사용 (기본은 글로벌 prisma)
+  const rows = await db.$queryRaw<NotificationOutbox[]>`
+    WITH cte AS (
+      SELECT
+        id,
+        CASE
+          WHEN status = 'PENDING'::"NotificationOutboxStatus"
+            AND cursor_user_id IS NOT NULL
+            AND last_error IS NULL
+          THEN attempts
+          ELSE attempts + 1
+        END AS next_attempts
+      FROM notification_outboxes
+      WHERE attempts < ${maxAttempts}
+        AND job_type = 'NEW_QUOTE_REQUEST_FANOUT'::"NotificationOutboxJobType"
+        AND (
+          status = 'PENDING'::"NotificationOutboxStatus"
+          OR (
+            status = 'PROCESSING'::"NotificationOutboxStatus"
+            AND updated_at < ${staleBefore}
+          )
+        )
+        ${excludeClause}
+      ORDER BY updated_at ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE notification_outboxes AS o
+    SET
+      attempts = cte.next_attempts,
+      status = CASE
+        WHEN cte.next_attempts >= ${maxAttempts}
+          THEN 'FAILED'::"NotificationOutboxStatus"
+        ELSE 'PROCESSING'::"NotificationOutboxStatus"
+      END,
+      last_error = CASE
+        WHEN cte.next_attempts >= ${maxAttempts}
+          THEN 'max attempts exceeded on claim'
+        ELSE o.last_error
+      END,
+      updated_at = NOW()
+    FROM cte
+    WHERE o.id = cte.id
+    RETURNING
+      o.id,
+      o.job_type AS "jobType",
+      o.source_id AS "sourceId",
+      o.status,
+      o.cursor_user_id AS "cursorUserId",
+      o.attempts,
+      o.last_error AS "lastError",
+      o.snapshot_at AS "snapshotAt",
+      o.created_at AS "createdAt",
+      o.updated_at AS "updatedAt"
+  `;
+
+  return rows[0] ?? null;
+};
+
+/** 청크 진행 — 커서만 갱신하고 PROCESSING 유지 (같은 claim 안) */
+export const updateOutboxCursor = async (
+  id: number,
+  cursorUserId: string,
+  db: DbClient = prisma
+): Promise<void> => {
+  await db.notificationOutbox.update({
+    where: { id },
+    data: {
+      cursorUserId,
+      status: 'PROCESSING',
+      lastError: null,
+    },
+  });
+};
+
+/**
+ * claim당 청크 상한 양보 — cursor 유지 후 PENDING 복귀.
+ * lastError=null + cursor 있음 → 다음 claim에서 attempts 미증가(yield 재개).
+ */
+export const markOutboxYield = async (
+  id: number,
+  cursorUserId: string,
+  db: DbClient = prisma
+): Promise<void> => {
+  await db.notificationOutbox.update({
+    where: { id },
+    data: {
+      cursorUserId,
+      status: 'PENDING',
+      lastError: null,
+    },
+  });
+};
+
+export const markOutboxDone = async (
+  id: number,
+  db: DbClient = prisma
+): Promise<void> => {
+  await db.notificationOutbox.update({
+    where: { id },
+    data: {
+      status: 'DONE',
+      lastError: null,
+    },
+  });
+};
+
+/**
+ * 실패 시 lastError 기록. attempts는 claim 시 이미 증가했으므로 여기선 상태만 전환.
+ * 상한 도달이면 FAILED, 아니면 PENDING 재대기(커서는 유지되어 이어서 보낼 수 있음).
+ */
+export const markOutboxFailure = async (
+  id: number,
+  lastError: string,
+  attempts: number,
+  maxAttempts: number = NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
+  db: DbClient = prisma
+): Promise<void> => {
+  const truncated =
+    lastError.length > 1000 ? lastError.slice(0, 1000) : lastError;
+
+  await db.notificationOutbox.update({
+    where: { id },
+    data: {
+      lastError: truncated,
+      status: attempts >= maxAttempts ? 'FAILED' : 'PENDING',
+    },
+  });
+};
+
+/** fan-out용 견적요청 요약 — status로 SUBMITTED만 발송할지 판단 */
+export const findEstimateRequestForFanout = async (
+  estimateRequestId: number,
+  db: DbClient = prisma
+): Promise<FanoutEstimateRequestRow | null> => {
+  return db.estimateRequest.findUnique({
+    where: { id: estimateRequestId },
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      moveType: true,
+      departureAddress: true,
+      arrivalAddress: true,
+    },
+  });
+};
+
+/** 매칭 기사 청크 조회 — regions/moveType은 서비스에서 결정해 전달 */
+export interface FindMoverIdsChunkParams {
+  regions: Region[];
+  moveType: MoveType;
+  cursorUserId?: string | null;
+  take: number;
+}
+
+/**
+ * 매칭 기사 userId 청크 — userId 오름차순 커서 페이징.
+ * 주소→지역 해석은 하지 않고, 전달받은 regions로 Prisma 필터만 수행한다.
+ */
+export const findMoverIdsForNewRequestChunk = async (
+  params: FindMoverIdsChunkParams,
+  db: DbClient = prisma
+): Promise<string[]> => {
+  if (params.regions.length === 0) {
+    return [];
+  }
+
+  const profiles = await db.moverProfile.findMany({
+    where: {
+      service: { has: params.moveType },
+      serviceRegions: { some: { region: { in: params.regions } } },
+      user: { deletedAt: null, userType: 'MOVER' },
+      ...(params.cursorUserId
+        ? { userId: { gt: params.cursorUserId } }
+        : {}),
+    },
+    select: { userId: true },
+    orderBy: { userId: 'asc' },
+    take: params.take,
+  });
+
+  return profiles.map((profile) => profile.userId);
+};
+
+/**
+ * 대량 알림 insert — Unique(receiverId, type, sourceId) + skipDuplicates 멱등.
+ * 실제 삽입 건수를 반환한다.
+ */
+export const createManyFanoutNotifications = async (
+  rows: CreateFanoutNotificationRow[],
+  db: DbClient = prisma
+): Promise<number> => {
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  const result = await db.notification.createMany({
+    data: rows.map((row) => ({
+      receiverId: row.receiverId,
+      type: row.type,
+      content: row.content,
+      payload: row.payload,
+      estimateRequestId: row.estimateRequestId ?? undefined,
+      sourceId: row.sourceId,
+    })),
+    skipDuplicates: true,
+  });
+
+  return result.count;
 };
 
 /** 수신자 최신 알림 최대 10개 + 전체 건수 */
@@ -156,58 +446,6 @@ export const findDesignatedMoverIds = async (
   });
 
   return rows.map((row) => row.moverId);
-};
-
-/**
- * 일반 견적 요청 알림 대상 — 출발/도착 주소가 서비스 지역과 매칭되고
- * 프로필 service에 이사유형이 포함된 기사 (받은 견적 요청 serviceArea 필터와 동일 기준)
- */
-export interface FindMoverIdsForNewRequestParams {
-  departureAddress: string | null;
-  arrivalAddress: string | null;
-  moveType: MoveType | null;
-}
-
-export const findMoverIdsForNewRequest = async (
-  params: FindMoverIdsForNewRequestParams
-): Promise<string[]> => {
-  if (!params.moveType) {
-    return [];
-  }
-
-  const addressMatchesRegion = (
-    address: string | null | undefined,
-    region: Region
-  ): boolean => {
-    if (!address) {
-      return false;
-    }
-
-    return getRegionAddressKeywords(region).some((keyword) =>
-      address.startsWith(keyword)
-    );
-  };
-
-  const matchingRegions = Object.values(RegionEnum).filter(
-    (region) =>
-      addressMatchesRegion(params.departureAddress, region) ||
-      addressMatchesRegion(params.arrivalAddress, region)
-  );
-
-  if (matchingRegions.length === 0) {
-    return [];
-  }
-
-  const profiles = await prisma.moverProfile.findMany({
-    where: {
-      service: { has: params.moveType },
-      serviceRegions: { some: { region: { in: matchingRegions } } },
-      user: { deletedAt: null, userType: 'MOVER' },
-    },
-    select: { userId: true },
-  });
-
-  return profiles.map((profile) => profile.userId);
 };
 
 /** 유저 이름(이사·견적 알림 payload용) */
