@@ -5,6 +5,7 @@ import { validateRequest } from '../middlewares/validate.middleware';
 import {
   adminReportDetailParamsSchema,
   adminReportListQuerySchema,
+  adminReportProcessBodySchema,
 } from '../schemas/admin-report.schema';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 
@@ -31,6 +32,29 @@ router.get(
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminReportController.getReportStatistics
+);
+
+// 신고 처리 / 반려 (Swagger: src/docs/admin-report.swagger.yaml)
+router.post(
+  '/:reportId/resolve',
+  requireAdminAuth,
+  validateRequest({
+    params: adminReportDetailParamsSchema,
+    body: adminReportProcessBodySchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminReportController.resolveAdminReport
+);
+
+// 신고 반려 — body 없음. Action 스키마를 연결하지 않는다.
+router.post(
+  '/:reportId/reject',
+  requireAdminAuth,
+  validateRequest({
+    params: adminReportDetailParamsSchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminReportController.rejectAdminReport
 );
 
 // 신고 상세 조회 (Swagger: src/docs/admin-report.swagger.yaml)
