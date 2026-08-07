@@ -941,3 +941,208 @@ export const findReportReportedContent = async (
       return { kind: 'unsupported_target' };
   }
 };
+
+// --- 신고 처리: 신고 콘텐츠 soft delete ---
+
+/** soft delete 가능한 신고 콘텐츠 대상 */
+export type SoftDeletableReportTarget =
+  | typeof UserReportTarget.REVIEW
+  | typeof UserReportTarget.ARTICLE
+  | typeof UserReportTarget.COMMENT;
+
+/**
+ * 신고 콘텐츠 soft delete 결과.
+ * HTTP는 Service가 결정하고, 이미 삭제됨/미존재/형식 오류를 Repository에서 구분한다.
+ */
+export type SoftDeleteReportReportedContentResult =
+  | {
+      kind: 'deleted';
+      target: SoftDeletableReportTarget;
+      id: number;
+    }
+  | {
+      kind: 'already_deleted';
+      target: SoftDeletableReportTarget;
+      id: number;
+    }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' }
+  | { kind: 'unsupported_target' };
+
+/**
+ * 조건부 soft delete가 0건일 때 미존재/이미 삭제를 구분한다.
+ * updateMany(count=0)만으로는 원인을 알 수 없어 한 번 더 조회한다.
+ */
+const resolveSoftDeleteMiss = async (
+  target: SoftDeletableReportTarget,
+  id: number,
+  deletedAt: Date | null | undefined
+): Promise<SoftDeleteReportReportedContentResult> => {
+  if (deletedAt === undefined) {
+    return { kind: 'not_found' };
+  }
+
+  if (deletedAt !== null) {
+    return { kind: 'already_deleted', target, id };
+  }
+
+  // 행은 있는데 deletedAt이 null인데도 updateMany가 0이면 경합으로 직후 삭제된 경우다.
+  return { kind: 'already_deleted', target, id };
+};
+
+const softDeleteReviewContent = async (
+  id: number,
+  deletedAt: Date,
+  db: DbClient
+): Promise<SoftDeleteReportReportedContentResult> => {
+  // id + deletedAt IS NULL 조건부 갱신으로 동시 삭제 시 한 요청만 성공하게 한다.
+  const updateResult = await db.review.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt },
+  });
+
+  if (updateResult.count === 1) {
+    return {
+      kind: 'deleted',
+      target: UserReportTarget.REVIEW,
+      id,
+    };
+  }
+
+  const review = await db.review.findUnique({
+    where: { id },
+    select: { id: true, deletedAt: true },
+  });
+
+  return resolveSoftDeleteMiss(
+    UserReportTarget.REVIEW,
+    id,
+    review?.deletedAt
+  );
+};
+
+const softDeleteArticleContent = async (
+  id: number,
+  deletedAt: Date,
+  db: DbClient
+): Promise<SoftDeleteReportReportedContentResult> => {
+  const updateResult = await db.post.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt },
+  });
+
+  if (updateResult.count === 1) {
+    return {
+      kind: 'deleted',
+      target: UserReportTarget.ARTICLE,
+      id,
+    };
+  }
+
+  const article = await db.post.findUnique({
+    where: { id },
+    select: { id: true, deletedAt: true },
+  });
+
+  return resolveSoftDeleteMiss(
+    UserReportTarget.ARTICLE,
+    id,
+    article?.deletedAt
+  );
+};
+
+/**
+ * 신고된 댓글 soft delete — 사용자 softDeleteComment와 동일하게
+ * 부모 + 활성 직계 대댓글을 함께 지우고, 실제 삭제 수만큼 commentCount를 줄인다.
+ * 자체 트랜잭션은 열지 않고 전달받은 db·deletedAt만 사용한다.
+ */
+const softDeleteCommentContent = async (
+  id: number,
+  deletedAt: Date,
+  db: DbClient
+): Promise<SoftDeleteReportReportedContentResult> => {
+  // postId는 요청값이 아니라 DB 행에서 가져온다.
+  const comment = await db.comment.findUnique({
+    where: { id },
+    select: { id: true, postId: true, deletedAt: true },
+  });
+
+  if (!comment) {
+    return { kind: 'not_found' };
+  }
+
+  // 부모가 이미 삭제됐으면 대댓글만 따로 지우지 않고 already_deleted로 끝낸다.
+  if (comment.deletedAt !== null) {
+    return {
+      kind: 'already_deleted',
+      target: UserReportTarget.COMMENT,
+      id: comment.id,
+    };
+  }
+
+  const deleteResult = await db.comment.updateMany({
+    where: {
+      postId: comment.postId,
+      deletedAt: null,
+      OR: [{ id: comment.id }, { parentId: comment.id }],
+    },
+    data: { deletedAt },
+  });
+
+  // 경합으로 조건부 갱신이 0건이면 카운트를 건드리지 않는다.
+  if (deleteResult.count === 0) {
+    return {
+      kind: 'already_deleted',
+      target: UserReportTarget.COMMENT,
+      id: comment.id,
+    };
+  }
+
+  await db.post.updateMany({
+    where: { id: comment.postId, deletedAt: null },
+    data: { commentCount: { decrement: deleteResult.count } },
+  });
+
+  return {
+    kind: 'deleted',
+    target: UserReportTarget.COMMENT,
+    id: comment.id,
+  };
+};
+
+/**
+ * 신고 target/targetId로 REVIEW·ARTICLE·COMMENT를 soft delete한다.
+ * 작성자 권한 검사는 하지 않는다 — 관리자 신고 처리 전용.
+ * MESSAGE/USER/CHAT_ROOM은 unsupported_target.
+ * deletedAt은 Service가 넘긴 처리 시각을 그대로 쓴다.
+ */
+export const softDeleteReportReportedContent = async (
+  target: UserReportTarget,
+  targetId: string,
+  deletedAt: Date,
+  db: DbClient = prisma
+): Promise<SoftDeleteReportReportedContentResult> => {
+  if (
+    target === UserReportTarget.USER ||
+    target === UserReportTarget.MESSAGE ||
+    target === UserReportTarget.CHAT_ROOM
+  ) {
+    return { kind: 'unsupported_target' };
+  }
+
+  const numericId = parseNumericTargetId(targetId);
+  if (numericId === null) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  switch (target) {
+    case UserReportTarget.REVIEW:
+      return softDeleteReviewContent(numericId, deletedAt, db);
+    case UserReportTarget.ARTICLE:
+      return softDeleteArticleContent(numericId, deletedAt, db);
+    case UserReportTarget.COMMENT:
+      return softDeleteCommentContent(numericId, deletedAt, db);
+    default:
+      return { kind: 'unsupported_target' };
+  }
+};
