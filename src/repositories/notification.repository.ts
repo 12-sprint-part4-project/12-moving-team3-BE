@@ -6,13 +6,8 @@ import type {
   QuoteStatus,
   Region,
 } from '@prisma/client';
-import {
-  EstimateRequestStatus,
-  Prisma,
-  Region as RegionEnum,
-} from '@prisma/client';
+import { EstimateRequestStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { getRegionAddressKeywords } from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -291,48 +286,29 @@ export const findEstimateRequestForFanout = async (
   });
 };
 
-/**
- * 매칭 기사 userId 청크 — userId 오름차순 커서 페이징.
- * (기존 전체 조회 findMoverIdsForNewRequest 와 동일 매칭 조건)
- */
-export const findMoverIdsForNewRequestChunk = async (params: {
-  departureAddress: string | null;
-  arrivalAddress: string | null;
-  moveType: MoveType | null;
+/** 매칭 기사 청크 조회 — regions/moveType은 서비스에서 결정해 전달 */
+export interface FindMoverIdsChunkParams {
+  regions: Region[];
+  moveType: MoveType;
   cursorUserId?: string | null;
   take: number;
-}): Promise<string[]> => {
-  if (!params.moveType) {
-    return [];
-  }
+}
 
-  const addressMatchesRegion = (
-    address: string | null | undefined,
-    region: Region
-  ): boolean => {
-    if (!address) {
-      return false;
-    }
-
-    return getRegionAddressKeywords(region).some((keyword) =>
-      address.startsWith(keyword)
-    );
-  };
-
-  const matchingRegions = Object.values(RegionEnum).filter(
-    (region) =>
-      addressMatchesRegion(params.departureAddress, region) ||
-      addressMatchesRegion(params.arrivalAddress, region)
-  );
-
-  if (matchingRegions.length === 0) {
+/**
+ * 매칭 기사 userId 청크 — userId 오름차순 커서 페이징.
+ * 주소→지역 해석은 하지 않고, 전달받은 regions로 Prisma 필터만 수행한다.
+ */
+export const findMoverIdsForNewRequestChunk = async (
+  params: FindMoverIdsChunkParams
+): Promise<string[]> => {
+  if (params.regions.length === 0) {
     return [];
   }
 
   const profiles = await prisma.moverProfile.findMany({
     where: {
       service: { has: params.moveType },
-      serviceRegions: { some: { region: { in: matchingRegions } } },
+      serviceRegions: { some: { region: { in: params.regions } } },
       user: { deletedAt: null, userType: 'MOVER' },
       ...(params.cursorUserId
         ? { userId: { gt: params.cursorUserId } }

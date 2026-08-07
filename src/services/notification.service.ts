@@ -1,5 +1,6 @@
 import {
   EstimateRequestStatus,
+  Region,
   type MoveType,
   type NotificationOutboxJobType,
   type NotificationType,
@@ -12,6 +13,7 @@ import {
 import * as notificationRepository from '../repositories/notification.repository';
 import type { NotificationRow } from '../repositories/notification.repository';
 import { AppError } from '../utils/app.error';
+import { getRegionAddressKeywords } from '../utils/region.util';
 import * as notificationSse from './notification-sse.service';
 
 type DbClient = Prisma.TransactionClient;
@@ -255,6 +257,35 @@ const toErrorMessage = (error: unknown): string => {
   return String(error);
 };
 
+/** 주소가 해당 Region 키워드로 시작하는지 — fan-out 매칭 정책 */
+const addressMatchesRegion = (
+  address: string | null | undefined,
+  region: Region
+): boolean => {
+  if (!address) {
+    return false;
+  }
+
+  return getRegionAddressKeywords(region).some((keyword) =>
+    address.startsWith(keyword)
+  );
+};
+
+/**
+ * 출발/도착 주소로 매칭 서비스 지역 목록을 한 번 계산한다.
+ * 청크 루프마다 반복하지 않도록 claim당 1회만 호출한다.
+ */
+const resolveMatchingRegionsForMoveAddresses = (
+  departureAddress: string | null,
+  arrivalAddress: string | null
+): Region[] => {
+  return Object.values(Region).filter(
+    (region) =>
+      addressMatchesRegion(departureAddress, region) ||
+      addressMatchesRegion(arrivalAddress, region)
+  );
+};
+
 /**
  * NEW_QUOTE_REQUEST_FANOUT — 매칭 기사를 커서 청크로 createMany.
  * claim당 청크 상한에 걸리면 PENDING 양보 → 다음 cron이 이어서 처리.
@@ -286,6 +317,20 @@ const processNewQuoteRequestFanout = async (job: {
     return;
   }
 
+  // 매칭 정책은 서비스에서 1회 계산 — repo는 regions로 조회만
+  if (!request.moveType) {
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+  const matchingRegions = resolveMatchingRegionsForMoveAddresses(
+    request.departureAddress,
+    request.arrivalAddress
+  );
+  if (matchingRegions.length === 0) {
+    await notificationRepository.markOutboxDone(job.id);
+    return;
+  }
+
   const customerName =
     (await notificationRepository.findUserNameById(request.userId)) ?? '고객';
   const moveTypeLabel = toMoveTypeLabel(request.moveType);
@@ -303,8 +348,7 @@ const processNewQuoteRequestFanout = async (job: {
   while (true) {
     const moverIds =
       await notificationRepository.findMoverIdsForNewRequestChunk({
-        departureAddress: request.departureAddress,
-        arrivalAddress: request.arrivalAddress,
+        regions: matchingRegions,
         moveType: request.moveType,
         cursorUserId,
         take: chunkSize,
