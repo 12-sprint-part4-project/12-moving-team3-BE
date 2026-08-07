@@ -1,16 +1,20 @@
 import {
   Prisma,
   UserReportStatus,
+  UserStatus,
   type UserReportTarget,
   type UserType,
 } from '@prisma/client';
 import type {
+  AdminReportAvailableActionsDto,
   AdminReportDetailContentDto,
   AdminReportDetailCustomerProfileDto,
   AdminReportDetailDto,
   AdminReportDetailMoverProfileDto,
+  AdminReportDetailReportedContentDto,
   AdminReportDetailReporterDto,
   AdminReportDetailTargetDto,
+  AdminReportDetailTargetUserDto,
   AdminReportDetailUserProfileDto,
   AdminReportDetailUserSummaryDto,
   AdminReportListItemDto,
@@ -26,6 +30,8 @@ import {
   findReportDetailTargetMessageById,
   findReportDetailTargetReviewById,
   findReportDetailTargetUserById,
+  findReportReportedContent,
+  findReportSanctionTargetUser,
   findReportTargetArticlesByIds,
   findReportTargetChatRoomsByIds,
   findReportTargetCommentsByIds,
@@ -38,6 +44,9 @@ import {
   type AdminReportDetailRow,
   type AdminReportListRow,
   type AdminReportTargetIdsByKeyword,
+  type FindReportReportedContentResult,
+  type FindReportSanctionTargetUserResult,
+  type ReportSanctionTargetUserRow,
 } from '../repositories/admin-report.repository';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
@@ -652,8 +661,128 @@ const loadReportDetailTarget = async (
 };
 
 /**
+ * 제재 대상 사용자 행 → 상세 DTO.
+ * userStatus가 없으면 회원 목록과 같이 ACTIVE·null로 정규화한다.
+ */
+const toDetailTargetUser = (
+  user: ReportSanctionTargetUserRow
+): AdminReportDetailTargetUserDto => ({
+  id: user.id,
+  name: user.name,
+  nickname: user.nickname,
+  status: user.userStatus?.status ?? UserStatus.ACTIVE,
+  suspendedAt: user.userStatus?.suspendedAt ?? null,
+  suspendedUntil: user.userStatus?.suspendedUntil ?? null,
+});
+
+const toDetailTargetUserFromResult = (
+  result: FindReportSanctionTargetUserResult
+): AdminReportDetailTargetUserDto | null => {
+  if (result.kind !== 'found') {
+    return null;
+  }
+
+  return toDetailTargetUser(result.user);
+};
+
+/** 신고 콘텐츠 조회 결과 → 판별 가능한 reportedContent DTO */
+const toReportedContentFromResult = (
+  result: FindReportReportedContentResult
+): AdminReportDetailReportedContentDto | null => {
+  switch (result.kind) {
+    case 'review':
+      return {
+        type: 'REVIEW',
+        id: String(result.content.id),
+        rating: result.content.rating,
+        content: result.content.content,
+        createdAt: result.content.createdAt,
+        updatedAt: result.content.updatedAt,
+        deletedAt: result.content.deletedAt,
+      };
+    case 'article':
+      return {
+        type: 'ARTICLE',
+        id: String(result.content.id),
+        category: result.content.category,
+        title: result.content.title,
+        content: result.content.content,
+        createdAt: result.content.createdAt,
+        updatedAt: result.content.updatedAt,
+        deletedAt: result.content.deletedAt,
+      };
+    case 'comment':
+      return {
+        type: 'COMMENT',
+        id: String(result.content.id),
+        postId: result.content.postId,
+        parentId: result.content.parentId,
+        content: result.content.content,
+        createdAt: result.content.createdAt,
+        deletedAt: result.content.deletedAt,
+      };
+    case 'message':
+      return {
+        type: 'MESSAGE',
+        id: String(result.content.id),
+        roomId: result.content.roomId,
+        messageType: result.content.messageType,
+        content: result.content.content,
+        isFiltered: result.content.isFiltered,
+        createdAt: result.content.createdAt,
+      };
+    case 'no_content':
+    case 'not_found':
+    case 'unsupported_target':
+    case 'invalid_target_id':
+      return null;
+    default:
+      return null;
+  }
+};
+
+/**
+ * availableActions 계산.
+ * PENDING이 아니거나 대상을 못 찾으면 해당 Action은 false.
+ * 이미 SUSPENDED여도 PENDING이면 정지 Action은 대상 존재 여부로만 판단한다.
+ */
+const toAvailableActions = (
+  status: UserReportStatus,
+  target: UserReportTarget,
+  userResult: FindReportSanctionTargetUserResult,
+  contentResult: FindReportReportedContentResult
+): AdminReportAvailableActionsDto => {
+  if (status !== UserReportStatus.PENDING) {
+    return { canSuspendUser: false, canDeleteContent: false };
+  }
+
+  if (target === 'CHAT_ROOM') {
+    return { canSuspendUser: false, canDeleteContent: false };
+  }
+
+  const canSuspendUser = userResult.kind === 'found';
+
+  if (target === 'USER' || target === 'MESSAGE') {
+    return { canSuspendUser, canDeleteContent: false };
+  }
+
+  if (
+    contentResult.kind === 'review' ||
+    contentResult.kind === 'article' ||
+    contentResult.kind === 'comment'
+  ) {
+    return {
+      canSuspendUser,
+      canDeleteContent: contentResult.content.deletedAt === null,
+    };
+  }
+
+  return { canSuspendUser, canDeleteContent: false };
+};
+
+/**
  * 관리자 신고 상세 조회.
- * Repository에서 신고·대상을 조회한 뒤 AdminReportDetailDto로 매핑한다.
+ * 기존 targetInfo/content는 유지하고, 처리 Action용 targetUser·reportedContent를 추가한다.
  */
 export const getAdminReportDetail = async (
   reportId: number
@@ -665,10 +794,24 @@ export const getAdminReportDetail = async (
     throw new AppError('ADMIN_REPORT_NOT_FOUND');
   }
 
-  const { targetInfo, content } = await loadReportDetailTarget(
-    report.target,
-    report.targetId
-  );
+  // 기존 상세 조립과 Action용 조회를 병렬로 수행한다.
+  // (완전 중복 제거 리팩터는 하지 않고, 응답 계약만 확장한다.)
+  const [detailBundle, sanctionUserResult, reportedContentResult] =
+    await Promise.all([
+      loadReportDetailTarget(report.target, report.targetId),
+      findReportSanctionTargetUser(report.target, report.targetId),
+      findReportReportedContent(report.target, report.targetId),
+    ]);
+
+  // 저장된 targetId 형식 이상은 요청 400이 아니라 서버 데이터 오류로 본다.
+  if (
+    sanctionUserResult.kind === 'invalid_target_id' ||
+    reportedContentResult.kind === 'invalid_target_id'
+  ) {
+    throw new AppError('INTERNAL_SERVER_ERROR');
+  }
+
+  const { targetInfo, content } = detailBundle;
 
   return {
     id: report.id,
@@ -688,5 +831,13 @@ export const getAdminReportDetail = async (
     reporter: toDetailReporter(report.reporter),
     targetInfo,
     content,
+    targetUser: toDetailTargetUserFromResult(sanctionUserResult),
+    reportedContent: toReportedContentFromResult(reportedContentResult),
+    availableActions: toAvailableActions(
+      report.status,
+      report.target,
+      sanctionUserResult,
+      reportedContentResult
+    ),
   };
 };

@@ -474,10 +474,12 @@ paths:
       description: |
         신고 단건 상세를 조회합니다.
         신고 기본 정보, 신고자, 처리 관리자, 대상 상태(targetInfo), 신고된 콘텐츠(content)를 포함합니다.
+        처리 Action용으로 targetUser·reportedContent·availableActions를 추가로 제공합니다.
         targetInfo는 항상 객체로 내려가며 exists/isDeleted로 미존재·삭제 상태를 구분합니다.
         USER 대상이면 targetInfo.user에 profileImageKey·profile(customer/mover)이 포함될 수 있습니다.
         (부적절한 프로필 신고 상세 검토용. 전화번호는 포함하지 않습니다.)
-        대상이 없거나 콘텐츠를 조회할 수 없으면 content는 null입니다.
+        대상이 없거나 콘텐츠를 조회할 수 없으면 content·reportedContent는 null입니다.
+        PENDING이 아니거나 대상을 찾을 수 없으면 availableActions는 false입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -513,6 +515,9 @@ paths:
                       - reporter
                       - targetInfo
                       - content
+                      - targetUser
+                      - reportedContent
+                      - availableActions
                     properties:
                       id:
                         type: integer
@@ -756,6 +761,82 @@ paths:
                             type: object
                             nullable: true
                             additionalProperties: true
+                      targetUser:
+                        nullable: true
+                        type: object
+                        required:
+                          [id, name, nickname, status, suspendedAt, suspendedUntil]
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          nickname:
+                            type: string
+                          status:
+                            type: string
+                            enum: [ACTIVE, SUSPENDED]
+                          suspendedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          suspendedUntil:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      reportedContent:
+                        nullable: true
+                        description: |
+                          신고 콘텐츠(type으로 구분). USER/CHAT_ROOM·미존재면 null.
+                          REVIEW/ARTICLE/COMMENT는 deletedAt을 포함한다.
+                        type: object
+                        required: [type, id]
+                        properties:
+                          type:
+                            type: string
+                            enum: [REVIEW, ARTICLE, COMMENT, MESSAGE]
+                          id:
+                            type: string
+                          title:
+                            type: string
+                          content:
+                            type: string
+                          rating:
+                            type: integer
+                          category:
+                            type: string
+                          postId:
+                            type: integer
+                          parentId:
+                            type: integer
+                            nullable: true
+                          roomId:
+                            type: integer
+                          messageType:
+                            type: string
+                            enum: [TEXT, IMAGE]
+                          isFiltered:
+                            type: boolean
+                          createdAt:
+                            type: string
+                            format: date-time
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          deletedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      availableActions:
+                        type: object
+                        required: [canSuspendUser, canDeleteContent]
+                        properties:
+                          canSuspendUser:
+                            type: boolean
+                          canDeleteContent:
+                            type: boolean
               example:
                 data:
                   id: 1
@@ -796,6 +877,24 @@ paths:
                     deletedAt: null
                     metadata:
                       rating: 1
+                  targetUser:
+                    id: '550e8400-e29b-41d4-a716-446655440001'
+                    name: 김철수
+                    nickname: 철수
+                    status: ACTIVE
+                    suspendedAt: null
+                    suspendedUntil: null
+                  reportedContent:
+                    type: REVIEW
+                    id: '12'
+                    rating: 1
+                    content: 불쾌한 리뷰 내용
+                    createdAt: '2026-07-30T09:00:00.000Z'
+                    updatedAt: null
+                    deletedAt: null
+                  availableActions:
+                    canSuspendUser: true
+                    canDeleteContent: true
         '400':
           description: Path Parameter(reportId) 형식 검증 실패
           content:
