@@ -324,6 +324,18 @@ export interface AdminReportResolveResultDto {
 }
 
 /**
+ * 관리자 신고 반려(reject) 결과.
+ * Action이 없으므로 resolve 결과와 분리한다.
+ */
+export interface AdminReportRejectResultDto {
+  reportId: number;
+  status: UserReportStatus;
+  adminId: number;
+  /** 응답용 처리 시각 — ERD에 별도 저장 컬럼 없음 */
+  processedAt: Date;
+}
+
+/**
  * 관리자 신고 상세 조회 응답 DTO.
  * Prisma UserReport payload를 그대로 노출하지 않고 API 계약을 고정한다.
  */

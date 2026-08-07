@@ -19,6 +19,7 @@ import type {
   AdminReportDetailUserSummaryDto,
   AdminReportListItemDto,
   AdminReportListResultDto,
+  AdminReportRejectResultDto,
   AdminReportResolveResultDto,
   AdminReportTargetInfoDto,
 } from '../dtos/admin-report.dto';
@@ -1044,6 +1045,54 @@ export const resolveAdminReport = async ({
       actions,
       processedAt,
       contentAlreadyDeleted,
+    };
+  });
+};
+
+export type RejectAdminReportInput = {
+  reportId: number;
+  adminId: number;
+};
+
+/**
+ * 관리자 신고 반려.
+ * 신고 잠금 후 PENDING → REJECTED만 수행한다.
+ * 사용자·콘텐츠·CHAT_ROOM 제재는 하지 않으며, 대상 존재 여부와 무관하게 반려할 수 있다.
+ */
+export const rejectAdminReport = async ({
+  reportId,
+  adminId,
+}: RejectAdminReportInput): Promise<AdminReportRejectResultDto> => {
+  const processedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
+    const report = await lockAdminReportForStatusChange(reportId, tx);
+
+    if (!report) {
+      throw new AppError('ADMIN_REPORT_NOT_FOUND');
+    }
+
+    if (report.status !== UserReportStatus.PENDING) {
+      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+    }
+
+    const statusUpdate = await updateAdminReportDecisionStatus(
+      reportId,
+      adminId,
+      UserReportStatus.REJECTED,
+      tx
+    );
+
+    if (statusUpdate.kind === 'not_updated') {
+      throw new AppError('ADMIN_REPORT_CONFLICT');
+    }
+
+    return {
+      reportId: statusUpdate.report.id,
+      status: statusUpdate.report.status,
+      adminId: statusUpdate.report.adminId,
+      processedAt,
     };
   });
 };
