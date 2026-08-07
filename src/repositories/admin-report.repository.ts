@@ -659,3 +659,133 @@ export const findReportDetailTargetCommentById = async (
     },
   });
 };
+
+// --- 신고 처리: 제재 대상 사용자 조회 ---
+
+/**
+ * 정지 판단에 필요한 최소 사용자 필드.
+ * admin-member의 userStatus select와 맞춰 상태·정지 기간을 한 번에 가져온다.
+ */
+const reportSanctionTargetUserSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  userStatus: {
+    select: {
+      status: true,
+      suspendedAt: true,
+      suspendedUntil: true,
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+export type ReportSanctionTargetUserRow = Prisma.UserGetPayload<{
+  select: typeof reportSanctionTargetUserSelect;
+}>;
+
+/**
+ * 제재 대상 조회 결과.
+ * HTTP 결정은 Service가 하고, Repository는 실패 원인을 구분만 한다.
+ * - unsupported_target: CHAT_ROOM처럼 이 경로에서 사용자를 특정할 수 없음
+ * - invalid_target_id: 형식 오류 — DB 조회 없이 조기 반환
+ * - not_found: 형식은 맞지만 대상/사용자가 없음
+ */
+export type FindReportSanctionTargetUserResult =
+  | { kind: 'found'; user: ReportSanctionTargetUserRow }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' }
+  | { kind: 'unsupported_target' };
+
+/** USER targetId(UUID) 형식 검사 — 잘못된 값으로 Prisma가 던지는 오류를 막기 위해 조회 전에 거른다 */
+const isUserTargetUuid = (targetId: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    targetId
+  );
+
+const toFoundSanctionUser = (
+  user: ReportSanctionTargetUserRow | null | undefined
+): FindReportSanctionTargetUserResult =>
+  user ? { kind: 'found', user } : { kind: 'not_found' };
+
+/**
+ * 신고 target/targetId로 정지 대상 사용자를 조회한다.
+ * 콘텐츠 대상은 관계(include)로 작성자·상태를 한 번에 가져온다.
+ * 콘텐츠 soft-delete 여부와 무관하게 작성자를 찾아야 제재가 가능하므로 deletedAt 필터는 두지 않는다.
+ * MESSAGE는 soft-delete 컬럼이 없고, 이 메서드는 메시지도 삭제하지 않는다.
+ */
+export const findReportSanctionTargetUser = async (
+  target: UserReportTarget,
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportSanctionTargetUserResult> => {
+  // 채팅방은 참여자가 복수라 단일 제재 사용자를 정할 수 없다.
+  if (target === UserReportTarget.CHAT_ROOM) {
+    return { kind: 'unsupported_target' };
+  }
+
+  if (target === UserReportTarget.USER) {
+    if (!isUserTargetUuid(targetId)) {
+      return { kind: 'invalid_target_id' };
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: targetId },
+      select: reportSanctionTargetUserSelect,
+    });
+
+    return toFoundSanctionUser(user);
+  }
+
+  // MESSAGE/REVIEW/ARTICLE/COMMENT의 targetId는 Int PK 문자열이다.
+  const numericId = parseNumericTargetId(targetId);
+  if (numericId === null) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  switch (target) {
+    case UserReportTarget.MESSAGE: {
+      const message = await db.chatMessage.findUnique({
+        where: { id: numericId },
+        select: {
+          sender: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(message?.sender);
+    }
+    case UserReportTarget.REVIEW: {
+      const review = await db.review.findUnique({
+        where: { id: numericId },
+        select: {
+          user: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(review?.user);
+    }
+    case UserReportTarget.ARTICLE: {
+      // UserReportTarget.ARTICLE → Post 모델
+      const article = await db.post.findUnique({
+        where: { id: numericId },
+        select: {
+          user: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(article?.user);
+    }
+    case UserReportTarget.COMMENT: {
+      const comment = await db.comment.findUnique({
+        where: { id: numericId },
+        select: {
+          user: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(comment?.user);
+    }
+    default:
+      // 알 수 없는 enum 값은 지원하지 않는 대상으로 취급해 호출자가 분기할 수 있게 한다.
+      return { kind: 'unsupported_target' };
+  }
+};
