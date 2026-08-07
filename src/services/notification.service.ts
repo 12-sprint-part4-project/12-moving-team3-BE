@@ -250,6 +250,19 @@ const OUTBOX_MAX_CLAIMS_PER_TICK = 20;
 /** claim당 createMany 청크 상한 — 5×200 ≈ 1,000명 후 틱 양보 */
 const OUTBOX_MAX_CHUNKS_PER_CLAIM = 5;
 
+/** fan-out 전략이 공통으로 쓰는 Outbox 잡 필드 */
+interface OutboxFanoutJobParams {
+  id: number;
+  sourceId: string;
+  cursorUserId: string | null;
+}
+
+/** claim 직후 워커가 넘기는 잡 — jobType 분기·실패 시 attempts 기록용 */
+interface ClaimedOutboxJobParams extends OutboxFanoutJobParams {
+  jobType: NotificationOutboxJobType;
+  attempts: number;
+}
+
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {
     return error.message;
@@ -291,11 +304,9 @@ const resolveMatchingRegionsForMoveAddresses = (
  * claim당 청크 상한에 걸리면 PENDING 양보 → 다음 cron이 이어서 처리.
  * 지정 알림은 포함하지 않는다.
  */
-const processNewQuoteRequestFanout = async (job: {
-  id: number;
-  sourceId: string;
-  cursorUserId: string | null;
-}): Promise<void> => {
+const processNewQuoteRequestFanout = async (
+  job: OutboxFanoutJobParams
+): Promise<void> => {
   const estimateRequestId = Number(job.sourceId);
   if (!Number.isInteger(estimateRequestId) || estimateRequestId <= 0) {
     throw new Error(`invalid estimateRequestId sourceId=${job.sourceId}`);
@@ -404,13 +415,9 @@ const processNewQuoteRequestFanout = async (job: {
 };
 
 /** jobType별 전략 — 신규 소비자는 여기 switch만 확장 */
-const processClaimedOutboxJob = async (job: {
-  id: number;
-  jobType: NotificationOutboxJobType;
-  sourceId: string;
-  cursorUserId: string | null;
-  attempts: number;
-}): Promise<void> => {
+const processClaimedOutboxJob = async (
+  job: ClaimedOutboxJobParams
+): Promise<void> => {
   try {
     switch (job.jobType) {
       case 'NEW_QUOTE_REQUEST_FANOUT':
