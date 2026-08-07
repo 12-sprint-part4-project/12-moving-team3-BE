@@ -789,3 +789,155 @@ export const findReportSanctionTargetUser = async (
       return { kind: 'unsupported_target' };
   }
 };
+
+// --- 신고 처리: 신고 콘텐츠 조회 ---
+
+/** REVIEW 콘텐츠 — soft-delete 후에도 상세·삭제 처리에 쓸 최소 필드 */
+const reportedReviewContentSelect = {
+  id: true,
+  userId: true,
+  rating: true,
+  content: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.ReviewSelect;
+
+/** ARTICLE(Post) 콘텐츠 — UserReportTarget.ARTICLE은 Post 모델에 대응한다 */
+const reportedArticleContentSelect = {
+  id: true,
+  userId: true,
+  category: true,
+  title: true,
+  content: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.PostSelect;
+
+/** COMMENT 콘텐츠 — soft-delete 행도 포함해 관리자가 원문을 확인할 수 있게 한다 */
+const reportedCommentContentSelect = {
+  id: true,
+  userId: true,
+  postId: true,
+  parentId: true,
+  content: true,
+  createdAt: true,
+  deletedAt: true,
+} satisfies Prisma.CommentSelect;
+
+/**
+ * MESSAGE 콘텐츠.
+ * ChatMessage에는 deletedAt이 없고, 이번 메서드는 메시지도 삭제하지 않는다.
+ */
+const reportedMessageContentSelect = {
+  id: true,
+  senderId: true,
+  roomId: true,
+  messageType: true,
+  content: true,
+  isFiltered: true,
+  createdAt: true,
+} satisfies Prisma.ChatMessageSelect;
+
+export type ReportedReviewContentRow = Prisma.ReviewGetPayload<{
+  select: typeof reportedReviewContentSelect;
+}>;
+
+export type ReportedArticleContentRow = Prisma.PostGetPayload<{
+  select: typeof reportedArticleContentSelect;
+}>;
+
+export type ReportedCommentContentRow = Prisma.CommentGetPayload<{
+  select: typeof reportedCommentContentSelect;
+}>;
+
+export type ReportedMessageContentRow = Prisma.ChatMessageGetPayload<{
+  select: typeof reportedMessageContentSelect;
+}>;
+
+/**
+ * 신고 콘텐츠 조회 결과.
+ * HTTP는 Service가 결정하고, Repository는 대상별 데이터·실패 원인만 구분한다.
+ * invalid_target_id는 요청 검증 오류가 아니라 저장된 신고 targetId 형식 이상일 수 있다.
+ */
+export type FindReportReportedContentResult =
+  | { kind: 'review'; content: ReportedReviewContentRow }
+  | { kind: 'article'; content: ReportedArticleContentRow }
+  | { kind: 'comment'; content: ReportedCommentContentRow }
+  | { kind: 'message'; content: ReportedMessageContentRow }
+  | { kind: 'no_content' }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' }
+  | { kind: 'unsupported_target' };
+
+/**
+ * 신고 target/targetId로 신고된 콘텐츠를 조회한다.
+ * 상세 화면의 콘텐츠 영역과 이후 soft-delete Action이 같은 계약을 쓰도록 최소 필드를 고정한다.
+ * deletedAt 필터를 두지 않아 이미 삭제된 콘텐츠도 반환한다.
+ */
+export const findReportReportedContent = async (
+  target: UserReportTarget,
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportReportedContentResult> => {
+  // USER 신고는 별도 콘텐츠 row가 없다 — 프로필은 사용자 조회 경로를 쓴다.
+  if (target === UserReportTarget.USER) {
+    return { kind: 'no_content' };
+  }
+
+  // CHAT_ROOM은 이번 콘텐츠 조회 범위에서 제외한다.
+  if (target === UserReportTarget.CHAT_ROOM) {
+    return { kind: 'unsupported_target' };
+  }
+
+  const numericId = parseNumericTargetId(targetId);
+  if (numericId === null) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  switch (target) {
+    case UserReportTarget.REVIEW: {
+      const content = await db.review.findUnique({
+        where: { id: numericId },
+        select: reportedReviewContentSelect,
+      });
+
+      return content
+        ? { kind: 'review', content }
+        : { kind: 'not_found' };
+    }
+    case UserReportTarget.ARTICLE: {
+      const content = await db.post.findUnique({
+        where: { id: numericId },
+        select: reportedArticleContentSelect,
+      });
+
+      return content
+        ? { kind: 'article', content }
+        : { kind: 'not_found' };
+    }
+    case UserReportTarget.COMMENT: {
+      const content = await db.comment.findUnique({
+        where: { id: numericId },
+        select: reportedCommentContentSelect,
+      });
+
+      return content
+        ? { kind: 'comment', content }
+        : { kind: 'not_found' };
+    }
+    case UserReportTarget.MESSAGE: {
+      const content = await db.chatMessage.findUnique({
+        where: { id: numericId },
+        select: reportedMessageContentSelect,
+      });
+
+      return content
+        ? { kind: 'message', content }
+        : { kind: 'not_found' };
+    }
+    default:
+      return { kind: 'unsupported_target' };
+  }
+};
