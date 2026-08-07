@@ -23,7 +23,7 @@ import {
   deleteUnreferencedPostImageKeys,
 } from '../utils/post-image.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
-import { toPresignedViewUrl } from './s3.service';
+import { toPresignedViewUrl, toPublicViewUrl } from './s3.service';
 
 const isPostSort = (value: unknown): value is PostSort =>
   typeof value === 'string' &&
@@ -132,7 +132,7 @@ const mapPostListItem = async (
   author: {
     id: post.user.id,
     nickname: post.user.nickname,
-    profileImageUrl: await toPresignedViewUrl(post.user.profileImageKey),
+    profileImageUrl: toPublicViewUrl(post.user.profileImageKey),
   },
   likeCount: post.likeCount,
   commentCount: post.commentCount,
@@ -231,7 +231,7 @@ export const getPostById = async (postId: number, userId?: string) => {
     author: {
       id: post.user.id,
       nickname: post.user.nickname,
-      profileImageUrl: await toPresignedViewUrl(post.user.profileImageKey),
+      profileImageUrl: toPublicViewUrl(post.user.profileImageKey),
     },
     likeCount: post.likeCount,
     commentCount: post.commentCount,
