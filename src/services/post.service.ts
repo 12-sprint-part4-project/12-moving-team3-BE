@@ -23,7 +23,7 @@ import {
   deleteUnreferencedPostImageKeys,
 } from '../utils/post-image.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
-import { toPresignedViewUrl, toPublicViewUrl } from './s3.service';
+import { toPublicViewUrl } from './s3.service';
 
 const isPostSort = (value: unknown): value is PostSort =>
   typeof value === 'string' &&
@@ -116,7 +116,7 @@ const resolvePostContent = (content: string): string => {
   return content;
 };
 
-const mapPostListItem = async (
+const mapPostListItem = (
   post: Awaited<ReturnType<typeof postRepository.findPosts>>[number],
   userId?: string
 ) => ({
@@ -128,7 +128,7 @@ const mapPostListItem = async (
     0,
     CONTENT_PREVIEW_MAX_LENGTH
   ),
-  thumbnailUrl: await toPresignedViewUrl(post.images[0]?.imageKey),
+  thumbnailUrl: toPublicViewUrl(post.images[0]?.imageKey),
   author: {
     id: post.user.id,
     nickname: post.user.nickname,
@@ -173,9 +173,7 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
   const lastRow = items.length > 0 ? items[items.length - 1] : undefined;
 
   return {
-    items: await Promise.all(
-      items.map((post) => mapPostListItem(post, userId))
-    ),
+    items: items.map((post) => mapPostListItem(post, userId)),
     meta: {
       nextCursor:
         hasNextPage && lastRow
@@ -222,12 +220,10 @@ export const getPostById = async (postId: number, userId?: string) => {
     region: post.region ?? null,
     title: post.title,
     content: post.content,
-    images: await Promise.all(
-      post.images.map(async (img) => ({
-        imageKey: img.imageKey,
-        imageUrl: await toPresignedViewUrl(img.imageKey),
-      }))
-    ),
+    images: post.images.map((img) => ({
+      imageKey: img.imageKey,
+      imageUrl: toPublicViewUrl(img.imageKey),
+    })),
     author: {
       id: post.user.id,
       nickname: post.user.nickname,
