@@ -20,8 +20,10 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
-            npm install
+            pm2 stop be || true
+            npm ci
             npx prisma generate
             npx prisma migrate deploy
             npm run build
+            npm prune --omit=dev
             pm2 restart be
