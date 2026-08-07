@@ -7,9 +7,10 @@ import {
 
 import { prisma } from '../lib/prisma';
 import { MOVER_SORT_FIELDS } from '../schemas/movers.schema';
-import type {
-  FavoriteListCursor,
-  MoverListCursor,
+import {
+  CAREER_NULL_CURSOR_VALUE,
+  type FavoriteListCursor,
+  type MoverListCursor,
 } from '../utils/movers-cursor.util';
 
 /** 기사 목록 정렬 — 모두 내림차순(많은/높은 순). SSOT: MOVER_SORT_FIELDS */
@@ -180,16 +181,27 @@ const buildFavoriteListWhere = (
   return { AND: conditions };
 };
 
-/** 경력 많은 순(desc) 키셋 커서 */
+/**
+ * 경력 많은 순(desc, nulls last) 키셋 커서.
+ * - 숫자 커서: 더 작은 career / 동점이면 id↓ / 그다음 구간인 career null 전부
+ * - null 커서: career null 범위에서 id↓ 만
+ */
 const buildCareerCursorCondition = (
   cursor: MoverListCursor
 ): Prisma.MoverProfileWhereInput => {
+  if (cursor.value === CAREER_NULL_CURSOR_VALUE) {
+    return {
+      AND: [{ career: null }, { id: { lt: cursor.id } }],
+    };
+  }
+
   const career = Number(cursor.value);
 
   return {
     OR: [
       { career: { lt: career } },
       { AND: [{ career }, { id: { lt: cursor.id } }] },
+      { career: null },
     ],
   };
 };
