@@ -1,0 +1,460 @@
+paths:
+  /api/admin/completed/statistics:
+    get:
+      tags: [Admin Completed Estimate Requests]
+      summary: 관리자 완료 견적 요청 통계 조회
+      description: |
+        기간 조건에 따른 완료 견적 요청 및 확정 견적 금액 통계를 조회합니다.
+        완료 견적 요청은 COMPLETED 상태이며, 실제 이사일(moveDate)을 기준으로 집계합니다.
+        완료된 견적 금액은 CONFIRMED 상태 견적 중 실제 이사일(moveDate)이 기간에 포함된 항목을 기준으로 집계합니다.
+        startDate가 없으면 전체 기간을 집계하며, 이 경우 endDate는 적용되지 않습니다.
+        startDate만 입력하면 해당 일(KST 00:00:00 ~ 다음 날 KST 00:00:00 직전)을 집계하고,
+        endDate도 입력하면 두 날짜 사이를 집계합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          description: 조회 시작일 (KST 기준)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 조회 종료일 (KST 기준, startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+      responses:
+        '200':
+          description: 완료 견적 요청 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - totalCompletedCount
+                      - averageCompletedPrice
+                      - totalCompletedPrice
+                    properties:
+                      totalCompletedCount:
+                        type: integer
+                        description: COMPLETED 상태 견적 요청 수
+                        example: 30
+                      averageCompletedPrice:
+                        type: object
+                        required: [_avg]
+                        description: CONFIRMED 상태 견적의 평균 금액 집계 결과
+                        properties:
+                          _avg:
+                            type: object
+                            required: [price]
+                            properties:
+                              price:
+                                type: integer
+                                nullable: true
+                                description: 완료된 견적 평균 금액
+                                example: 250000
+                      totalCompletedPrice:
+                        type: object
+                        required: [_sum]
+                        description: CONFIRMED 상태 견적의 총 금액 집계 결과
+                        properties:
+                          _sum:
+                            type: object
+                            required: [price]
+                            properties:
+                              price:
+                                type: integer
+                                nullable: true
+                                description: 총 완료 견적 금액
+                                example: 7500000
+              example:
+                data:
+                  totalCompletedCount: 30
+                  averageCompletedPrice:
+                    _avg:
+                      price: 250000
+                  totalCompletedPrice:
+                    _sum:
+                      price: 7500000
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/completed:
+    get:
+      tags: [Admin Completed Estimate Requests]
+      summary: 관리자 완료 견적 요청 목록 조회
+      description: |
+        COMPLETED 상태의 견적 요청을 이사일 최신순(moveDate desc, id desc)으로 조회합니다.
+        search는 견적 요청 ID(정수), 요청자 이름 또는 전화번호를 대상으로 검색합니다.
+        moveType은 하나의 이사 유형만 선택할 수 있습니다.
+        startDate가 없으면 전체 기간을 조회하며, 이 경우 endDate는 적용되지 않습니다.
+        startDate만 입력하면 해당 일의 이사 완료 요청을 조회하고, endDate도 입력하면 두 날짜 사이의 이사일을 기준으로 조회합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: moveType
+          in: query
+          required: false
+          description: 이사 유형 필터
+          schema:
+            type: string
+            enum: [SMALL, HOME, OFFICE]
+            example: HOME
+        - name: search
+          in: query
+          required: false
+          description: 견적 요청 ID, 요청자 이름 또는 전화번호 검색어
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: startDate
+          in: query
+          required: false
+          description: 이사일 조회 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 이사일 조회 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+        - name: page
+          in: query
+          required: false
+          description: 페이지 번호
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 페이지당 조회 개수
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+            example: 10
+      responses:
+        '200':
+          description: 완료 견적 요청 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - userName
+                        - phoneNumber
+                        - moveType
+                        - departureAddress
+                        - arrivalAddress
+                        - moveDate
+                        - mover
+                        - price
+                      properties:
+                        id:
+                          type: integer
+                          example: 123
+                        userName:
+                          type: string
+                          example: 홍길동
+                        phoneNumber:
+                          type: string
+                          nullable: true
+                          example: '010-1234-5678'
+                        moveType:
+                          type: string
+                          enum: [SMALL, HOME, OFFICE]
+                          example: HOME
+                        departureAddress:
+                          type: string
+                          example: 서울특별시 강남구 테헤란로 123
+                        arrivalAddress:
+                          type: string
+                          example: 서울특별시 송파구 올림픽로 456
+                        moveDate:
+                          type: string
+                          format: date-time
+                          example: '2026-07-15T00:00:00.000Z'
+                        mover:
+                          type: string
+                          description: 확정 견적의 이사 기사명
+                          example: 빠른이사
+                        price:
+                          type: integer
+                          description: 확정 견적 금액
+                          example: 250000
+                  meta:
+                    type: object
+                    required: [page, pageSize, totalCount, totalPages]
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      pageSize:
+                        type: integer
+                        example: 10
+                      totalCount:
+                        type: integer
+                        example: 42
+                      totalPages:
+                        type: integer
+                        example: 5
+              example:
+                data:
+                  - id: 123
+                    userName: 홍길동
+                    phoneNumber: '010-1234-5678'
+                    moveType: HOME
+                    departureAddress: 서울특별시 강남구 테헤란로 123
+                    arrivalAddress: 서울특별시 송파구 올림픽로 456
+                    moveDate: '2026-07-15T00:00:00.000Z'
+                    mover: 빠른이사
+                    price: 250000
+                meta:
+                  page: 1
+                  pageSize: 10
+                  totalCount: 42
+                  totalPages: 5
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/completed/{estimateRequestId}:
+    get:
+      tags: [Admin Completed Estimate Requests]
+      summary: 관리자 완료 견적 요청 상세 조회
+      description: |
+        견적 요청 ID로 COMPLETED 상태의 완료 건 상세 정보를 조회합니다.
+        존재하지 않거나 COMPLETED가 아닌 상태면 404를 반환합니다.
+        출발지·도착지 주소 상세(우편번호, 상세주소)와 확정 견적(confirmedQuote) 정보를 함께 반환합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: estimateRequestId
+          in: path
+          required: true
+          description: 조회할 완료 견적 요청 ID
+          schema:
+            type: integer
+            minimum: 1
+            example: 123
+      responses:
+        '200':
+          description: 완료 견적 요청 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - userName
+                      - moveType
+                      - departureAddress
+                      - departureDetailAddress
+                      - departureZipCode
+                      - arrivalAddress
+                      - arrivalDetailAddress
+                      - arrivalZipCode
+                      - moveDate
+                      - confirmedQuote
+                    properties:
+                      id:
+                        type: integer
+                        example: 123
+                      userName:
+                        type: string
+                        example: 홍길동
+                      moveType:
+                        type: string
+                        enum: [SMALL, HOME, OFFICE]
+                        example: HOME
+                      departureAddress:
+                        type: string
+                        example: 서울특별시 강남구 테헤란로 123
+                      departureDetailAddress:
+                        type: string
+                        example: 101동 1001호
+                      departureZipCode:
+                        type: string
+                        example: '06236'
+                      arrivalAddress:
+                        type: string
+                        example: 서울특별시 송파구 올림픽로 456
+                      arrivalDetailAddress:
+                        type: string
+                        example: A동 502호
+                      arrivalZipCode:
+                        type: string
+                        example: '05551'
+                      moveDate:
+                        type: string
+                        format: date-time
+                        description: 실제 이사일
+                        example: '2026-07-15T00:00:00.000Z'
+                      confirmedQuote:
+                        type: object
+                        required: [moverName, price, comment, createdAt]
+                        description: 확정 견적 정보
+                        properties:
+                          moverName:
+                            type: string
+                            example: 빠른이사
+                          price:
+                            type: integer
+                            description: 확정 견적 금액
+                            example: 250000
+                          comment:
+                            type: string
+                            nullable: true
+                            description: 견적 코멘트
+                            example: 안전하게 모시겠습니다.
+                          createdAt:
+                            type: string
+                            format: date-time
+                            description: 견적 생성 일시
+                            example: '2026-07-10T11:00:00.000Z'
+              example:
+                data:
+                  id: 123
+                  userName: 홍길동
+                  moveType: HOME
+                  departureAddress: 서울특별시 강남구 테헤란로 123
+                  departureDetailAddress: 101동 1001호
+                  departureZipCode: '06236'
+                  arrivalAddress: 서울특별시 송파구 올림픽로 456
+                  arrivalDetailAddress: A동 502호
+                  arrivalZipCode: '05551'
+                  moveDate: '2026-07-15T00:00:00.000Z'
+                  confirmedQuote:
+                    moverName: 빠른이사
+                    price: 250000
+                    comment: 안전하게 모시겠습니다.
+                    createdAt: '2026-07-10T11:00:00.000Z'
+        '400':
+          description: Path Parameter(estimateRequestId) 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 견적 요청이 없거나 COMPLETED 상태가 아닌 경우
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_ESTIMATE_REQUEST_NOT_FOUND
+                  message: 존재하지 않는 견적 요청입니다.
+        '500':
+          description: 서버 내부 오류 (완료 건에 필수 주소·이사일·확정 견적 등이 누락된 경우 포함)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

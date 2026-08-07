@@ -1,0 +1,55 @@
+---
+alwaysApply: true
+---
+
+# Code Review Conventions
+
+Apply these when writing or reviewing API code (from team CodeRabbit feedback).
+
+## Layer boundaries
+
+- Repository: data access only. Do not embed business/query policy (e.g. default category exclusions).
+- Service: business rules, filter policy, cursor encoding/decoding validation, response mapping.
+- Controller: HTTP only. Use `res.locals.validated` and auth helpers — never `(req as any).user`.
+
+## Auth
+
+- `requireAuth`: missing/invalid token → `401`.
+- `optionalAuth`: missing or invalid token → treat as guest (`next()`), never `401`. Valid token → set `res.locals.user`.
+
+## Validation (Zod)
+
+- Define schemas in `src/schemas/*.schema.ts`.
+- Apply via `validateRequest` on routes.
+- Prefer `z.enum(PrismaEnum)` over deprecated `z.nativeEnum` (Zod 4).
+- Controller must read validated input from `res.locals.validated` (query/params/body) — never cast raw `req.body`.
+- `imageKeys`: non-empty strings, max count enforced in schema.
+- `latitude` / `longitude`: validate geographic bounds when present.
+
+## Repository
+
+- Optional `DbClient` parameter for functions that may join a parent transaction.
+- Soft delete: use `updateMany` with `deletedAt: null` for atomicity; check affected `count` in service.
+- Permission checks: lightweight owner query (`id`, `userId` only) instead of full detail fetch.
+
+## Cursor pagination
+
+- Encode `{ id, sort, value }` (base64url JSON). Include `sort` so cursors cannot be reused across sort modes.
+- Decode in service: reject sort mismatch, malformed values.
+- Numeric cursor (`POPULAR`, `MOST_COMMENTED`): entire string must match `/^\d+$/` before parseInt.
+- Date cursor (`LATEST`): value must be valid ISO and `new Date(value).toISOString() === value`.
+- Repository: keyset condition + secondary `id` in `orderBy`. No AppError in repository.
+
+## Images
+
+- Use `toProfileImageUrl` from `profile-image.util.ts` — do not build S3 URLs inline.
+
+## API responses
+
+- List with pagination: `{ data: { items }, meta: { nextCursor, hasNextPage } }`.
+- Detail: `{ data: { ... } }`.
+- Errors: `AppError('ERROR_CODE')` with string keys.
+
+## Git commits
+
+- Do not add `Co-authored-by: Cursor` or other agent attribution to commits.

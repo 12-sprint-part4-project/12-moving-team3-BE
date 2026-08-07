@@ -1,0 +1,470 @@
+components:
+  schemas:
+    MoverProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - nickname
+            - career
+            - shortDescription
+            - description
+            - service
+            - serviceRegions
+            - profileImageUrl
+            - updatedAt
+          properties:
+            nickname:
+              type: string
+              example: 김코드
+            career:
+              type: integer
+              example: 8
+            shortDescription:
+              type: string
+              example: 꼼꼼한이사
+            description:
+              type: string
+              example: 포장부터 정리까지 책임지고 진행합니다.
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [HOME, SMALL]
+            serviceRegions:
+              type: array
+              items:
+                type: string
+                enum:
+                  - SEOUL
+                  - GYEONGGI
+                  - INCHEON
+                  - GANGWON
+                  - CHUNGBUK
+                  - CHUNGNAM
+                  - SEJONG
+                  - DAEJEON
+                  - JEONBUK
+                  - GWANGJU_JEONNAM
+                  - GYEONGBUK
+                  - DAEGU
+                  - ULSAN
+                  - GYEONGNAM
+                  - BUSAN
+                  - JEJU
+              example: [SEOUL, GYEONGGI]
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              example: null
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-28T08:20:00.000Z'
+
+    MoverProfileMeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - profileId
+            - userId
+            - name
+            - nickname
+            - email
+            - phoneNumber
+            - profileImageUrl
+            - career
+            - shortDescription
+            - description
+            - service
+            - serviceRegions
+            - confirmedCount
+            - hasPassword
+            - createdAt
+            - updatedAt
+          properties:
+            profileId:
+              type: integer
+              example: 15
+            userId:
+              type: string
+              format: uuid
+              example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            name:
+              type: string
+              example: 김코드
+            nickname:
+              type: string
+              example: 김코드
+            email:
+              type: string
+              format: email
+              example: mover@example.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              example: null
+            career:
+              type: integer
+              nullable: true
+              example: 8
+            shortDescription:
+              type: string
+              nullable: true
+              example: 꼼꼼한이사
+            description:
+              type: string
+              nullable: true
+              example: 포장부터 정리까지 책임지고 진행합니다.
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [HOME, SMALL]
+            serviceRegions:
+              type: array
+              items:
+                type: string
+                enum:
+                  - SEOUL
+                  - GYEONGGI
+                  - INCHEON
+                  - GANGWON
+                  - CHUNGBUK
+                  - CHUNGNAM
+                  - SEJONG
+                  - DAEJEON
+                  - JEONBUK
+                  - GWANGJU_JEONNAM
+                  - GYEONGBUK
+                  - DAEGU
+                  - ULSAN
+                  - GYEONGNAM
+                  - BUSAN
+                  - JEJU
+              example: [SEOUL, GYEONGGI]
+            confirmedCount:
+              type: integer
+              description: 확정 견적(CONFIRMED) 건수
+              example: 334
+            hasPassword:
+              type: boolean
+              description: LOCAL 비밀번호 보유 여부 (카카오 전용 계정이면 false)
+              example: true
+            createdAt:
+              type: string
+              format: date-time
+              example: '2026-07-20T13:30:00.000Z'
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-21T10:00:00.000Z'
+
+    MoverBasicInfoResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - name
+            - email
+            - phoneNumber
+            - updatedAt
+          properties:
+            name:
+              type: string
+              example: 김코드
+            email:
+              type: string
+              format: email
+              example: kcode@email.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-28T08:20:00.000Z'
+
+paths:
+  /api/users/movers/profile:
+    get:
+      tags: [Movers]
+      summary: 기사님 본인 프로필 조회
+      description: |
+        로그인한 기사님(MOVER)의 등록된 프로필을 조회합니다.
+        confirmedCount(확정 견적 건수)를 포함합니다.
+        정지(SUSPENDED) 계정도 조회할 수 있습니다. 프로필/기본정보 수정도 정지 시 허용됩니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoverProfileMeResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 기사님(MOVER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록된 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Movers]
+      summary: 기사님 프로필 등록/수정
+      description: |
+        기사님(MOVER)이 프로필 정보를 등록하거나 수정합니다.
+        - Content-Type: `application/json`
+        - `nickname`, `career`, `shortDescription`, `description`, `service`, `serviceRegions` 필수.
+        - 전화번호는 `PATCH /api/users/movers/basic-info`에서 수정합니다.
+        - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
+        - `s3Key`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nickname
+                - career
+                - shortDescription
+                - description
+                - service
+                - serviceRegions
+              properties:
+                nickname:
+                  type: string
+                  minLength: 2
+                  maxLength: 20
+                  description: 사이트에 노출될 기사 별명 (2~20자)
+                  example: 김코드
+                career:
+                  type: integer
+                  description: 경력(년)
+                  minimum: 0
+                  maximum: 50
+                  example: 8
+                shortDescription:
+                  type: string
+                  description: 한 줄 소개 (최대 10자)
+                  example: 꼼꼼한이사
+                description:
+                  type: string
+                  description: 상세 소개 (최소 8자)
+                  example: 포장부터 정리까지 책임지고 진행합니다.
+                service:
+                  type: array
+                  description: 제공 서비스 목록 (최소 1개)
+                  minItems: 1
+                  items:
+                    type: string
+                    enum: [SMALL, HOME, OFFICE]
+                  example: [HOME, SMALL]
+                serviceRegions:
+                  type: array
+                  description: 서비스 가능 지역 목록 (최소 1개)
+                  minItems: 1
+                  items:
+                    type: string
+                    enum:
+                      - SEOUL
+                      - GYEONGGI
+                      - INCHEON
+                      - GANGWON
+                      - CHUNGBUK
+                      - CHUNGNAM
+                      - SEJONG
+                      - DAEJEON
+                      - JEONBUK
+                      - GWANGJU_JEONNAM
+                      - GYEONGBUK
+                      - DAEGU
+                      - ULSAN
+                      - GYEONGNAM
+                      - BUSAN
+                      - JEJU
+                  example: [SEOUL, GYEONGGI]
+                s3Key:
+                  type: string
+                  description: Presigned 업로드 후 받은 S3 key. 미전송 시 기존 이미지 유지
+                  example: uploads/1710000000000_profile.jpg
+            examples:
+              default:
+                summary: 기사님 프로필 등록/수정 예시
+                value:
+                  nickname: 김코드
+                  career: 8
+                  shortDescription: 꼼꼼한이사
+                  description: 포장부터 정리까지 책임지고 진행합니다.
+                  service: [HOME, SMALL]
+                  serviceRegions: [SEOUL, GYEONGGI]
+                  s3Key: uploads/1710000000000_profile.jpg
+      responses:
+        '200':
+          description: 프로필 등록/수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoverProfileResponse'
+        '400':
+          description: 요청 본문 형식 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 기사님(MOVER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록 대상 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 닉네임 중복
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/movers/basic-info:
+    patch:
+      tags: [Movers]
+      summary: 기사님 기본정보 수정
+      description: |
+        기사님(MOVER)이 이름·전화번호·비밀번호를 수정합니다.
+        - Content-Type: `application/json`
+        - `name`, `phoneNumber`는 필수입니다. 이메일은 변경할 수 없습니다.
+        - 변경된 항목이 없으면 `NO_CHANGE`를 반환합니다.
+        - 비밀번호 변경 시 `newPassword`와 함께 `currentPassword`, `newPasswordConfirm`이 필요합니다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - phoneNumber
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 20
+                  description: 이름 (2~20자)
+                  example: 김코드
+                phoneNumber:
+                  type: string
+                  pattern: '^\d{11}$'
+                  description: 전화번호 (숫자 11자리)
+                  example: '01012345678'
+                currentPassword:
+                  type: string
+                  description: 비밀번호 변경 시 현재 비밀번호 (조건부 필수)
+                  example: OldPass123!
+                newPassword:
+                  type: string
+                  description: 변경할 새 비밀번호 (8~20자, 영문·숫자·특수문자)
+                  example: NewPass123!
+                newPasswordConfirm:
+                  type: string
+                  description: 새 비밀번호 확인 (newPassword 입력 시 필수)
+                  example: NewPass123!
+            examples:
+              updateBasicInfo:
+                summary: 이름·전화번호 수정 예시
+                value:
+                  name: 김코드
+                  phoneNumber: '01012345678'
+              updatePassword:
+                summary: 비밀번호 변경 포함 수정 예시
+                value:
+                  name: 김코드
+                  phoneNumber: '01012345678'
+                  currentPassword: OldPass123!
+                  newPassword: NewPass123!
+                  newPasswordConfirm: NewPass123!
+      responses:
+        '200':
+          description: 기본정보 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoverBasicInfoResponse'
+        '400':
+          description: |
+            요청 본문 오류
+            (`NO_CHANGE`, `CURRENT_PASSWORD_REQUIRED`, `CURRENT_PASSWORD_MISMATCH`,
+            `NEW_PASSWORD_CONFIRM_REQUIRED`, `INVALID_NEW_PASSWORD`,
+            `NEW_PASSWORD_MISMATCH`, `SAME_AS_CURRENT_PASSWORD` 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 기사님(MOVER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록 대상 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 전화번호 중복
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

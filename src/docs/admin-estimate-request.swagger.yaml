@@ -1,0 +1,484 @@
+paths:
+  /api/admin/estimate-requests:
+    get:
+      tags: [Admin Estimate Requests]
+      summary: 관리자 견적 요청 목록 조회
+      description: |
+        관리 대상 견적 요청을 제출일 최신순으로 조회합니다.
+        status를 지정하면 해당 상태만 조회하며, 미지정 시 DRAFT·COMPLETED를 제외한
+        SUBMITTED, CONFIRMED, EXPIRED, CANCELED 상태를 모두 조회합니다.
+        search는 견적 요청 ID(정수), 요청자 이름 또는 전화번호를 대상으로 검색합니다.
+        startDate가 없으면 전체 기간을 조회하며, 이 경우 endDate는 적용되지 않습니다.
+        startDate만 입력하면 해당 일의 제출 요청을 조회하고, endDate도 입력하면 두 날짜 사이의 제출 요청을 조회합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: |
+            견적 요청 상태 필터
+            (미입력 시 DRAFT·COMPLETED 제외 — SUBMITTED, CONFIRMED, EXPIRED, CANCELED)
+          schema:
+            type: string
+            enum: [SUBMITTED, CONFIRMED, EXPIRED, CANCELED]
+            example: SUBMITTED
+        - name: search
+          in: query
+          required: false
+          description: 견적 요청 ID, 요청자 이름 또는 전화번호 검색어
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: startDate
+          in: query
+          required: false
+          description: 제출일 조회 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 제출일 조회 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+        - name: page
+          in: query
+          required: false
+          description: 페이지 번호
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: 페이지당 조회 개수
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+            example: 10
+      responses:
+        '200':
+          description: 견적 요청 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - userName
+                        - phoneNumber
+                        - moveType
+                        - departureAddress
+                        - arrivalAddress
+                        - submittedAt
+                        - status
+                        - estimateCount
+                        - mover
+                      properties:
+                        id:
+                          type: integer
+                          example: 123
+                        userName:
+                          type: string
+                          example: 홍길동
+                        phoneNumber:
+                          type: string
+                          nullable: true
+                          example: '010-1234-5678'
+                        moveType:
+                          type: string
+                          enum: [SMALL, HOME, OFFICE]
+                          example: HOME
+                        departureAddress:
+                          type: string
+                          example: 서울특별시 강남구 테헤란로 123
+                        arrivalAddress:
+                          type: string
+                          example: 서울특별시 송파구 올림픽로 456
+                        submittedAt:
+                          type: string
+                          format: date-time
+                          example: '2026-07-15T09:30:00.000Z'
+                        status:
+                          type: string
+                          enum: [SUBMITTED, CONFIRMED, EXPIRED, CANCELED]
+                          example: SUBMITTED
+                        estimateCount:
+                          type: integer
+                          minimum: 0
+                          description: 해당 견적 요청에 등록된 견적 수
+                          example: 3
+                        mover:
+                          type: string
+                          nullable: true
+                          description: 확정된 견적의 이사 기사명. 확정 견적이 없으면 null
+                          example: 빠른이사
+                  meta:
+                    type: object
+                    required: [page, pageSize, totalCount, totalPages]
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      pageSize:
+                        type: integer
+                        example: 10
+                      totalCount:
+                        type: integer
+                        example: 42
+                      totalPages:
+                        type: integer
+                        example: 5
+              example:
+                data:
+                  - id: 123
+                    userName: 홍길동
+                    phoneNumber: '010-1234-5678'
+                    moveType: HOME
+                    departureAddress: 서울특별시 강남구 테헤란로 123
+                    arrivalAddress: 서울특별시 송파구 올림픽로 456
+                    submittedAt: '2026-07-15T09:30:00.000Z'
+                    status: SUBMITTED
+                    estimateCount: 3
+                    mover: null
+                meta:
+                  page: 1
+                  pageSize: 10
+                  totalCount: 42
+                  totalPages: 5
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/estimate-requests/statistics:
+    get:
+      tags: [Admin Estimate Requests]
+      summary: 관리자 견적 요청 통계 조회
+      description: |
+        기간 조건에 따른 견적 요청 상태별 건수를 조회합니다.
+        SUBMITTED, CONFIRMED, EXPIRED, CANCELED 상태별 건수를 반환합니다.
+        startDate가 없으면 전체 기간을 집계하며, 이 경우 endDate는 적용되지 않습니다.
+        startDate만 입력하면 해당 일(00:00:00 ~ 23:59:59)을 집계하고,
+        endDate도 입력하면 두 날짜 사이를 집계합니다.
+        기간 필터는 제출일(submittedAt) 기준입니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          description: 조회 시작일
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 조회 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+      responses:
+        '200':
+          description: 견적 요청 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - submitted
+                      - confirmed
+                      - expired
+                      - canceled
+                    properties:
+                      submitted:
+                        type: integer
+                        description: SUBMITTED 상태 견적 요청 수
+                        example: 30
+                      confirmed:
+                        type: integer
+                        description: CONFIRMED 상태 견적 요청 수
+                        example: 15
+                      expired:
+                        type: integer
+                        description: EXPIRED 상태 견적 요청 수
+                        example: 5
+                      canceled:
+                        type: integer
+                        description: CANCELED 상태 견적 요청 수
+                        example: 3
+              example:
+                data:
+                  submitted: 30
+                  confirmed: 15
+                  expired: 5
+                  canceled: 3
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/estimate-requests/{estimateRequestId}:
+    get:
+      tags: [Admin Estimate Requests]
+      summary: 관리자 견적 요청 상세 조회
+      description: |
+        견적 요청 ID로 상세 정보와 연결된 견적(quotes) 목록을 조회합니다.
+        SUBMITTED, CONFIRMED, EXPIRED, CANCELED 상태만 조회할 수 있습니다.
+        DRAFT 또는 COMPLETED 상태이거나 존재하지 않는 ID면 404를 반환합니다.
+        출발지·도착지 주소 상세(우편번호, 상세주소)와 요청에 등록된 견적 목록을 함께 반환합니다.
+        quotes는 생성일 최신순(createdAt desc, id desc)으로 정렬됩니다.
+        반려(REJECTED) 견적은 price가 null일 수 있습니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: estimateRequestId
+          in: path
+          required: true
+          description: 조회할 견적 요청 ID
+          schema:
+            type: integer
+            minimum: 1
+            example: 123
+      responses:
+        '200':
+          description: 견적 요청 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - userName
+                      - moveType
+                      - departureAddress
+                      - departureDetailAddress
+                      - departureZipCode
+                      - arrivalAddress
+                      - arrivalZipCode
+                      - arrivalDetailAddress
+                      - submittedAt
+                      - status
+                      - estimateCount
+                      - quotes
+                    properties:
+                      id:
+                        type: integer
+                        example: 123
+                      userName:
+                        type: string
+                        example: 홍길동
+                      moveType:
+                        type: string
+                        enum: [SMALL, HOME, OFFICE]
+                        example: HOME
+                      departureAddress:
+                        type: string
+                        example: 서울특별시 강남구 테헤란로 123
+                      departureDetailAddress:
+                        type: string
+                        example: 101동 1001호
+                      departureZipCode:
+                        type: string
+                        example: '06236'
+                      arrivalAddress:
+                        type: string
+                        example: 서울특별시 송파구 올림픽로 456
+                      arrivalZipCode:
+                        type: string
+                        example: '05551'
+                      arrivalDetailAddress:
+                        type: string
+                        example: A동 502호
+                      submittedAt:
+                        type: string
+                        format: date-time
+                        example: '2026-07-15T09:30:00.000Z'
+                      status:
+                        type: string
+                        enum: [SUBMITTED, CONFIRMED, EXPIRED, CANCELED]
+                        description: DRAFT·COMPLETED는 상세 조회 대상이 아님
+                        example: SUBMITTED
+                      estimateCount:
+                        type: integer
+                        minimum: 0
+                        description: 해당 견적 요청에 등록된 견적 수
+                        example: 2
+                      quotes:
+                        type: array
+                        description: 연결된 견적 목록 (생성일 최신순)
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - moverName
+                            - price
+                            - status
+                            - createdAt
+                          properties:
+                            id:
+                              type: integer
+                              example: 10
+                            moverName:
+                              type: string
+                              example: 빠른이사
+                            price:
+                              type: integer
+                              nullable: true
+                              description: 견적 금액. 반려 견적 등에서는 null일 수 있음
+                              example: 150000
+                            status:
+                              type: string
+                              enum: [PENDING, CONFIRMED, REJECTED]
+                              example: PENDING
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: '2026-07-16T11:00:00.000Z'
+              example:
+                data:
+                  id: 123
+                  userName: 홍길동
+                  moveType: HOME
+                  departureAddress: 서울특별시 강남구 테헤란로 123
+                  departureDetailAddress: 101동 1001호
+                  departureZipCode: '06236'
+                  arrivalAddress: 서울특별시 송파구 올림픽로 456
+                  arrivalZipCode: '05551'
+                  arrivalDetailAddress: A동 502호
+                  submittedAt: '2026-07-15T09:30:00.000Z'
+                  status: SUBMITTED
+                  estimateCount: 2
+                  quotes:
+                    - id: 11
+                      moverName: 안전이사
+                      price: 180000
+                      status: PENDING
+                      createdAt: '2026-07-16T14:00:00.000Z'
+                    - id: 10
+                      moverName: 빠른이사
+                      price: null
+                      status: REJECTED
+                      createdAt: '2026-07-16T11:00:00.000Z'
+        '400':
+          description: Path Parameter(estimateRequestId) 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 견적 요청이 없거나 DRAFT 또는 COMPLETED 상태인 경우
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_ESTIMATE_REQUEST_NOT_FOUND
+                  message: 존재하지 않는 견적 요청입니다.
+        '500':
+          description: 서버 내부 오류 (제출된 견적 요청에 필수 주소·이사 유형 등이 누락된 경우 포함)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

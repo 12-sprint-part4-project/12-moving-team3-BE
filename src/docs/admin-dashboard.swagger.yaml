@@ -1,0 +1,455 @@
+paths:
+  /api/admin/dashboard/statistics:
+    get:
+      tags: [Admin Dashboard]
+      summary: 관리자 대시보드 통계 조회
+      description: |
+        기간별 유저·견적 요청·견적·완료 건수·대기 신고 수를 조회합니다.
+        startDate가 없으면 전체 기간을 집계합니다.
+        startDate만 있으면 해당 일(00:00:00 ~ 23:59:59), endDate까지 있으면 기간으로 집계합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          description: 조회 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 조회 종료일 (미입력 시 startDate와 동일일)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+      responses:
+        '200':
+          description: 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - userCount
+                      - estimateRequestCount
+                      - quoteCount
+                      - completedEstimateRequestCount
+                      - pendingReportCount
+                    properties:
+                      userCount:
+                        type: integer
+                        description: 기간 내 가입 유저 수 (삭제되지 않은 계정)
+                        example: 120
+                      estimateRequestCount:
+                        type: integer
+                        description: 기간 내 제출된 견적 요청 수 (DRAFT 제외)
+                        example: 45
+                      quoteCount:
+                        type: integer
+                        description: 기간 내 생성된 견적 수 (REJECTED·삭제 제외)
+                        example: 80
+                      completedEstimateRequestCount:
+                        type: integer
+                        description: 기간 내 이사 완료된 견적 요청 수
+                        example: 30
+                      pendingReportCount:
+                        type: integer
+                        description: 기간 내 대기 중인 신고 수
+                        example: 3
+              example:
+                data:
+                  userCount: 120
+                  estimateRequestCount: 45
+                  quoteCount: 80
+                  completedEstimateRequestCount: 30
+                  pendingReportCount: 3
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않거나, 관리자 계정이 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+  /api/admin/dashboard/recent-activities:
+    get:
+      tags: [Admin Dashboard]
+      summary: 관리자 최근 활동 조회
+      description: |
+        KST(한국 표준시) 기준 오늘을 포함한 최근 7일(6일 전 00:00부터 현재 시각까지)의 활동 목록을 조회합니다.
+        각 목록은 최대 5건이며, 신고와 회원 가입은 생성일 내림차순, 이사 완료 견적 요청은 이사일(moveDate) 내림차순으로 반환합니다.
+        신고는 생성일, 회원 가입은 생성일, 이사 완료 견적 요청은 이사일(moveDate)을 기준으로 조회합니다.
+        회원 가입 목록은 일반 유저(CUSTOMER)만 포함하며, 삭제된 회원은 제외합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      responses:
+        '200':
+          description: 최근 활동 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - recentReports
+                      - recentUsers
+                      - recentCompletedRequests
+                    properties:
+                      recentReports:
+                        type: array
+                        description: 최근 7일 동안 생성된 신고 목록 (최대 5건)
+                        items:
+                          type: object
+                          required: [id, createdAt, target, category, status]
+                          properties:
+                            id:
+                              type: integer
+                              description: 신고 ID
+                              example: 42
+                            createdAt:
+                              type: string
+                              format: date-time
+                              description: 신고 생성 일시
+                              example: '2026-08-01T04:30:00.000Z'
+                            target:
+                              type: string
+                              enum:
+                                [
+                                  USER,
+                                  REVIEW,
+                                  CHAT_ROOM,
+                                  MESSAGE,
+                                  ARTICLE,
+                                  COMMENT,
+                                ]
+                              description: 신고 대상 유형
+                              example: REVIEW
+                            category:
+                              type: string
+                              enum: [INAPPROPRIATE_PROFILE, ABUSIVE_LANGUAGE]
+                              description: 신고 사유
+                              example: ABUSIVE_LANGUAGE
+                            status:
+                              type: string
+                              enum: [PENDING, RESOLVED, REJECTED]
+                              description: 신고 처리 상태
+                              example: PENDING
+                      recentUsers:
+                        type: array
+                        description: 최근 7일 동안 가입한 삭제되지 않은 일반 유저(CUSTOMER) 목록 (최대 5건)
+                        items:
+                          type: object
+                          required: [id, nickname, email, createdAt]
+                          properties:
+                            id:
+                              type: integer
+                              description: 회원 ID
+                              example: 15
+                            nickname:
+                              type: string
+                              description: 회원 닉네임
+                              example: movingUser
+                            email:
+                              type: string
+                              format: email
+                              description: 회원 이메일
+                              example: moving@example.com
+                            createdAt:
+                              type: string
+                              format: date-time
+                              description: 회원 가입 일시
+                              example: '2026-08-01T02:10:00.000Z'
+                      recentCompletedRequests:
+                        type: array
+                        description: 최근 7일 동안 이사일이 포함된 이사 완료(COMPLETED) 견적 요청 목록 (최대 5건)
+                        items:
+                          type: object
+                          required: [id, moveDate, user, confirmedQuote]
+                          properties:
+                            id:
+                              type: integer
+                              description: 견적 요청 ID
+                              example: 125
+                            moveDate:
+                              type: string
+                              format: date
+                              description: 이사일
+                              example: '2026-07-31'
+                            user:
+                              type: object
+                              required: [name]
+                              properties:
+                                name:
+                                  type: string
+                                  description: 견적 요청자 이름
+                                  example: 김이사
+                            confirmedQuote:
+                              type: object
+                              nullable: true
+                              description: 확정 견적 정보
+                              required: [mover]
+                              properties:
+                                mover:
+                                  type: object
+                                  required: [name]
+                                  properties:
+                                    name:
+                                      type: string
+                                      description: 이사업체 담당자 이름
+                                      example: 박무빙
+              example:
+                data:
+                  recentReports:
+                    - id: 42
+                      createdAt: '2026-08-01T04:30:00.000Z'
+                      target: REVIEW
+                      category: ABUSIVE_LANGUAGE
+                      status: PENDING
+                  recentUsers:
+                    - id: 15
+                      nickname: movingUser
+                      email: moving@example.com
+                      createdAt: '2026-08-01T02:10:00.000Z'
+                  recentCompletedRequests:
+                    - id: 125
+                      moveDate: '2026-07-31'
+                      user:
+                        name: 김이사
+                      confirmedQuote:
+                        mover:
+                          name: 박무빙
+        '401':
+          description: Access Token이 없거나 유효하지 않거나, 관리자 계정이 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+  /api/admin/dashboard/charts/request-status:
+    get:
+      tags: [Admin Dashboard]
+      summary: 관리자 최근 30일 견적 요청 상태 조회
+      description: |
+        KST 기준 오늘을 포함한 최근 30일 동안 제출된 견적 요청의 현재 상태별 건수를 조회합니다.
+        조회 범위는 29일 전 00:00부터 현재 시각까지이며, 제출일(submittedAt) 기준으로 집계합니다.
+        SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED 상태별 건수와 합계(total)를 반환합니다.
+        임시 저장(DRAFT)은 제출일이 없어 집계에 포함되지 않습니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      responses:
+        '200':
+          description: 견적 요청 상태 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - total
+                      - submitted
+                      - confirmed
+                      - completed
+                      - expired
+                      - canceled
+                    properties:
+                      total:
+                        type: integer
+                        description: |
+                          최근 30일 제출 견적 요청 합계
+                          (submitted + confirmed + completed + expired + canceled)
+                        example: 53
+                      submitted:
+                        type: integer
+                        description: 현재 SUBMITTED 상태 견적 요청 수
+                        example: 20
+                      confirmed:
+                        type: integer
+                        description: 현재 CONFIRMED 상태 견적 요청 수
+                        example: 15
+                      completed:
+                        type: integer
+                        description: 현재 COMPLETED 상태 견적 요청 수
+                        example: 10
+                      expired:
+                        type: integer
+                        description: 현재 EXPIRED 상태 견적 요청 수
+                        example: 5
+                      canceled:
+                        type: integer
+                        description: 현재 CANCELED 상태 견적 요청 수
+                        example: 3
+              example:
+                data:
+                  total: 53
+                  submitted: 20
+                  confirmed: 15
+                  completed: 10
+                  expired: 5
+                  canceled: 3
+        '401':
+          description: Access Token이 없거나 유효하지 않거나, 관리자 계정이 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+  /api/admin/dashboard/charts/request-trend:
+    get:
+      tags: [Admin Dashboard]
+      summary: 관리자 견적 요청 추이 조회
+      description: |
+        KST(한국 표준시)를 기준으로 선택한 기간의 시간별 또는 일별 견적 요청 건수를 조회합니다.
+        DAY는 KST 오늘 00시부터 현재 시각까지 시간 단위로 집계하며,
+        00시부터 23시까지의 시간대를 반환하고 현재 시각 이후의 시간대는 0으로 반환합니다.
+        WEEK는 KST 오늘을 포함한 최근 7일을 일 단위로 집계합니다.
+        MONTH는 KST 오늘을 포함한 최근 30일을 일 단위로 집계합니다.
+        데이터가 없는 시간 또는 날짜도 count가 0인 항목으로 반환합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          required: true
+          description: 조회 기간
+          schema:
+            type: string
+            enum: [DAY, WEEK, MONTH]
+            example: WEEK
+      responses:
+        '200':
+          description: 견적 요청 추이 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [label, count]
+                      properties:
+                        label:
+                          type: string
+                          description: 기간에 따른 시간 또는 날짜 레이블
+                          example: '07/31'
+                        count:
+                          type: integer
+                          description: 해당 시간 또는 날짜에 제출된 견적 요청 수
+                          example: 12
+              examples:
+                week:
+                  summary: 최근 7일 조회 예시
+                  value:
+                    data:
+                      - label: '07/25'
+                        count: 8
+                      - label: '07/26'
+                        count: 0
+                      - label: '07/27'
+                        count: 3
+                      - label: '07/28'
+                        count: 5
+                      - label: '07/29'
+                        count: 0
+                      - label: '07/30'
+                        count: 4
+                      - label: '07/31'
+                        count: 12
+        '400':
+          description: 쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않거나, 관리자 계정이 존재하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

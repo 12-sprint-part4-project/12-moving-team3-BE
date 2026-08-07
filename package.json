@@ -1,14 +1,17 @@
 {
   "name": "12-moving-team3-be",
   "version": "1.0.0",
-  "description": "",
+  "description": "```text\r src\r ├── constants\r │   └── errorCodes.ts\r ├── controllers\r │   └── ...\r ├── middlewares\r │   └── errorHandler.ts\r ├── repositories\r │   └── ...\r ├── routes\r │   └── ...\r ├── services\r │   └── ...\r ├── utils\r │   └── AppError.ts\r └── app.ts\r ```",
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "admin:create": "ts-node scripts/create-admin.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "repository": {
     "type": "git",
@@ -22,15 +25,43 @@
   },
   "homepage": "https://github.com/12-sprint-part4-project/12-moving-team3-BE#readme",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1096.0",
+    "@aws-sdk/s3-request-presigner": "^3.1096.0",
+    "@prisma/adapter-pg": "^7.9.0",
+    "@prisma/client": "^7.9.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "helmet": "^8.3.0"
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "node-cron": "^4.6.0",
+    "pg": "^8.22.0",
+    "socket.io": "^4.8.3",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "ua-parser-js": "^2.0.10",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "nodemon": "^3.1.14",
     "prettier": "^3",
+    "prisma": "^7.9.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.7.3"
-  }
+    "typescript": "^5.9.3"
+  },
+  "type": "commonjs"
 }

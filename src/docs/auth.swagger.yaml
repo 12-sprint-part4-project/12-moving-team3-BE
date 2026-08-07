@@ -1,0 +1,303 @@
+paths:
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: 회원가입
+      description: |
+        일반 유저(CUSTOMER) 또는 기사님(MOVER) 계정을 생성합니다.
+        전화번호는 회원가입에서 받지 않으며, 이후 프로필 등록 API에서 수집합니다.
+        Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
+        Swagger UI 응답 패널에는 Set-Cookie가 잘 안 보일 수 있으므로,
+        브라우저 Network 탭 Response Headers와 Application > Cookies(path=/api/auth)에서 확인하세요.
+        device는 Body로 받지 않고 User-Agent를 서버에서 판별합니다.
+      parameters:
+        - name: User-Agent
+          in: header
+          required: false
+          description: 기기 유형(DESKTOP/MOBILE/TABLET) 판별에 사용. 없거나 판별 불가 시 DESKTOP.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+            examples:
+              customer:
+                summary: 일반 유저 회원가입
+                value:
+                  userType: CUSTOMER
+                  name: 박소정
+                  nickname: sojeong
+                  email: customer@example.com
+                  password: Password123!
+                  passwordConfirmation: Password123!
+              mover:
+                summary: 기사님 회원가입
+                value:
+                  userType: MOVER
+                  name: 박소정
+                  nickname: sojeong
+                  email: mover@example.com
+                  password: Password123!
+                  passwordConfirmation: Password123!
+      responses:
+        '201':
+          description: 회원가입 성공
+          headers:
+            Set-Cookie:
+              description: Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignupResponse'
+        '400':
+          description: 요청 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 이메일/닉네임 중복
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: 로그인
+      description: |
+        일반 유저(CUSTOMER) 또는 기사님(MOVER) 계정으로 로그인합니다.
+        요청 userType과 가입된 계정 유형이 일치해야 합니다.
+        Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
+        로그인 시 기존 Refresh Token은 새 토큰으로 교체됩니다.
+        device는 Body로 받지 않고 User-Agent를 서버에서 판별합니다.
+      parameters:
+        - name: User-Agent
+          in: header
+          required: false
+          description: 기기 유형(DESKTOP/MOBILE/TABLET) 판별에 사용. 없거나 판별 불가 시 DESKTOP.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              customer:
+                summary: 일반 유저 로그인
+                value:
+                  userType: CUSTOMER
+                  email: customer@example.com
+                  password: Password123!
+              mover:
+                summary: 기사님 로그인
+                value:
+                  userType: MOVER
+                  email: mover@example.com
+                  password: Password123!
+      responses:
+        '200':
+          description: 로그인 성공
+          headers:
+            Set-Cookie:
+              description: Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: 요청 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 이메일 또는 비밀번호 불일치
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 사용자 유형 불일치
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/kakao:
+    post:
+      tags: [Auth]
+      summary: 카카오 로그인 / 회원가입
+      description: |
+        FE가 카카오 Redirect URI로 받은 인가 코드(code)와 선택한 userType을 전달합니다.
+        BE가 카카오 Access Token·사용자 정보를 조회한 뒤,
+        카카오 회원번호로 DB를 조회해 있으면 로그인하고,
+        없으면 동일 이메일의 기존 계정에 카카오를 연동하거나 신규 회원가입합니다.
+        Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
+      parameters:
+        - name: User-Agent
+          in: header
+          required: false
+          description: 기기 유형(DESKTOP/MOBILE/TABLET) 판별에 사용. 없거나 판별 불가 시 DESKTOP.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KakaoLoginRequest'
+            examples:
+              customer:
+                summary: 일반 유저 카카오 로그인
+                value:
+                  code: 'kakao-authorization-code'
+                  userType: CUSTOMER
+              mover:
+                summary: 기사님 카카오 로그인
+                value:
+                  code: 'kakao-authorization-code'
+                  userType: MOVER
+      responses:
+        '200':
+          description: 기존 계정 로그인 성공 (카카오 연동 포함)
+          headers:
+            Set-Cookie:
+              description: Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoLoginResponse'
+        '201':
+          description: 카카오 계정 신규 회원가입 성공
+          headers:
+            Set-Cookie:
+              description: Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoLoginResponse'
+        '400':
+          description: 인가 코드 누락, userType 오류, 카카오 이메일 미제공 등
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 카카오 토큰 교환 또는 사용자 정보 조회 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 사용자 유형 불일치
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 이메일 충돌 (다른 카카오 계정에 이미 연결된 이메일 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 서버 내부 오류 (카카오 env 미설정 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Access Token 재발급
+      description: |
+        httpOnly Cookie(refreshToken)로 Access Token을 재발급합니다.
+        성공 시 Refresh Token도 Rotation되어 Set-Cookie로 교체됩니다.
+      parameters:
+        - name: refreshToken
+          in: cookie
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 재발급 성공
+          headers:
+            Set-Cookie:
+              description: 교체된 Refresh Token (httpOnly, path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          description: Refresh Token 누락·만료·무효
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: 로그아웃
+      description: |
+        httpOnly Cookie(refreshToken) 기준으로 현재 세션을 정리합니다.
+        요청 Body는 사용하지 않으며, Access Token(Bearer) 인증도 필요하지 않습니다.
+        쿠키가 있으면 해당 Refresh Token 해시와 일치하는 DB 레코드만 삭제하고 쿠키를 제거합니다.
+        쿠키가 없거나 DB 레코드가 없어도 멱등하게 성공합니다.
+        응답 Body에 Access/Refresh Token을 포함하지 않습니다.
+      responses:
+        '200':
+          description: 로그아웃 성공
+          headers:
+            Set-Cookie:
+              description: refreshToken 쿠키 제거 (path=/api/auth)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+              example:
+                data:
+                  message: 로그아웃되었습니다.
+        '500':
+          description: 서버 내부 오류 (DB 연결 실패 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

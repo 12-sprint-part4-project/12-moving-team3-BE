@@ -1,0 +1,352 @@
+components:
+  schemas:
+    CustomerProfileResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - profileId
+            - userId
+            - name
+            - nickname
+            - email
+            - phoneNumber
+            - profileImageUrl
+            - service
+            - region
+            - updatedAt
+          properties:
+            profileId:
+              type: integer
+              example: 15
+            userId:
+              type: string
+              format: uuid
+              example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            name:
+              type: string
+              example: 박소정
+            nickname:
+              type: string
+              example: sojeong
+            email:
+              type: string
+              format: email
+              example: sojeong@example.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              example: null
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [HOME, SMALL]
+            region:
+              type: string
+              nullable: true
+              enum:
+                - SEOUL
+                - GYEONGGI
+                - INCHEON
+                - GANGWON
+                - CHUNGBUK
+                - CHUNGNAM
+                - SEJONG
+                - DAEJEON
+                - JEONBUK
+                - GWANGJU_JEONNAM
+                - GYEONGBUK
+                - DAEGU
+                - ULSAN
+                - GYEONGNAM
+                - BUSAN
+                - JEJU
+              example: SEOUL
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-28T08:20:00.000Z'
+
+    CustomerProfileMeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required:
+            - profileId
+            - userId
+            - name
+            - nickname
+            - email
+            - phoneNumber
+            - profileImageUrl
+            - service
+            - region
+            - hasPassword
+            - createdAt
+            - updatedAt
+          properties:
+            profileId:
+              type: integer
+              example: 15
+            userId:
+              type: string
+              format: uuid
+              example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            name:
+              type: string
+              example: 박소정
+            nickname:
+              type: string
+              example: sojeong
+            email:
+              type: string
+              format: email
+              example: sojeong@example.com
+            phoneNumber:
+              type: string
+              nullable: true
+              example: '01012345678'
+            profileImageUrl:
+              type: string
+              nullable: true
+              description: 조회용 Presigned GET URL (유효 시간 1시간). 이미지 없으면 null
+              example: null
+            service:
+              type: array
+              items:
+                type: string
+                enum: [SMALL, HOME, OFFICE]
+              example: [HOME, SMALL]
+            region:
+              type: string
+              nullable: true
+              enum:
+                - SEOUL
+                - GYEONGGI
+                - INCHEON
+                - GANGWON
+                - CHUNGBUK
+                - CHUNGNAM
+                - SEJONG
+                - DAEJEON
+                - JEONBUK
+                - GWANGJU_JEONNAM
+                - GYEONGBUK
+                - DAEGU
+                - ULSAN
+                - GYEONGNAM
+                - BUSAN
+                - JEJU
+              example: SEOUL
+            hasPassword:
+              type: boolean
+              description: |
+                LOCAL 비밀번호 존재 여부.
+                false면 소셜 전용 가입자로 비밀번호 변경 UI를 숨기면 됩니다.
+              example: true
+            createdAt:
+              type: string
+              format: date-time
+              example: '2026-07-20T13:30:00.000Z'
+            updatedAt:
+              type: string
+              format: date-time
+              example: '2026-07-21T10:00:00.000Z'
+
+paths:
+  /api/users/customers/profile:
+    get:
+      tags: [Customers]
+      summary: 일반 유저 본인 프로필 조회
+      description: |
+        로그인한 일반 유저(CUSTOMER)의 등록된 프로필을 조회합니다.
+        정지(SUSPENDED) 계정도 조회·수정할 수 있습니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfileMeResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 일반 유저(CUSTOMER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록된 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Customers]
+      summary: 일반 유저 프로필 등록/수정
+      description: |
+        일반 유저(CUSTOMER)가 프로필 정보를 등록하거나 수정합니다.
+        - Content-Type: `application/json`
+        - **등록**(아직 service 미설정): `nickname`, `phoneNumber`, `region`, `service` 필수. 비밀번호 변경 필드는 무시됩니다.
+        - **수정**(이미 등록됨): `nickname`, `phoneNumber`는 필수이며, 나머지 필드는 전달한 항목만 부분 수정합니다. 변경 항목이 없으면 `NO_CHANGE`.
+        - 비밀번호 변경 시 `newPassword`와 함께 `currentPassword`, `newPasswordConfirm`이 필요합니다.
+        - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nickname
+                - phoneNumber
+              properties:
+                name:
+                  type: string
+                  description: 변경할 이름 (2~20자)
+                  example: 박소정
+                nickname:
+                  type: string
+                  minLength: 2
+                  maxLength: 20
+                  description: 닉네임 (2~20자, 필수)
+                  example: sojeong
+                phoneNumber:
+                  type: string
+                  pattern: '^\d{11}$'
+                  description: 전화번호 (숫자 11자리, 필수)
+                  example: '01098765432'
+                currentPassword:
+                  type: string
+                  description: 비밀번호 변경 시 현재 비밀번호 (조건부 필수)
+                  example: OldPass123!
+                newPassword:
+                  type: string
+                  description: 변경할 새 비밀번호 (8~20자, 영문·숫자·특수문자)
+                  example: NewPass123!
+                newPasswordConfirm:
+                  type: string
+                  description: 새 비밀번호 확인 (newPassword 입력 시 필수)
+                  example: NewPass123!
+                region:
+                  type: string
+                  description: 거주 지역 (등록 시 필수)
+                  enum:
+                    - SEOUL
+                    - GYEONGGI
+                    - INCHEON
+                    - GANGWON
+                    - CHUNGBUK
+                    - CHUNGNAM
+                    - SEJONG
+                    - DAEJEON
+                    - JEONBUK
+                    - GWANGJU_JEONNAM
+                    - GYEONGBUK
+                    - DAEGU
+                    - ULSAN
+                    - GYEONGNAM
+                    - BUSAN
+                    - JEJU
+                  example: SEOUL
+                service:
+                  type: array
+                  description: 이용 서비스 목록 (등록 시 필수, 최소 1개)
+                  minItems: 1
+                  items:
+                    type: string
+                    enum: [SMALL, HOME, OFFICE]
+                  example: [HOME, SMALL]
+                s3Key:
+                  type: string
+                  description: Presigned 업로드 후 받은 S3 key
+                  example: profile-images/1710000000000_profile.jpg
+            examples:
+              register:
+                summary: 프로필 등록 예시
+                value:
+                  nickname: sojeong
+                  phoneNumber: '01098765432'
+                  region: SEOUL
+                  service: [HOME, SMALL]
+                  s3Key: profile-images/1710000000000_profile.jpg
+              updateProfile:
+                summary: 프로필 정보 수정 예시
+                value:
+                  name: 박소정
+                  nickname: sojeong
+                  phoneNumber: '01098765432'
+                  region: GYEONGGI
+                  service: [SMALL, OFFICE]
+              updatePassword:
+                summary: 비밀번호 변경 포함 수정 예시
+                value:
+                  nickname: sojeong
+                  phoneNumber: '01098765432'
+                  currentPassword: OldPass123!
+                  newPassword: NewPass123!
+                  newPasswordConfirm: NewPass123!
+      responses:
+        '200':
+          description: 프로필 등록/수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerProfileResponse'
+        '400':
+          description: |
+            요청 본문 오류
+            (`NO_CHANGE`, `NAME_REQUIRED`, `INVALID_NAME`,
+            `INVALID_PHONE_NUMBER_FORMAT`, `CURRENT_PASSWORD_REQUIRED`,
+            `CURRENT_PASSWORD_MISMATCH`, `NEW_PASSWORD_CONFIRM_REQUIRED`,
+            `INVALID_NEW_PASSWORD`, `NEW_PASSWORD_MISMATCH`, `SAME_AS_CURRENT_PASSWORD`,
+            `SERVICE_TYPE_REQUIRED`, `INVALID_SERVICE_TYPE`, `REGION_REQUIRED`,
+            `INVALID_REGION` 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 로그인 필요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 일반 유저(CUSTOMER)만 접근 가능
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 등록 대상 프로필 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 이메일/전화번호/닉네임 중복
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

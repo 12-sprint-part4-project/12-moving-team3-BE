@@ -1,0 +1,677 @@
+components:
+  schemas:
+    CustomerQuoteMover:
+      type: object
+      description: 고객 견적 응답에 포함되는 기사님 카드 정보
+      properties:
+        moverId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        nickname:
+          type: string
+          example: 베스트무빙
+        profileImage:
+          type: string
+          nullable: true
+          example: https://cdn.example.com/profiles/mover-201.jpg
+        shortDescription:
+          type: string
+          nullable: true
+          example: 꼼꼼한이사
+          description: 기사님 한 줄 소개
+        rating:
+          type: number
+          format: float
+          example: 4.8
+          description: 평균 평점 (소수 1자리, 리뷰 없으면 0)
+        reviewCount:
+          type: integer
+          example: 120
+        career:
+          type: integer
+          nullable: true
+          example: 7
+          description: 경력(년)
+        confirmedQuoteCount:
+          type: integer
+          example: 150
+        favoriteCount:
+          type: integer
+          example: 350
+        isFavorited:
+          type: boolean
+          example: true
+          description: 현재 고객이 해당 기사님을 찜했는지 여부
+    CustomerQuoteItem:
+      type: object
+      properties:
+        quoteId:
+          type: integer
+          example: 1
+        price:
+          type: integer
+          nullable: true
+          example: 150000
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED]
+          example: PENDING
+        isDesignated:
+          type: boolean
+          example: true
+        mover:
+          $ref: '#/components/schemas/CustomerQuoteMover'
+    CustomerPendingQuotesResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          nullable: true
+          properties:
+            estimateRequestId:
+              type: integer
+              example: 101
+            status:
+              type: string
+              enum: [SUBMITTED]
+              example: SUBMITTED
+              description: 대기 중 견적 요청 상태 (SUBMITTED)
+            submittedAt:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-06-24T10:00:00.000Z'
+              description: 견적 요청 제출 시각
+            serviceType:
+              type: string
+              enum: [SMALL, HOME, OFFICE]
+              nullable: true
+              example: HOME
+            moveDate:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-05-10T00:00:00.000Z'
+            fromAddress:
+              type: string
+              nullable: true
+              example: 서울 강남구
+              description: 시·군·구 단위 요약 주소
+            toAddress:
+              type: string
+              nullable: true
+              example: 서울 서초구
+              description: 시·군·구 단위 요약 주소
+            quoteCount:
+              type: object
+              properties:
+                general:
+                  type: integer
+                  example: 2
+                designated:
+                  type: integer
+                  example: 1
+            quotes:
+              type: array
+              items:
+                $ref: '#/components/schemas/CustomerQuoteItem'
+    CustomerPastQuoteGroup:
+      type: object
+      properties:
+        estimateRequestId:
+          type: integer
+          example: 99
+        status:
+          type: string
+          enum: [CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+          description: 견적 요청 상태 (완료/만료/취소 카드 분기용)
+          example: COMPLETED
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-05-05T10:00:00.000Z'
+          description: 견적 요청 제출 시각
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-07-01T10:00:00.000Z'
+          description: 견적 확정 시각
+        serviceType:
+          type: string
+          enum: [SMALL, HOME, OFFICE]
+          nullable: true
+          example: HOME
+        moveDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-05-10T00:00:00.000Z'
+        fromAddress:
+          type: string
+          nullable: true
+          example: 서울 중구 삼일대로 343 5층
+          description: 출발지 전체 주소 (도로명·지번 + 상세주소)
+        toAddress:
+          type: string
+          nullable: true
+          example: 서울 강남구 선릉로 428 101동 1001호
+          description: 도착지 전체 주소 (도로명·지번 + 상세주소)
+        quotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerQuoteItem'
+    CustomerPastQuotesResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/CustomerPastQuoteGroup'
+        meta:
+          type: object
+          properties:
+            nextCursor:
+              type: integer
+              nullable: true
+              example: 89
+              description: 다음 페이지 조회용 커서 (마지막 estimateRequestId). 없으면 null.
+            hasNextPage:
+              type: boolean
+              example: true
+              description: 다음 페이지 존재 여부
+    CustomerQuoteDetailResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            quoteId:
+              type: integer
+              example: 1
+            estimateRequestId:
+              type: integer
+              example: 101
+            price:
+              type: integer
+              nullable: true
+              example: 150000
+            comment:
+              type: string
+              nullable: true
+              example: 포장 이사로 깔끔하게 진행해 드립니다.
+            status:
+              type: string
+              enum: [PENDING, CONFIRMED]
+              example: PENDING
+            isDesignated:
+              type: boolean
+              example: true
+            estimateRequestStatus:
+              type: string
+              enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+              example: SUBMITTED
+              description: 견적 요청 상태 (확정 CTA·미확정 배너 분기용)
+            serviceType:
+              type: string
+              enum: [SMALL, HOME, OFFICE]
+              nullable: true
+              example: HOME
+            moveDate:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-05-10T00:00:00.000Z'
+            submittedAt:
+              type: string
+              format: date-time
+              nullable: true
+              example: '2024-08-26T10:00:00.000Z'
+              description: 견적 요청 제출 시각
+            fromAddress:
+              type: string
+              nullable: true
+              example: 서울시 강남구 테헤란로 123
+              description: 도로명/지번 주소 (departureAddress). 동·호수(detailAddress)는 미포함.
+            toAddress:
+              type: string
+              nullable: true
+              example: 서울시 서초구 서초대로 456
+              description: 도로명/지번 주소 (arrivalAddress). 동·호수(detailAddress)는 미포함.
+            mover:
+              $ref: '#/components/schemas/CustomerQuoteMover'
+    ConfirmQuoteResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [confirmedQuoteId]
+          properties:
+            confirmedQuoteId:
+              type: integer
+              example: 1
+              description: 확정된 견적 ID
+
+paths:
+  /api/users/customers/quotes:
+    get:
+      tags: [Customers]
+      summary: 대기 중인 견적 리스트 조회
+      description: |
+        고객의 현재 대기 중(SUBMITTED) 견적 요청과 수신한 PENDING 견적 목록을 조회합니다.
+        대기 중 요청이 없으면 data는 null입니다.
+        Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 대기 중인 견적 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerPendingQuotesResponse'
+              examples:
+                withPending:
+                  summary: 대기 중 요청 존재
+                  value:
+                    data:
+                      estimateRequestId: 101
+                      status: SUBMITTED
+                      submittedAt: '2024-06-24T10:00:00.000Z'
+                      serviceType: HOME
+                      moveDate: '2024-05-10T00:00:00.000Z'
+                      fromAddress: 서울 강남구
+                      toAddress: 서울 서초구
+                      quoteCount:
+                        general: 2
+                        designated: 1
+                      quotes:
+                        - quoteId: 1
+                          price: 150000
+                          status: PENDING
+                          isDesignated: true
+                          mover:
+                            moverId: 550e8400-e29b-41d4-a716-446655440000
+                            nickname: 베스트무빙
+                            profileImage: https://cdn.example.com/profiles/mover.jpg
+                            shortDescription: 꼼꼼한이사
+                            rating: 4.8
+                            reviewCount: 120
+                            career: 7
+                            confirmedQuoteCount: 150
+                            favoriteCount: 350
+                            isFavorited: true
+                empty:
+                  summary: 대기 중 요청 없음
+                  value:
+                    data: null
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요합니다.
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/users/customers/past-quotes:
+    get:
+      tags: [Customers]
+      summary: 받았던 견적(과거) 리스트 조회
+      description: |
+        확정/완료/만료/취소된 견적 요청을 커서 기반으로 조회합니다.
+        가장 최근에 견적을 요청한 순(submittedAt 내림차순)으로 정렬됩니다.
+        - filter=ALL: PENDING·CONFIRMED 견적 포함
+        - filter=CONFIRMED: 확정 견적만 포함
+        - estimateRequestId 지정 시 해당 견적 요청 블록만 반환 (UI 개별 필터 드롭다운용)
+        Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: 이전 응답의 meta.nextCursor 값 (estimateRequestId)
+          schema:
+            type: integer
+            example: 99
+        - name: limit
+          in: query
+          required: false
+          description: 페이지당 견적 요청 개수 (기본값 8, 최대 50)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 8
+        - name: estimateRequestId
+          in: query
+          required: false
+          description: 특정 견적 요청 블록 내 필터링 시 사용
+          schema:
+            type: integer
+            example: 99
+        - name: filter
+          in: query
+          required: false
+          description: 견적 필터 (ALL | CONFIRMED, 기본값 ALL)
+          schema:
+            type: string
+            enum: [ALL, CONFIRMED]
+            default: ALL
+      responses:
+        '200':
+          description: 과거 견적 목록 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerPastQuotesResponse'
+              example:
+                data:
+                  items:
+                    - estimateRequestId: 99
+                      submittedAt: '2024-05-05T10:00:00.000Z'
+                      confirmedAt: '2024-07-01T10:00:00.000Z'
+                      serviceType: HOME
+                      moveDate: '2024-05-10T00:00:00.000Z'
+                      fromAddress: 서울 중구 삼일대로 343 5층
+                      toAddress: 서울 강남구 선릉로 428 101동 1001호
+                      quotes:
+                        - quoteId: 10
+                          price: 180000
+                          status: CONFIRMED
+                          isDesignated: false
+                          mover:
+                            moverId: 550e8400-e29b-41d4-a716-446655440000
+                            nickname: 베스트무빙
+                            profileImage: https://cdn.example.com/profiles/mover.jpg
+                            shortDescription: 꼼꼼한이사
+                            rating: 4.8
+                            reviewCount: 120
+                            career: 7
+                            confirmedQuoteCount: 150
+                            favoriteCount: 350
+                            isFavorited: true
+                meta:
+                  nextCursor: 89
+                  hasNextPage: true
+        '400':
+          description: 잘못된 필터 또는 쿼리 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidFilter:
+                  summary: 유효하지 않은 filter
+                  value:
+                    error:
+                      code: INVALID_FILTER_TYPE
+                      message: 유효한 필터 조건을 선택해 주세요.
+                invalidQuery:
+                  summary: 잘못된 쿼리 파라미터
+                  value:
+                    error:
+                      code: INVALID_QUERY_PARAM
+                      message: 유효하지 않은 요청 파라미터입니다.
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요합니다.
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '404':
+          description: estimateRequestId로 단건 필터 시 요청을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ESTIMATE_REQUEST_NOT_FOUND
+                  message: 존재하지 않는 견적 요청입니다.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/users/customers/quotes/{quoteId}:
+    get:
+      tags: [Customers]
+      summary: 대기 중 / 받았던 견적 상세 조회
+      description: |
+        고객이 받은 견적서 상세를 조회합니다.
+        fromAddress/toAddress는 departureAddress/arrivalAddress(도로명·지번)만 반환하며,
+        departureDetailAddress/arrivalDetailAddress(동·호수)는 조회·응답에 포함하지 않습니다.
+        Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          description: 견적서 ID
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: 견적 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerQuoteDetailResponse'
+              example:
+                data:
+                  quoteId: 1
+                  estimateRequestId: 101
+                  price: 150000
+                  comment: 포장 이사로 깔끔하게 진행해 드립니다.
+                  status: PENDING
+                  isDesignated: true
+                  estimateRequestStatus: SUBMITTED
+                  serviceType: HOME
+                  moveDate: '2024-05-10T00:00:00.000Z'
+                  submittedAt: '2024-08-26T10:00:00.000Z'
+                  fromAddress: 서울시 강남구 테헤란로 123
+                  toAddress: 서울시 서초구 서초대로 456
+                  mover:
+                    moverId: 550e8400-e29b-41d4-a716-446655440000
+                    nickname: 베스트무빙
+                    profileImage: https://cdn.example.com/profiles/mover.jpg
+                    shortDescription: 꼼꼼한이사
+                    rating: 4.8
+                    reviewCount: 120
+                    career: 7
+                    confirmedQuoteCount: 150
+                    favoriteCount: 350
+                    isFavorited: true
+        '400':
+          description: 잘못된 path 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: 요청 형식이 올바르지 않습니다.
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요합니다.
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '404':
+          description: 견적서를 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quoteNotFound:
+                  summary: 존재하지 않거나 삭제된 견적
+                  value:
+                    error:
+                      code: QUOTE_NOT_FOUND
+                      message: 존재하지 않거나 삭제된 견적서입니다.
+                moverNotFound:
+                  summary: 기사님 정보 없음
+                  value:
+                    error:
+                      code: MOVER_NOT_FOUND
+                      message: 존재하지 않는 기사님입니다.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Customers]
+      summary: 견적 확정하기
+      description: |
+        고객이 받은 견적 중 하나를 확정합니다.
+        해당 견적(Quote)과 연결된 이사 요청(Estimate Request)을 함께 CONFIRMED로 변경하고,
+        confirmedQuoteId를 설정합니다.
+        EstimateRequest가 SUBMITTED가 아니거나 이미 확정된 경우, 또는 동일 견적 재확정 시 409를 반환합니다.
+        만료(EXPIRED)·취소(CANCELED)된 요청은 각각 REQUEST_EXPIRED / REQUEST_CANCELED(409)를 반환합니다.
+        이사일이 지난 요청은 REQUEST_EXPIRED(409)를 반환합니다.
+        Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          description: 확정할 견적서 ID
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: 견적 확정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmQuoteResponse'
+              example:
+                data:
+                  confirmedQuoteId: 1
+        '400':
+          description: 잘못된 path 파라미터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INVALID_REQUEST
+                  message: 요청 형식이 올바르지 않습니다.
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: UNAUTHORIZED
+                  message: 로그인이 필요한 기능입니다.
+        '403':
+          description: 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: USER_TYPE_FORBIDDEN
+                  message: 접근 권한이 없습니다.
+        '404':
+          description: 견적서 또는 연결된 이사 요청을 찾을 수 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quoteNotFound:
+                  summary: 존재하지 않거나 삭제된 견적
+                  value:
+                    error:
+                      code: QUOTE_NOT_FOUND
+                      message: 존재하지 않거나 삭제된 견적서입니다.
+                estimateRequestNotFound:
+                  summary: 연결된 이사 요청 없음
+                  value:
+                    error:
+                      code: ESTIMATE_REQUEST_NOT_FOUND
+                      message: 존재하지 않는 견적 요청입니다.
+        '409':
+          description: 확정 불가 (이미 확정됨 / 만료 / 취소 / 이사일 경과)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyConfirmed:
+                  summary: 이미 확정된 이사 요청 또는 견적 재확정
+                  value:
+                    error:
+                      code: ALREADY_CONFIRMED_REQUEST
+                      message: 이미 예약이 확정된 이사 요청입니다.
+                requestExpired:
+                  summary: 만료 또는 이사일 경과
+                  value:
+                    error:
+                      code: REQUEST_EXPIRED
+                      message: 이사일이 지나 견적 요청이 만료되었습니다.
+                requestCanceled:
+                  summary: 취소된 견적 요청
+                  value:
+                    error:
+                      code: REQUEST_CANCELED
+                      message: 취소된 견적 요청입니다.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
