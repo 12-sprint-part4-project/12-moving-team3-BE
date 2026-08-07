@@ -771,7 +771,8 @@ const toReportedContentFromResult = (
 /**
  * availableActions 계산.
  * PENDING이 아니거나 대상을 못 찾으면 해당 Action은 false.
- * 이미 SUSPENDED여도 PENDING이면 정지 Action은 대상 존재 여부로만 판단한다.
+ * 삭제된 사용자는 정지 잠금이 실패하므로 canSuspendUser를 false로 둔다.
+ * 이미 SUSPENDED여도 PENDING·활성 사용자면 정지 Action은 허용한다.
  */
 const toAvailableActions = (
   status: UserReportStatus,
@@ -787,7 +788,9 @@ const toAvailableActions = (
     return { canSuspendUser: false, canDeleteContent: false };
   }
 
-  const canSuspendUser = userResult.kind === 'found';
+  // 처리 Service 잠금과 맞춰, soft-delete된 사용자에게는 정지 Action을 숨긴다.
+  const canSuspendUser =
+    userResult.kind === 'found' && userResult.user.deletedAt === null;
 
   if (target === 'USER' || target === 'MESSAGE') {
     return { canSuspendUser, canDeleteContent: false };

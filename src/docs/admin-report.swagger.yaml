@@ -480,6 +480,7 @@ paths:
         (부적절한 프로필 신고 상세 검토용. 전화번호는 포함하지 않습니다.)
         대상이 없거나 콘텐츠를 조회할 수 없으면 content·reportedContent는 null입니다.
         PENDING이 아니거나 대상을 찾을 수 없으면 availableActions는 false입니다.
+        삭제된 대상 사용자는 canSuspendUser가 false이다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []

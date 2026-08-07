@@ -670,6 +670,8 @@ const reportSanctionTargetUserSelect = {
   id: true,
   name: true,
   nickname: true,
+  // soft-delete된 사용자는 정지 잠금이 실패하므로 Action 가능 여부 판단에 필요
+  deletedAt: true,
   userStatus: {
     select: {
       status: true,
