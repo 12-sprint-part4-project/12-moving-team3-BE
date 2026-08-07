@@ -8,6 +8,9 @@ export interface MoverListCursor {
   id: number;
 }
 
+/** 경력 정렬·nulls last — 커서에 null 경력을 표현하는 값 */
+export const CAREER_NULL_CURSOR_VALUE = 'null';
+
 /** 찜 목록 커서 (찜한 시각 + favorite id) */
 export interface FavoriteListCursor {
   value: string;
@@ -64,7 +67,14 @@ export const decodeMoverListCursor = (
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
-  if (!/^\d+(\.\d+)?$/.test(decoded.value)) {
+  if (expectedSort === 'career') {
+    const isNullCursor = decoded.value === CAREER_NULL_CURSOR_VALUE;
+    const isNumericCareer = /^\d+$/.test(decoded.value);
+
+    if (!isNullCursor && !isNumericCareer) {
+      throw new AppError('INVALID_QUERY_PARAM');
+    }
+  } else if (!/^\d+(\.\d+)?$/.test(decoded.value)) {
     throw new AppError('INVALID_QUERY_PARAM');
   }
 
@@ -102,7 +112,10 @@ export const getMoverListCursorValue = (
   if (sort === 'career') {
     return {
       sort,
-      value: String(mover.career ?? 0),
+      value:
+        mover.career === null
+          ? CAREER_NULL_CURSOR_VALUE
+          : String(mover.career),
       id: mover.id,
     };
   }

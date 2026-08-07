@@ -6,6 +6,8 @@ paths:
       description: |
         제출(SUBMITTED)된 본인 견적요청에 특정 기사님을 지정합니다.
         이미 지정된 기사님이면 409(DESIGNATED_ALREADY_EXISTS)를 반환합니다.
+        해당 기사님이 이미 대기(PENDING)·확정(CONFIRMED) 견적을 보낸 경우
+        409(QUOTE_ALREADY_RECEIVED_FROM_MOVER)를 반환합니다.
       security:
         - bearerAuth: []
       requestBody:
@@ -69,6 +71,7 @@ paths:
         '409':
           description: |
             - DESIGNATED_ALREADY_EXISTS: 이미 지정된 기사
+            - QUOTE_ALREADY_RECEIVED_FROM_MOVER: 이미 해당 기사 견적(대기/확정)을 받음
             - ESTIMATE_REQUEST_NOT_SUBMITTED: SUBMITTED 상태 아님
           content:
             application/json:

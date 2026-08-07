@@ -1,4 +1,4 @@
-import { EstimateRequestStatus, Prisma } from '@prisma/client';
+import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import type {
   CreateDesignatedEstimateDto,
   DesignatedEstimateExistenceDto,
@@ -7,9 +7,16 @@ import type {
 import { prisma } from '../lib/prisma';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
+import * as quoteRepository from '../repositories/quote.repository';
 import { findUserById } from '../repositories/user.repository';
 import { AppError } from '../utils/app.error';
 import * as notificationService from './notification.service';
+
+/** 지정 요청을 막을 수신 견적 상태 (대기·확정) */
+const BLOCKING_QUOTE_STATUSES: readonly QuoteStatus[] = [
+  QuoteStatus.PENDING,
+  QuoteStatus.CONFIRMED,
+];
 
 interface DesignatedEstimateMoverRow {
   id: number;
@@ -27,7 +34,9 @@ const isUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === 'P2002';
 
-const toDto = (row: DesignatedEstimateMoverRow): DesignatedEstimateMoverDto => ({
+const toDto = (
+  row: DesignatedEstimateMoverRow
+): DesignatedEstimateMoverDto => ({
   id: row.id,
   estimateId: row.estimateId,
   moverId: row.moverId,
@@ -73,7 +82,7 @@ export const checkDesignatedEstimateExistence = async (
 
 /**
  * 지정 견적 요청 생성 — SUBMITTED 상태의 본인 견적요청에만 가능
- * updateMany(소유·SUBMITTED) + create를 트랜잭션으로 묶어 race condition을 차단
+ * 트랜잭션에서 estimate_request FOR UPDATE 후 Quote/지정 검사·생성으로 race를 차단
  */
 export const createDesignatedEstimateRequest = async (
   params: DesignatedEstimateRequestServiceParams
@@ -114,37 +123,75 @@ export const createDesignatedEstimateRequest = async (
     throw new AppError('DESIGNATED_ALREADY_EXISTS');
   }
 
+  const existingQuote = await quoteRepository.findExistingQuoteByStatuses(
+    prisma,
+    estimateRequestId,
+    moverId,
+    BLOCKING_QUOTE_STATUSES
+  );
+
+  if (existingQuote) {
+    throw new AppError('QUOTE_ALREADY_RECEIVED_FROM_MOVER');
+  }
+
   try {
     const created = await prisma.$transaction(async (tx) => {
-      const touchedCount =
-        await estimateRequestRepository.touchSubmittedEstimateRequestForOwner(
+      const locked = await quoteRepository.findEstimateRequestForUpdate(
+        tx,
+        estimateRequestId
+      );
+
+      if (!locked) {
+        throw new AppError(
+          'ESTIMATE_REQUEST_NOT_FOUND',
+          '일반 견적 요청이 존재하지 않습니다.'
+        );
+      }
+
+      if (locked.status !== EstimateRequestStatus.SUBMITTED) {
+        throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
+      }
+
+      const lockedDetail =
+        await estimateRequestRepository.findEstimateRequestById(
           estimateRequestId,
-          userId,
           tx
         );
 
-      if (touchedCount === 0) {
-        const current =
-          await estimateRequestRepository.findEstimateRequestById(
-            estimateRequestId,
-            tx
-          );
+      if (!lockedDetail) {
+        throw new AppError(
+          'ESTIMATE_REQUEST_NOT_FOUND',
+          '일반 견적 요청이 존재하지 않습니다.'
+        );
+      }
 
-        if (!current) {
-          throw new AppError(
-            'ESTIMATE_REQUEST_NOT_FOUND',
-            '일반 견적 요청이 존재하지 않습니다.'
-          );
-        }
+      if (lockedDetail.userId !== userId) {
+        throw new AppError(
+          'FORBIDDEN',
+          '본인의 견적 요청만 지정할 수 있습니다.'
+        );
+      }
 
-        if (current.userId !== userId) {
-          throw new AppError(
-            'FORBIDDEN',
-            '본인의 견적 요청만 지정할 수 있습니다.'
-          );
-        }
+      const designatedInTx =
+        await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+          estimateRequestId,
+          moverId,
+          tx
+        );
 
-        throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
+      if (designatedInTx) {
+        throw new AppError('DESIGNATED_ALREADY_EXISTS');
+      }
+
+      const quoteInTx = await quoteRepository.findExistingQuoteByStatuses(
+        tx,
+        estimateRequestId,
+        moverId,
+        BLOCKING_QUOTE_STATUSES
+      );
+
+      if (quoteInTx) {
+        throw new AppError('QUOTE_ALREADY_RECEIVED_FROM_MOVER');
       }
 
       return toDto(
