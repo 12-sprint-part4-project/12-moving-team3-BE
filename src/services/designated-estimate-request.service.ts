@@ -1,4 +1,4 @@
-import { EstimateRequestStatus, Prisma } from '@prisma/client';
+import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import type {
   CreateDesignatedEstimateDto,
   DesignatedEstimateExistenceDto,
@@ -7,9 +7,16 @@ import type {
 import { prisma } from '../lib/prisma';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
+import * as quoteRepository from '../repositories/quote.repository';
 import { findUserById } from '../repositories/user.repository';
 import { AppError } from '../utils/app.error';
 import * as notificationService from './notification.service';
+
+/** 지정 요청을 막을 수신 견적 상태 (대기·확정) */
+const BLOCKING_QUOTE_STATUSES = [
+  QuoteStatus.PENDING,
+  QuoteStatus.CONFIRMED,
+] as const;
 
 interface DesignatedEstimateMoverRow {
   id: number;
@@ -27,7 +34,9 @@ const isUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === 'P2002';
 
-const toDto = (row: DesignatedEstimateMoverRow): DesignatedEstimateMoverDto => ({
+const toDto = (
+  row: DesignatedEstimateMoverRow
+): DesignatedEstimateMoverDto => ({
   id: row.id,
   estimateId: row.estimateId,
   moverId: row.moverId,
@@ -114,6 +123,17 @@ export const createDesignatedEstimateRequest = async (
     throw new AppError('DESIGNATED_ALREADY_EXISTS');
   }
 
+  const existingQuote = await quoteRepository.findExistingQuoteByStatuses(
+    prisma,
+    estimateRequestId,
+    moverId,
+    BLOCKING_QUOTE_STATUSES
+  );
+
+  if (existingQuote) {
+    throw new AppError('QUOTE_ALREADY_RECEIVED_FROM_MOVER');
+  }
+
   try {
     const created = await prisma.$transaction(async (tx) => {
       const touchedCount =
@@ -124,11 +144,10 @@ export const createDesignatedEstimateRequest = async (
         );
 
       if (touchedCount === 0) {
-        const current =
-          await estimateRequestRepository.findEstimateRequestById(
-            estimateRequestId,
-            tx
-          );
+        const current = await estimateRequestRepository.findEstimateRequestById(
+          estimateRequestId,
+          tx
+        );
 
         if (!current) {
           throw new AppError(
@@ -145,6 +164,17 @@ export const createDesignatedEstimateRequest = async (
         }
 
         throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
+      }
+
+      const quoteInTx = await quoteRepository.findExistingQuoteByStatuses(
+        tx,
+        estimateRequestId,
+        moverId,
+        BLOCKING_QUOTE_STATUSES
+      );
+
+      if (quoteInTx) {
+        throw new AppError('QUOTE_ALREADY_RECEIVED_FROM_MOVER');
       }
 
       return toDto(

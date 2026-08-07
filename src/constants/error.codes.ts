@@ -43,6 +43,10 @@ export const ERROR_CODES = {
     status: 409,
     message: '이미 지정한 기사님입니다.',
   },
+  QUOTE_ALREADY_RECEIVED_FROM_MOVER: {
+    status: 409,
+    message: '이미 견적을 받은 기사님입니다.',
+  },
   ESTIMATE_REQUEST_NOT_SUBMITTED: {
     status: 409,
     message: '제출된 견적 요청에만 지정 견적을 보낼 수 있습니다.',

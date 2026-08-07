@@ -178,6 +178,33 @@ export const findExistingQuote = async (
   });
 };
 
+/** prisma / transaction 모두 허용 */
+type QuoteDbClient = Pick<QuoteTransactionClient, 'quote'>;
+
+/**
+ * 해당 기사님의 기존 견적(미삭제)을 상태 필터와 함께 조회.
+ * 지정 견적 요청 가드 등에서 사용.
+ */
+export const findExistingQuoteByStatuses = async (
+  db: QuoteDbClient,
+  estimateRequestId: number,
+  moverId: string,
+  statuses: readonly QuoteStatus[]
+): Promise<Pick<Quote, 'id' | 'status'> | null> => {
+  return db.quote.findFirst({
+    where: {
+      estimateRequestId,
+      moverId,
+      deletedAt: null,
+      status: { in: [...statuses] },
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+};
+
 /**
  * 지정 견적 대상 무버 여부 확인
  */
