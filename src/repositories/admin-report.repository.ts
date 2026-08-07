@@ -233,6 +233,7 @@ export const findReportTargetIdsByTargetUserKeyword = async (
   keyword: string,
   db: DbClient = prisma
 ): Promise<AdminReportTargetIdsByKeyword> => {
+  // take 결과는 DB 기본 순서가 비결정적이므로, 최신 우선으로 후보를 고정한다.
   const matchedUsers = await db.user.findMany({
     where: {
       OR: [
@@ -242,6 +243,7 @@ export const findReportTargetIdsByTargetUserKeyword = async (
       ],
     },
     select: { id: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: REPORT_TARGET_USER_SEARCH_LIMIT,
   });
 
@@ -255,21 +257,25 @@ export const findReportTargetIdsByTargetUserKeyword = async (
     db.review.findMany({
       where: { userId: { in: userIds } },
       select: { id: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
     db.chatMessage.findMany({
       where: { senderId: { in: userIds } },
       select: { id: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
     db.post.findMany({
       where: { userId: { in: userIds } },
       select: { id: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
     db.comment.findMany({
       where: { userId: { in: userIds } },
       select: { id: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
     // 참여자 중 한 명이라도 검색 사용자면 해당 방 id를 후보에 넣는다.
@@ -280,6 +286,7 @@ export const findReportTargetIdsByTargetUserKeyword = async (
         },
       },
       select: { id: true },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
   ]);
