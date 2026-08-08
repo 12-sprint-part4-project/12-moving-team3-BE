@@ -129,6 +129,7 @@ export const findEstimateRequestById = async (estimateRequestId: number) => {
     select: {
       id: true,
       userId: true,
+      status: true,
     },
   });
 };

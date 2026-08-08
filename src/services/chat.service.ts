@@ -1,5 +1,6 @@
 import type {
   ChatRoomType,
+  EstimateRequestStatus,
   MessageType,
   MoveType,
   QuoteStatus,
@@ -418,6 +419,8 @@ const createEstimateChatRoom = async (
     estimateRequestId = estimateRequestId ?? quote.estimateRequestId;
   }
 
+  let estimateRequestStatus: EstimateRequestStatus | undefined;
+
   if (estimateRequestId !== undefined) {
     const estimateRequest =
       await chatRepository.findEstimateRequestById(estimateRequestId);
@@ -432,6 +435,8 @@ const createEstimateChatRoom = async (
     ) {
       throw new AppError('FORBIDDEN');
     }
+
+    estimateRequestStatus = estimateRequest.status;
   }
 
   if (body.roomType === 'DESIGNATED' && designatedMoverId === undefined) {
@@ -487,6 +492,11 @@ const createEstimateChatRoom = async (
         updatedAt: toIsoString(existingRoom.updatedAt),
       },
     };
+  }
+
+  // 닫힌 견적(EXPIRED/CANCELED/COMPLETED)은 신규 방만 차단 — 기존 방 재사용(200)은 허용
+  if (!isMessagingAllowedByEstimateStatus(estimateRequestStatus)) {
+    throw new AppError('MESSAGING_NOT_ALLOWED');
   }
 
   const createdRoom = await chatRepository.createChatRoom({
