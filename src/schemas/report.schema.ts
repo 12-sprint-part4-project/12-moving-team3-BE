@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
+/**
+ * 공개 신고 생성 API에서 허용하는 대상만 둔다.
+ * Prisma UserReportTarget에는 CHAT_ROOM이 남아 있어도(레거시 조회·반려용),
+ * 신규 접수 경로에서는 받지 않기 위해 enum 전체를 그대로 쓰지 않는다.
+ */
 const userReportTargetSchema = z.enum([
   'USER',
   'REVIEW',
-  'CHAT_ROOM',
   'MESSAGE',
   'ARTICLE',
   'COMMENT',

@@ -6,7 +6,7 @@ components:
       properties:
         target:
           type: string
-          enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+          enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
           example: REVIEW
           description: 신고 대상 타입
         targetId:
@@ -25,8 +25,7 @@ components:
 
     UserReportDetail:
       type: object
-      required:
-        [id, reporterId, target, targetId, category, status, createdAt]
+      required: [id, reporterId, target, targetId, category, status, createdAt]
       properties:
         id:
           type: integer
@@ -37,7 +36,7 @@ components:
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         target:
           type: string
-          enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+          enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
           example: REVIEW
         targetId:
           type: string
@@ -68,7 +67,7 @@ paths:
         - reporterId는 인증 토큰의 사용자
         - 동일 reporter + target + targetId 중복 신고 불가
         - 자기 자신(USER) 또는 본인 콘텐츠(REVIEW/ARTICLE/COMMENT/MESSAGE) 신고 불가
-        - CHAT_ROOM은 단일 소유자가 없어 자기 신고 검사를 하지 않음
+        - 지원 대상: USER, REVIEW, MESSAGE, ARTICLE, COMMENT (CHAT_ROOM 신규 접수 불가)
       security:
         - bearerAuth: []
       requestBody:
