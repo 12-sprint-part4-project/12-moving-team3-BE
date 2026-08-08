@@ -66,6 +66,12 @@ export const prisma = basePrisma.$extends({
         }
 
         const { userId, adminId, skipAudit } = getAuditContext();
+
+        // actor·skip 없으면 set_config 불필요 — interactive tx 왕복 생략
+        if (!userId && adminId == null && !skipAudit) {
+          return query(args);
+        }
+
         const delegateName = toDelegateName(model);
 
         return auditWrapStorage.run(true, () =>
