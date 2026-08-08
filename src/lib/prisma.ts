@@ -83,14 +83,25 @@ export const prisma = basePrisma.$extends({
                 set_config('app.skip_audit', ${skipAudit ? 'true' : ''}, true)
             `;
 
-            const delegate = (tx as Record<string, any>)[delegateName];
-            if (!delegate || typeof delegate[operation] !== 'function') {
+            // tx delegate는 동적 모델명이라 unknown으로 좁힌다 (any 금지)
+            const txRecord = tx as unknown as Record<string, unknown>;
+            const delegate = txRecord[delegateName];
+            if (!delegate || typeof delegate !== 'object') {
+              throw new Error(
+                `audit extension: tx.${delegateName} not found (model=${model})`
+              );
+            }
+
+            const op = (delegate as Record<string, unknown>)[operation];
+            if (typeof op !== 'function') {
               throw new Error(
                 `audit extension: tx.${delegateName}.${operation} not found (model=${model})`
               );
             }
 
-            return delegate[operation](args);
+            return (op as (operationArgs: typeof args) => ReturnType<typeof query>)(
+              args
+            );
           })
         );
       },
