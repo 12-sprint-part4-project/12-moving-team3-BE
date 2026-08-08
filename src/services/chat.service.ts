@@ -2,6 +2,7 @@ import type {
   ChatRoomType,
   MessageType,
   MoveType,
+  QuoteStatus,
   UserType,
 } from '@prisma/client';
 import {
@@ -63,6 +64,8 @@ interface ChatRoomLastMessage {
 interface ChatRoomListItem {
   roomId: number;
   roomType: ChatRoomType;
+  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
+  quoteStatus: QuoteStatus | null;
   partner: ChatRoomPartner;
   lastMessage: ChatRoomLastMessage | null;
   partnerLastReadMessageId: number | null;
@@ -79,6 +82,7 @@ interface UnreadCountResult {
 }
 
 interface ChatRoomDetailResult {
+  roomType: ChatRoomType;
   partner: ChatRoomPartner;
   requestSummary: {
     estimateRequestId: number;
@@ -88,6 +92,8 @@ interface ChatRoomDetailResult {
     destinationAddress: string | null;
   } | null;
   quoteId: number | null;
+  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
+  quoteStatus: QuoteStatus | null;
   isMessagingAllowed: boolean;
   /** 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null */
   partnerLastReadMessageId: number | null;
@@ -133,6 +139,21 @@ interface LeaveChatRoomResult {
 
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
+
+/**
+ * 채팅 응답용 quoteStatus.
+ * COMMUNITY는 견적과 무관하므로 항상 null.
+ */
+const toQuoteStatus = (
+  roomType: ChatRoomType,
+  quote: { status: QuoteStatus } | null | undefined
+): QuoteStatus | null => {
+  if (roomType === 'COMMUNITY') {
+    return null;
+  }
+
+  return quote?.status ?? null;
+};
 
 /** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
 const selectPartnerParticipant = <
@@ -581,6 +602,7 @@ export const getChatRoomList = async (
         return {
           roomId: room.id,
           roomType: room.roomType,
+          quoteStatus: toQuoteStatus(room.roomType, room.quote),
           partner: {
             id: partner.id,
             userType: partner.userType,
@@ -674,6 +696,7 @@ export const getChatRoomDetail = async (
   );
 
   return {
+    roomType: room.roomType,
     partner: {
       id: partner.id,
       userType: partner.userType,
@@ -692,6 +715,7 @@ export const getChatRoomDetail = async (
         }
       : null,
     quoteId: room.quoteId,
+    quoteStatus: toQuoteStatus(room.roomType, room.quote),
     isMessagingAllowed: isMessagingAllowedByEstimateStatus(
       room.estimateRequest?.status
     ),
