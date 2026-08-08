@@ -123,7 +123,9 @@ const toAdminChatMessageDto = async (
   senderId: message.senderId,
   sender: toAdminChatMessageSenderDto(message.sender),
   messageType: message.messageType,
+  // 마스킹/저장된 content는 그대로 두고, 원문은 rawContent로 분리한다.
   content: message.content,
+  rawContent: message.rawLog?.rawContent ?? null,
   isFiltered: message.isFiltered,
   attachments: await toAttachmentViewUrls(message.attachments),
   createdAt: message.createdAt,

@@ -92,13 +92,20 @@ export interface AdminChatMessageSenderDto {
 /**
  * 관리자 채팅 메시지 DTO.
  * attachments는 사용자 채팅과 같이 Presigned URL 문자열 배열이다.
+ * rawContent는 ChatMessageRawLog 원문이며 관리자 전용 조회 필드다.
  */
 export interface AdminChatMessageDto {
   id: number;
   senderId: string;
   sender: AdminChatMessageSenderDto;
   messageType: MessageType;
+  /** ChatMessage.content — 필터링 시 마스킹된 값일 수 있다 */
   content: string;
+  /**
+   * 필터링 전 원문(ChatMessageRawLog.rawContent).
+   * RawLog가 없으면 null. 관리자 전용이며 content를 대체하지 않는다.
+   */
+  rawContent: string | null;
   isFiltered: boolean;
   /** IMAGE면 Presigned URL 목록, TEXT면 빈 배열 */
   attachments: string[];
