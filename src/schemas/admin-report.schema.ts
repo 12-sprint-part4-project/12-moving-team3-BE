@@ -1,5 +1,6 @@
-import { UserReportStatus, UserReportTarget } from '@prisma/client';
+import { UserReportStatus } from '@prisma/client';
 import { z } from 'zod';
+import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target.constants';
 import { listQuerySchema } from './admin-list-query.schema';
 
 /**
@@ -19,8 +20,8 @@ export const adminReportListQuerySchema = listQuerySchema
   .extend({
     // UserReport.status와 동일한 Prisma enum만 허용해 잘못된 값이 DB까지 내려가지 않게 한다.
     status: z.enum(UserReportStatus).optional(),
-    // UserReport.target과 동일한 Prisma enum만 허용해 대상 유형 필터 의미를 스키마와 일치시킨다.
-    target: z.enum(UserReportTarget).optional(),
+    // Prisma enum 전체가 아니라 앱에서 지원하는 신고 대상만 필터로 받는다.
+    target: z.enum(SUPPORTED_REPORT_TARGETS).optional(),
     // 공백만 있는 검색어는 의미가 없고, listQuerySchema.search와 같이 trim + min(1)로 맞춘다.
     // (실제 where 적용은 이후 커밋 — 여기서는 요청 계약만 고정한다.)
     targetUserKeyword: z.string().trim().min(1).optional(),

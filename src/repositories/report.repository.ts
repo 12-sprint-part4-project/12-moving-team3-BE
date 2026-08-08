@@ -105,16 +105,6 @@ export const findReportTargetOwner = async ({
       if (!message) return null;
       return { ownerId: message.senderId };
     }
-    case 'CHAT_ROOM': {
-      const id = Number(targetId);
-      const room = await prisma.chatRoom.findFirst({
-        where: { id },
-        select: { id: true },
-      });
-      if (!room) return null;
-      // 채팅방은 단일 소유자가 없어 자기 신고 검사 대상에서 제외
-      return { ownerId: null };
-    }
     default:
       return null;
   }

@@ -153,7 +153,7 @@ model EstimateDesignatedMover {
   id              Int             @id @default(autoincrement())
   estimateId      Int             @map("estimate_id")
   moverId         String          @map("mover_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
   chatRooms       ChatRoom[]
   estimateRequest EstimateRequest @relation(fields: [estimateId], references: [id])
   mover           User            @relation(fields: [moverId], references: [id])
@@ -216,7 +216,7 @@ model Review {
 
   // 활성 리뷰(deleted_at IS NULL)만 userId+quoteId 유일 — soft-delete 후 재작성 허용
   @@unique([userId, quoteId], map: "reviews_user_id_quote_id_active_unique", where: raw("(deleted_at IS NULL)"))
-  @@index([quoteId]) 
+  @@index([quoteId])
   @@map("reviews")
 }
 
@@ -243,10 +243,10 @@ model Notification {
   review            Review?          @relation(fields: [reviewId], references: [id])
   userReport        UserReport?      @relation(fields: [userReportId], references: [id])
 
-  @@index([receiverId, createdAt])
-  @@index([receiverId, isRead])
   // sourceId 있는 행만 유일 — createMany skipDuplicates / 재실행 멱등 (null은 기존 단건 허용)
   @@unique([receiverId, type, sourceId], map: "notifications_receiver_type_source_unique", where: raw("(source_id IS NOT NULL)"))
+  @@index([receiverId, createdAt])
+  @@index([receiverId, isRead])
   @@map("notifications")
 }
 
@@ -401,12 +401,12 @@ model AdminRefreshToken {
   @@map("admin_refresh_tokens")
 }
 
-/// target_id는 target 값에 따라 user/review/chat_room/message/article/comment 중 하나를 가리키는 폴리모픽 컬럼 - FK 미설정
+/// target_id는 target 값에 따라 user/review/message/article/comment 중 하나를 가리키는 폴리모픽 컬럼 - FK 미설정
 model UserReport {
   id            Int                @id @default(autoincrement())
   reporterId    String             @map("reporter_id") @db.Uuid
   target        UserReportTarget
-  targetId      String             @map("target_id") @db.VarChar(36)  // Int → String
+  targetId      String             @map("target_id") @db.VarChar(36) // Int → String
   category      UserReportCategory
   status        UserReportStatus   @default(PENDING)
   adminId       Int?               @map("admin_id")
@@ -415,7 +415,7 @@ model UserReport {
   admin         AdminUser?         @relation(fields: [adminId], references: [id])
   reporter      User               @relation(fields: [reporterId], references: [id])
 
-  @@unique([reporterId, target, targetId])  // 중복 신고 방지
+  @@unique([reporterId, target, targetId]) // 중복 신고 방지
   @@map("user_reports")
 }
 
@@ -602,7 +602,6 @@ enum UserReportStatus {
 enum UserReportTarget {
   USER
   REVIEW
-  CHAT_ROOM
   MESSAGE
   ARTICLE
   COMMENT

@@ -152,7 +152,6 @@ paths:
                                 [
                                   USER,
                                   REVIEW,
-                                  CHAT_ROOM,
                                   MESSAGE,
                                   ARTICLE,
                                   COMMENT,
