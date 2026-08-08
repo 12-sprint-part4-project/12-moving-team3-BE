@@ -208,6 +208,19 @@ export const findAdminChatLastMessagesByRoomIds = async (
 };
 
 /**
+ * 채팅방 존재 여부만 확인한다.
+ * 메시지 조회 전 존재 검사용 — 상세 participants까지 가져오지 않는다.
+ */
+export const findAdminChatRoomId = async (
+  roomId: number
+): Promise<{ id: number } | null> => {
+  return prisma.chatRoom.findUnique({
+    where: { id: roomId },
+    select: { id: true },
+  });
+};
+
+/**
  * 관리자 채팅방 상세 조회.
  * 없으면 null을 반환하고, 404 판단은 Service에서 한다.
  */
