@@ -867,6 +867,95 @@ export const findReportReportedContent = async (
   }
 };
 
+// --- USER 신고: 신고 콘텐츠로 쓸 회원 프로필 조회 ---
+
+/**
+ * USER 신고 콘텐츠용 프로필 row.
+ * findReportDetailTargetUserById와 동일 select를 재사용해
+ * 상세 target 사용자·신고 콘텐츠 경로의 필드 계약이 어긋나지 않게 한다.
+ */
+export type ReportedUserProfileRow = NonNullable<
+  Awaited<ReturnType<typeof findReportDetailTargetUserById>>
+>;
+
+/** 기사 프로필이 확정된 USER 신고 콘텐츠 row */
+export type ReportedMoverProfileRow = ReportedUserProfileRow & {
+  moverProfile: NonNullable<ReportedUserProfileRow['moverProfile']>;
+};
+
+/** 고객 프로필이 확정된 USER 신고 콘텐츠 row */
+export type ReportedCustomerProfileRow = ReportedUserProfileRow & {
+  customerProfile: NonNullable<ReportedUserProfileRow['customerProfile']>;
+};
+
+/**
+ * USER 신고 회원 프로필 조회 결과.
+ * HTTP는 Service가 결정하고, Repository는 유형·실패 원인만 구분한다.
+ * - invalid_target_id: targetId UUID 형식 오류 — Prisma 예외를 막기 위해 조회 전 반환
+ * - not_found: 형식은 맞지만 User 행이 없음
+ * - profile_missing: User는 있으나 userType에 맞는 프로필 관계가 없음
+ *   (미존재와 구분해야 Service가 “대상 없음”과 “프로필 미작성”을 다르게 처리할 수 있다)
+ */
+export type FindReportedUserProfileResult =
+  | { kind: 'mover_profile'; profile: ReportedMoverProfileRow }
+  | { kind: 'customer_profile'; profile: ReportedCustomerProfileRow }
+  | { kind: 'profile_missing' }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' };
+
+/**
+ * USER 신고의 targetId로 신고된 회원 프로필을 조회한다.
+ * UserReport.targetId → User.id → userType별 CustomerProfile/MoverProfile.
+ * soft-delete(deletedAt) 필터를 두지 않아 탈퇴 회원도 관리자가 검토할 수 있게 한다.
+ * 프로필 이미지 URL은 만들지 않고 profileImageKey만 반환한다 (URL 조립은 상위 계층 책임).
+ */
+export const findReportedUserProfile = async (
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportedUserProfileResult> => {
+  // 잘못된 UUID로 Prisma가 던지는 오류를 막기 위해 조회 전에 형식을 검증한다.
+  if (!isUserTargetUuid(targetId)) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  // 신고 상세 USER 조회와 같은 select·soft-delete 정책을 재사용한다.
+  const user = await findReportDetailTargetUserById(targetId, db);
+
+  if (!user) {
+    return { kind: 'not_found' };
+  }
+
+  // userType에 맞는 프로필만 콘텐츠로 인정한다 — 반대 타입 relation은 무시한다.
+  if (user.userType === 'MOVER') {
+    if (!user.moverProfile) {
+      return { kind: 'profile_missing' };
+    }
+
+    const profile: ReportedMoverProfileRow = {
+      ...user,
+      moverProfile: user.moverProfile,
+    };
+
+    return { kind: 'mover_profile', profile };
+  }
+
+  if (user.userType === 'CUSTOMER') {
+    if (!user.customerProfile) {
+      return { kind: 'profile_missing' };
+    }
+
+    const profile: ReportedCustomerProfileRow = {
+      ...user,
+      customerProfile: user.customerProfile,
+    };
+
+    return { kind: 'customer_profile', profile };
+  }
+
+  // UserType은 CUSTOMER|MOVER만 있지만, 예상 밖 값이면 프로필 콘텐츠로 취급하지 않는다.
+  return { kind: 'profile_missing' };
+};
+
 // --- 신고 처리: 신고 콘텐츠 soft delete ---
 
 /** soft delete 가능한 신고 콘텐츠 대상 */
