@@ -607,11 +607,13 @@ export const findReportDetailTargetCommentById = async (
 /**
  * 정지 판단에 필요한 최소 사용자 필드.
  * admin-member의 userStatus select와 맞춰 상태·정지 기간을 한 번에 가져온다.
+ * profileImageKey는 URL로 변환하지 않고 key만 내려 신고자·reportedContent와 맞춘다.
  */
 const reportSanctionTargetUserSelect = {
   id: true,
   name: true,
   nickname: true,
+  profileImageKey: true,
   // soft-delete된 사용자는 정지 잠금이 실패하므로 Action 가능 여부 판단에 필요
   deletedAt: true,
   userStatus: {

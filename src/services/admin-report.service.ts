@@ -668,6 +668,7 @@ const toDetailTargetUser = (
   id: user.id,
   name: user.name,
   nickname: user.nickname,
+  profileImageKey: user.profileImageKey,
   status: user.userStatus?.status ?? UserStatus.ACTIVE,
   suspendedAt: user.userStatus?.suspendedAt ?? null,
   suspendedUntil: user.userStatus?.suspendedUntil ?? null,

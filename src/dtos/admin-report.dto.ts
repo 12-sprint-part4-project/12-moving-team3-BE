@@ -239,6 +239,8 @@ export interface AdminReportDetailTargetUserDto {
   id: string;
   name: string;
   nickname: string;
+  /** User.profileImageKey. 없으면 null — 신고자·reportedContent와 동일한 key 응답 */
+  profileImageKey: string | null;
   status: UserStatus;
   suspendedAt: Date | null;
   suspendedUntil: Date | null;

@@ -772,6 +772,7 @@ paths:
                           - id
                           - name
                           - nickname
+                          - profileImageKey
                           - status
                           - suspendedAt
                           - suspendedUntil
@@ -784,6 +785,11 @@ paths:
                             type: string
                           nickname:
                             type: string
+                          profileImageKey:
+                            type: string
+                            nullable: true
+                            description: 대상 사용자 프로필 이미지 키. 없으면 null
+                            example: profiles/user-550e8400.jpg
                           status:
                             type: string
                             enum: [ACTIVE, SUSPENDED]
@@ -1093,6 +1099,7 @@ paths:
                         id: '550e8400-e29b-41d4-a716-446655440001'
                         name: 김철수
                         nickname: 철수
+                        profileImageKey: profiles/mover-550e8400.jpg
                         status: ACTIVE
                         suspendedAt: null
                         suspendedUntil: null
@@ -1148,6 +1155,7 @@ paths:
                         id: '550e8400-e29b-41d4-a716-446655440001'
                         name: 김철수
                         nickname: 철수
+                        profileImageKey: profiles/mover-550e8400.jpg
                         status: ACTIVE
                         suspendedAt: null
                         suspendedUntil: null
@@ -1209,6 +1217,7 @@ paths:
                         id: '550e8400-e29b-41d4-a716-446655440002'
                         name: 이영희
                         nickname: 영희
+                        profileImageKey: null
                         status: SUSPENDED
                         suspendedAt: '2026-07-28T00:00:00.000Z'
                         suspendedUntil: '2026-08-04T00:00:00.000Z'
