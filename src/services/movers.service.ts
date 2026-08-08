@@ -20,7 +20,7 @@ import type {
   MoversListQuery,
 } from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
-import { toPresignedViewUrl } from './s3.service';
+import { toPublicViewUrl } from './s3.service';
 import {
   decodeFavoriteListCursor,
   decodeMoverListCursor,
@@ -64,7 +64,7 @@ const mapUserProfileImage = async <
 
   return {
     ...rest,
-    profileImageUrl: await toPresignedViewUrl(profileImageKey),
+    profileImageUrl: toPublicViewUrl(profileImageKey),
   };
 };
 

@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "admin:create": "ts-node scripts/create-admin.ts",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 5432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'"
   },
   "repository": {
     "type": "git",
@@ -56,6 +57,7 @@
     "@types/pg": "^8.20.0",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
+    "dotenv-cli": "^11.0.0",
     "nodemon": "^3.1.14",
     "prettier": "^3",
     "prisma": "^7.9.0",

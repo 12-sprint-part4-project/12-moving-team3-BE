@@ -96,7 +96,7 @@ export const createPresignedViewUrl = async (
   return getSignedUrl(s3Client, command, { expiresIn });
 };
 
-/** s3Key가 있으면 조회용 Presigned URL, 없으면 null */
+/** s3Key가 있으면 조회용 Presigned URL, 없으면 null (비공개 객체용) */
 export const toPresignedViewUrl = async (
   s3Key: string | null | undefined
 ): Promise<string | null> => {
@@ -105,6 +105,39 @@ export const toPresignedViewUrl = async (
   }
 
   return createPresignedViewUrl(s3Key);
+};
+
+/** 공개 조회용 베이스 URL (CDN 우선 → S3_PUBLIC_BASE_URL → 버킷 URL) */
+const resolvePublicBaseUrl = (): string => {
+  const configured =
+    process.env.CDN_BASE_URL?.trim() ||
+    process.env.S3_PUBLIC_BASE_URL?.trim();
+
+  if (configured) {
+    return configured.replace(/\/$/, '');
+  }
+
+  const bucket = process.env.AWS_S3_BUCKET_NAME?.trim();
+  const region = process.env.AWS_REGION?.trim();
+
+  if (bucket && region) {
+    return `https://${bucket}.s3.${region}.amazonaws.com`;
+  }
+
+  throw new Error(
+    'CDN_BASE_URL 또는 S3_PUBLIC_BASE_URL (또는 AWS_S3_BUCKET_NAME + AWS_REGION)이 필요합니다.'
+  );
+};
+
+/** s3Key → 공개/CDN URL (profile-images/ 등 공개 prefix용) */
+export const toPublicViewUrl = (
+  s3Key: string | null | undefined
+): string | null => {
+  if (!s3Key) {
+    return null;
+  }
+
+  return `${resolvePublicBaseUrl()}/${s3Key}`;
 };
 
 export const deleteImage = async (key: string): Promise<void> => {

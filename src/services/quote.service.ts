@@ -43,7 +43,7 @@ import { isMoveDateExpired } from '../utils/date.util';
 import { countQuotesByDesignation } from '../utils/quote-count.util';
 import { inferDistrictLabelFromAddress } from '../utils/region.util';
 import * as notificationService from './notification.service';
-import { toPresignedViewUrl } from './s3.service';
+import { toPublicViewUrl } from './s3.service';
 
 // --- [기사님(MOVER)용 API] ---
 
@@ -590,7 +590,7 @@ const toCustomerQuoteMoverDto = async (
 ): Promise<CustomerQuoteMoverDto> => ({
   moverId: mover.id,
   nickname: mover.nickname,
-  profileImage: await toPresignedViewUrl(mover.profileImageKey),
+  profileImage: toPublicViewUrl(mover.profileImageKey),
   shortDescription: mover.shortDescription,
   rating: toAverageRating(mover.ratingSum, mover.reviewCount),
   reviewCount: mover.reviewCount,

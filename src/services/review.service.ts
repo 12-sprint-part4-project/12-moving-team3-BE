@@ -7,7 +7,7 @@ import type { ReviewBody } from '../schemas/review.schema';
 import { AppError } from '../utils/app.error';
 import { isMoveDateReached } from '../utils/date.util';
 import * as notificationService from './notification.service';
-import { toPresignedViewUrl } from './s3.service';
+import { toPublicViewUrl } from './s3.service';
 
 /** 목록 조회 공통 페이지네이션 메타 */
 export interface ReviewPaginationMeta {
@@ -238,7 +238,7 @@ export const getCustomerWritableQuotes = async (
         ? {
             id: quote.mover.id,
             name: quote.mover.name,
-            profileImageUrl: await toPresignedViewUrl(
+            profileImageUrl: toPublicViewUrl(
               quote.mover.profileImageKey
             ),
           }
@@ -282,7 +282,7 @@ export const getCustomerReviews = async (
           ? {
               id: quote.mover.id,
               name: quote.mover.name,
-              profileImageUrl: await toPresignedViewUrl(
+              profileImageUrl: toPublicViewUrl(
                 quote.mover.profileImageKey
               ),
             }

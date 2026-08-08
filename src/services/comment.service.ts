@@ -4,7 +4,7 @@ import type { CommentCursor } from '../repositories/comment.repository';
 import * as postRepository from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
 import * as notificationService from './notification.service';
-import { toPresignedViewUrl } from './s3.service';
+import { toPublicViewUrl } from './s3.service';
 
 const isCommentCursor = (value: unknown): value is CommentCursor => {
   if (typeof value !== 'object' || value === null) {
@@ -59,7 +59,7 @@ interface CommentAuthor {
 const mapAuthor = async (user: CommentAuthor) => ({
   id: user.id,
   nickname: user.nickname,
-  profileImageUrl: await toPresignedViewUrl(user.profileImageKey),
+  profileImageUrl: toPublicViewUrl(user.profileImageKey),
 });
 
 const mapCommentItem = async (

@@ -297,6 +297,30 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 신고입니다.',
   },
+  ADMIN_REPORT_ALREADY_PROCESSED: {
+    status: 409,
+    message: '이미 처리되었거나 반려된 신고입니다.',
+  },
+  ADMIN_REPORT_UNSUPPORTED_TARGET: {
+    status: 400,
+    message: '처리할 수 없는 신고 대상입니다.',
+  },
+  ADMIN_REPORT_INVALID_ACTIONS: {
+    status: 400,
+    message: '신고 대상에 허용되지 않는 처리 액션입니다.',
+  },
+  ADMIN_REPORT_TARGET_USER_NOT_FOUND: {
+    status: 404,
+    message: '신고 대상 사용자를 찾을 수 없습니다.',
+  },
+  ADMIN_REPORT_CONTENT_NOT_FOUND: {
+    status: 404,
+    message: '신고된 콘텐츠를 찾을 수 없습니다.',
+  },
+  ADMIN_REPORT_CONFLICT: {
+    status: 409,
+    message: '다른 관리자가 동시에 처리 중이거나 상태가 변경되었습니다.',
+  },
 
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
   ADMIN_INVALID_LOGIN_BODY: {

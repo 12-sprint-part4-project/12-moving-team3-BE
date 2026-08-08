@@ -1,5 +1,4 @@
 import type {
-  ChatRoomType,
   MessageType,
   MoveType,
   PostsCategory,
@@ -7,8 +6,11 @@ import type {
   UserReportCategory,
   UserReportStatus,
   UserReportTarget,
+  UserStatus,
   UserType,
 } from '@prisma/client';
+import type { SupportedReportTarget } from '../constants/report-target.constants';
+import type { AdminReportProcessAction } from '../schemas/admin-report.schema';
 import type { PaginationDto } from './admin-member.dto';
 
 /** 신고자 요약 — 관리자 회원 목록의 기본 유저 필드와 맞춘다 */
@@ -44,13 +46,6 @@ export interface AdminReportReviewTargetInfoDto {
   author: AdminReportTargetAuthorDto | null;
 }
 
-export interface AdminReportChatRoomTargetInfoDto {
-  type: 'CHAT_ROOM';
-  id: number;
-  roomType: ChatRoomType;
-  createdAt: Date;
-}
-
 export interface AdminReportMessageTargetInfoDto {
   type: 'MESSAGE';
   id: number;
@@ -81,7 +76,6 @@ export interface AdminReportCommentTargetInfoDto {
 export type AdminReportTargetInfoDto =
   | AdminReportUserTargetInfoDto
   | AdminReportReviewTargetInfoDto
-  | AdminReportChatRoomTargetInfoDto
   | AdminReportMessageTargetInfoDto
   | AdminReportArticleTargetInfoDto
   | AdminReportCommentTargetInfoDto;
@@ -91,6 +85,7 @@ export interface AdminReportListItemDto {
   id: number;
   reporterId: string;
   reporter: AdminReportReporterDto;
+  /** Prisma 저장값. 앱 분기·필터는 SupportedReportTarget만 사용한다. */
   target: UserReportTarget;
   targetId: string;
   targetInfo: AdminReportTargetInfoDto | null;
@@ -195,7 +190,7 @@ export interface AdminReportDetailUserSummaryDto {
  * 상세는 exists/isDeleted로 구분해 프론트가 "없음"과 "삭제됨"을 다르게 표시할 수 있게 한다.
  */
 export interface AdminReportDetailTargetDto {
-  type: UserReportTarget;
+  type: SupportedReportTarget;
   id: string;
   /** DB에 해당 대상 레코드가 있는지 */
   exists: boolean;
@@ -217,7 +212,7 @@ export interface AdminReportDetailTargetDto {
  * 필드 단위로는 title/body를 nullable로 둬 유형별 차이를 흡수한다.
  */
 export interface AdminReportDetailContentDto {
-  type: UserReportTarget;
+  type: SupportedReportTarget;
   id: string;
   /** 게시글 제목 등. 메시지·댓글처럼 제목이 없으면 null */
   title: string | null;
@@ -226,10 +221,111 @@ export interface AdminReportDetailContentDto {
   createdAt: Date | null;
   deletedAt: Date | null;
   /**
-   * rating, messageType, roomType, category처럼 유형 전용 필드를 담는 확장 슬롯.
+   * rating, messageType, category처럼 유형 전용 필드를 담는 확장 슬롯.
    * 공통 필드를 늘리지 않고도 상세 화면이 필요한 메타를 받을 수 있다.
    */
   metadata: Record<string, unknown> | null;
+}
+
+/**
+ * 신고 처리용 대상 사용자 요약.
+ * UserStatusInfo가 없으면 Service에서 ACTIVE·null로 정규화한다.
+ */
+export interface AdminReportDetailTargetUserDto {
+  id: string;
+  name: string;
+  nickname: string;
+  status: UserStatus;
+  suspendedAt: Date | null;
+  suspendedUntil: Date | null;
+}
+
+/** 신고 상세에서 선택 가능한 Action 플래그 */
+export interface AdminReportAvailableActionsDto {
+  canSuspendUser: boolean;
+  canDeleteContent: boolean;
+}
+
+export interface AdminReportDetailReportedReviewContentDto {
+  type: 'REVIEW';
+  id: string;
+  rating: number;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date | null;
+  deletedAt: Date | null;
+}
+
+export interface AdminReportDetailReportedArticleContentDto {
+  type: 'ARTICLE';
+  id: string;
+  category: PostsCategory;
+  title: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+export interface AdminReportDetailReportedCommentContentDto {
+  type: 'COMMENT';
+  id: string;
+  postId: number;
+  parentId: number | null;
+  content: string;
+  createdAt: Date;
+  deletedAt: Date | null;
+}
+
+/** 메시지는 soft-delete가 없어 deletedAt을 두지 않는다 */
+export interface AdminReportDetailReportedMessageContentDto {
+  type: 'MESSAGE';
+  id: string;
+  roomId: number;
+  messageType: MessageType;
+  content: string;
+  isFiltered: boolean;
+  createdAt: Date;
+}
+
+/**
+ * 신고된 콘텐츠 상세.
+ * USER처럼 별도 콘텐츠가 없거나 조회 실패면 상위 reportedContent를 null로 둔다.
+ */
+export type AdminReportDetailReportedContentDto =
+  | AdminReportDetailReportedReviewContentDto
+  | AdminReportDetailReportedArticleContentDto
+  | AdminReportDetailReportedCommentContentDto
+  | AdminReportDetailReportedMessageContentDto;
+
+/**
+ * 관리자 신고 처리(resolve) 결과.
+ * Action은 UserReport에 저장하지 않으므로 응답으로만 돌려준다.
+ */
+export interface AdminReportResolveResultDto {
+  reportId: number;
+  status: UserReportStatus;
+  adminId: number;
+  /** 요청·적용한 Action 목록 (저장 컬럼 없음) */
+  actions: AdminReportProcessAction[];
+  processedAt: Date;
+  /**
+   * DELETE_REPORTED_CONTENT가 포함된 경우에만 채운다.
+   * true면 이미 삭제된 콘텐츠를 성공으로 간주한 경우.
+   */
+  contentAlreadyDeleted: boolean | null;
+}
+
+/**
+ * 관리자 신고 반려(reject) 결과.
+ * Action이 없으므로 resolve 결과와 분리한다.
+ */
+export interface AdminReportRejectResultDto {
+  reportId: number;
+  status: UserReportStatus;
+  adminId: number;
+  /** 응답용 처리 시각 — ERD에 별도 저장 컬럼 없음 */
+  processedAt: Date;
 }
 
 /**
@@ -238,6 +334,7 @@ export interface AdminReportDetailContentDto {
  */
 export interface AdminReportDetailDto {
   id: number;
+  /** Prisma 저장값. 상세 조립은 SupportedReportTarget만 처리한다. */
   target: UserReportTarget;
   targetId: string;
   category: UserReportCategory;
@@ -251,4 +348,9 @@ export interface AdminReportDetailDto {
   targetInfo: AdminReportDetailTargetDto;
   /** USER 신고이거나 콘텐츠를 조회할 수 없으면 null */
   content: AdminReportDetailContentDto | null;
+  /** 정지 Action용 대상 사용자. 없으면 null */
+  targetUser: AdminReportDetailTargetUserDto | null;
+  /** 콘텐츠 삭제 Action·표시용. USER·미존재면 null */
+  reportedContent: AdminReportDetailReportedContentDto | null;
+  availableActions: AdminReportAvailableActionsDto;
 }

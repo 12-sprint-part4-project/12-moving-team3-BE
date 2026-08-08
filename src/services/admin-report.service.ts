@@ -1,48 +1,91 @@
 import {
   Prisma,
   UserReportStatus,
+  UserStatus,
   type UserReportTarget,
   type UserType,
 } from '@prisma/client';
+import {
+  isSupportedReportTarget,
+  type SupportedReportTarget,
+} from '../constants/report-target.constants';
 import type {
+  AdminReportAvailableActionsDto,
   AdminReportDetailContentDto,
   AdminReportDetailCustomerProfileDto,
   AdminReportDetailDto,
   AdminReportDetailMoverProfileDto,
+  AdminReportDetailReportedContentDto,
   AdminReportDetailReporterDto,
   AdminReportDetailTargetDto,
+  AdminReportDetailTargetUserDto,
   AdminReportDetailUserProfileDto,
   AdminReportDetailUserSummaryDto,
   AdminReportListItemDto,
   AdminReportListResultDto,
+  AdminReportRejectResultDto,
+  AdminReportResolveResultDto,
   AdminReportTargetInfoDto,
 } from '../dtos/admin-report.dto';
+import { prisma } from '../lib/prisma';
 import {
   findAdminReportById,
   findAdminReportsWithCount,
   findReportDetailTargetArticleById,
-  findReportDetailTargetChatRoomById,
   findReportDetailTargetCommentById,
   findReportDetailTargetMessageById,
   findReportDetailTargetReviewById,
   findReportDetailTargetUserById,
+  findReportReportedContent,
+  findReportSanctionTargetUser,
   findReportTargetArticlesByIds,
-  findReportTargetChatRoomsByIds,
   findReportTargetCommentsByIds,
   findReportTargetIdsByTargetUserKeyword,
   findReportTargetMessagesByIds,
   findReportTargetReviewsByIds,
   findReportTargetUsersByIds,
   getTotalReportCount,
+  lockAdminReportForStatusChange,
   parseNumericTargetId,
+  softDeleteReportReportedContent,
+  updateAdminReportDecisionStatus,
   type AdminReportDetailRow,
   type AdminReportListRow,
   type AdminReportTargetIdsByKeyword,
+  type FindReportReportedContentResult,
+  type FindReportSanctionTargetUserResult,
+  type ReportSanctionTargetUserRow,
 } from '../repositories/admin-report.repository';
-import type { AdminReportListQuery } from '../schemas/admin-report.schema';
+import { lockAdminMemberForStatusChange } from '../repositories/admin-member.repository';
+import { upsertSuspendedUserStatus } from '../repositories/user-status.repository';
+import type {
+  AdminReportListQuery,
+  AdminReportProcessAction,
+} from '../schemas/admin-report.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { AppError } from '../utils/app.error';
 import { createDateRange } from '../utils/admin-date-range.util';
+
+/** 관리자 신고 정지 기간 — 회원 수동 정지와 동일하게 7일 고정 */
+const ADMIN_REPORT_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** 처리·반려 interactive transaction — 잠금 대기·전체 실행 상한 */
+const ADMIN_REPORT_DECISION_TX_OPTIONS = {
+  maxWait: 5_000,
+  timeout: 10_000,
+} as const;
+
+/** 신고 대상별 허용 Action — DTO 통과 후에도 Service에서 다시 검증한다 */
+const ALLOWED_ACTIONS_BY_TARGET: Record<
+  SupportedReportTarget,
+  ReadonlySet<AdminReportProcessAction>
+> = {
+  USER: new Set(['SUSPEND_TARGET_USER']),
+  MESSAGE: new Set(['SUSPEND_TARGET_USER']),
+  REVIEW: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
+  ARTICLE: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
+  COMMENT: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
+};
 
 export const getReportStatistics = async ({
   startDate,
@@ -88,35 +131,35 @@ const loadTargetInfoMap = async (
 ): Promise<Map<string, AdminReportTargetInfoDto>> => {
   const infoByKey = new Map<string, AdminReportTargetInfoDto>();
 
-  const idsByTarget: Record<UserReportTarget, string[]> = {
+  const idsByTarget: Record<SupportedReportTarget, string[]> = {
     USER: [],
     REVIEW: [],
-    CHAT_ROOM: [],
     MESSAGE: [],
     ARTICLE: [],
     COMMENT: [],
   };
 
   for (const item of items) {
+    // 지원 대상만 배치 조회한다. 그 외 target은 targetInfo null로 남긴다.
+    if (!isSupportedReportTarget(item.target)) {
+      continue;
+    }
     idsByTarget[item.target].push(item.targetId);
   }
 
   const userIds = [...new Set(idsByTarget.USER)];
   const reviewIds = toUniqueNumericTargetIds(idsByTarget.REVIEW);
-  const chatRoomIds = toUniqueNumericTargetIds(idsByTarget.CHAT_ROOM);
   const messageIds = toUniqueNumericTargetIds(idsByTarget.MESSAGE);
   const articleIds = toUniqueNumericTargetIds(idsByTarget.ARTICLE);
   const commentIds = toUniqueNumericTargetIds(idsByTarget.COMMENT);
 
-  const [users, reviews, chatRooms, messages, articles, comments] =
-    await Promise.all([
-      findReportTargetUsersByIds(userIds),
-      findReportTargetReviewsByIds(reviewIds),
-      findReportTargetChatRoomsByIds(chatRoomIds),
-      findReportTargetMessagesByIds(messageIds),
-      findReportTargetArticlesByIds(articleIds),
-      findReportTargetCommentsByIds(commentIds),
-    ]);
+  const [users, reviews, messages, articles, comments] = await Promise.all([
+    findReportTargetUsersByIds(userIds),
+    findReportTargetReviewsByIds(reviewIds),
+    findReportTargetMessagesByIds(messageIds),
+    findReportTargetArticlesByIds(articleIds),
+    findReportTargetCommentsByIds(commentIds),
+  ]);
 
   for (const user of users) {
     infoByKey.set(`USER:${user.id}`, {
@@ -142,15 +185,6 @@ const loadTargetInfoMap = async (
             nickname: review.user.nickname,
           }
         : null,
-    });
-  }
-
-  for (const room of chatRooms) {
-    infoByKey.set(`CHAT_ROOM:${room.id}`, {
-      type: 'CHAT_ROOM',
-      id: room.id,
-      roomType: room.roomType,
-      createdAt: room.createdAt,
     });
   }
 
@@ -205,7 +239,10 @@ const loadTargetInfoMap = async (
 };
 
 /** 대상 조회 키 — Int PK는 숫자로 정규화해 Map lookup과 맞춘다 */
-const toTargetInfoKey = (target: UserReportTarget, targetId: string): string => {
+const toTargetInfoKey = (
+  target: SupportedReportTarget,
+  targetId: string
+): string => {
   if (target === 'USER') {
     return `USER:${targetId}`;
   }
@@ -232,9 +269,10 @@ const toAdminReportListItem = (
   },
   target: row.target,
   targetId: row.targetId,
-  // 삭제되었거나 targetId가 깨진 경우 null로 내려 목록 UI가 fallback 처리할 수 있게 한다.
-  targetInfo:
-    targetInfoMap.get(toTargetInfoKey(row.target, row.targetId)) ?? null,
+  // 지원 대상만 Map에 넣으므로, 그 외·삭제·깨진 targetId는 null이다.
+  targetInfo: isSupportedReportTarget(row.target)
+    ? (targetInfoMap.get(toTargetInfoKey(row.target, row.targetId)) ?? null)
+    : null,
   category: row.category,
   status: row.status,
   createdAt: row.createdAt,
@@ -378,7 +416,7 @@ const toDetailReporter = (
 
 /** 대상 미존재 시에도 targetInfo 객체 형태를 유지한다 */
 const toMissingTargetInfo = (
-  type: UserReportTarget,
+  type: SupportedReportTarget,
   targetId: string
 ): AdminReportDetailTargetDto => ({
   type,
@@ -407,7 +445,7 @@ type DetailTargetBundle = {
 
 /** 대상 없음·잘못된 targetId 공통 fallback — 신고 상세 응답 구조는 유지한다 */
 const toMissingTargetBundle = (
-  type: UserReportTarget,
+  type: SupportedReportTarget,
   targetId: string
 ): DetailTargetBundle => ({
   targetInfo: toMissingTargetInfo(type, targetId),
@@ -475,45 +513,6 @@ const loadReviewReportTarget = async (
       createdAt: review.createdAt,
       deletedAt: review.deletedAt,
       metadata: { rating: review.rating },
-    },
-  };
-};
-
-/** CHAT_ROOM 대상 상세 — soft-delete 컬럼이 없어 존재 시 isDeleted: false */
-const loadChatRoomReportTarget = async (
-  targetId: string
-): Promise<DetailTargetBundle> => {
-  const id = parseNumericTargetId(targetId);
-  if (id === null) {
-    return toMissingTargetBundle('CHAT_ROOM', targetId);
-  }
-
-  const room = await findReportDetailTargetChatRoomById(id);
-  if (!room) {
-    return toMissingTargetBundle('CHAT_ROOM', targetId);
-  }
-
-  return {
-    targetInfo: {
-      type: 'CHAT_ROOM',
-      id: targetId,
-      exists: true,
-      isDeleted: false,
-      user: null,
-    },
-    content: {
-      type: 'CHAT_ROOM',
-      id: String(room.id),
-      title: '채팅방',
-      body: null,
-      createdAt: room.createdAt,
-      deletedAt: null,
-      metadata: {
-        roomType: room.roomType,
-        estimateRequestId: room.estimateRequestId,
-        quoteId: room.quoteId,
-        lastMessageAt: room.lastMessageAt,
-      },
     },
   };
 };
@@ -629,7 +628,7 @@ const loadCommentReportTarget = async (
 
 /** target 타입별 Repository 조회 후 targetInfo·content를 조립한다 */
 const loadReportDetailTarget = async (
-  target: UserReportTarget,
+  target: SupportedReportTarget,
   targetId: string
 ): Promise<DetailTargetBundle> => {
   switch (target) {
@@ -637,23 +636,141 @@ const loadReportDetailTarget = async (
       return loadUserReportTarget(targetId);
     case 'REVIEW':
       return loadReviewReportTarget(targetId);
-    case 'CHAT_ROOM':
-      return loadChatRoomReportTarget(targetId);
     case 'MESSAGE':
       return loadMessageReportTarget(targetId);
     case 'ARTICLE':
       return loadArticleReportTarget(targetId);
     case 'COMMENT':
       return loadCommentReportTarget(targetId);
-    default:
-      // Prisma enum 외 값이 들어오면 대상 없음으로 안전하게 처리한다.
-      return toMissingTargetBundle(target, targetId);
+    default: {
+      // 지원 대상 union이 늘어나도 누락 분기 없이 구조를 유지한다.
+      const exhaustive: never = target;
+      return toMissingTargetBundle(exhaustive, targetId);
+    }
   }
 };
 
 /**
+ * 제재 대상 사용자 행 → 상세 DTO.
+ * userStatus가 없으면 회원 목록과 같이 ACTIVE·null로 정규화한다.
+ */
+const toDetailTargetUser = (
+  user: ReportSanctionTargetUserRow
+): AdminReportDetailTargetUserDto => ({
+  id: user.id,
+  name: user.name,
+  nickname: user.nickname,
+  status: user.userStatus?.status ?? UserStatus.ACTIVE,
+  suspendedAt: user.userStatus?.suspendedAt ?? null,
+  suspendedUntil: user.userStatus?.suspendedUntil ?? null,
+});
+
+const toDetailTargetUserFromResult = (
+  result: FindReportSanctionTargetUserResult
+): AdminReportDetailTargetUserDto | null => {
+  if (result.kind !== 'found') {
+    return null;
+  }
+
+  return toDetailTargetUser(result.user);
+};
+
+/** 신고 콘텐츠 조회 결과 → 판별 가능한 reportedContent DTO */
+const toReportedContentFromResult = (
+  result: FindReportReportedContentResult
+): AdminReportDetailReportedContentDto | null => {
+  switch (result.kind) {
+    case 'review':
+      return {
+        type: 'REVIEW',
+        id: String(result.content.id),
+        rating: result.content.rating,
+        content: result.content.content,
+        createdAt: result.content.createdAt,
+        updatedAt: result.content.updatedAt,
+        deletedAt: result.content.deletedAt,
+      };
+    case 'article':
+      return {
+        type: 'ARTICLE',
+        id: String(result.content.id),
+        category: result.content.category,
+        title: result.content.title,
+        content: result.content.content,
+        createdAt: result.content.createdAt,
+        updatedAt: result.content.updatedAt,
+        deletedAt: result.content.deletedAt,
+      };
+    case 'comment':
+      return {
+        type: 'COMMENT',
+        id: String(result.content.id),
+        postId: result.content.postId,
+        parentId: result.content.parentId,
+        content: result.content.content,
+        createdAt: result.content.createdAt,
+        deletedAt: result.content.deletedAt,
+      };
+    case 'message':
+      return {
+        type: 'MESSAGE',
+        id: String(result.content.id),
+        roomId: result.content.roomId,
+        messageType: result.content.messageType,
+        content: result.content.content,
+        isFiltered: result.content.isFiltered,
+        createdAt: result.content.createdAt,
+      };
+    case 'no_content':
+    case 'not_found':
+    case 'invalid_target_id':
+      return null;
+    default:
+      return null;
+  }
+};
+
+/**
+ * availableActions 계산.
+ * PENDING이 아니거나 대상을 못 찾으면 해당 Action은 false.
+ * 삭제된 사용자는 정지 잠금이 실패하므로 canSuspendUser를 false로 둔다.
+ * 이미 SUSPENDED여도 PENDING·활성 사용자면 정지 Action은 허용한다.
+ */
+const toAvailableActions = (
+  status: UserReportStatus,
+  target: SupportedReportTarget,
+  userResult: FindReportSanctionTargetUserResult,
+  contentResult: FindReportReportedContentResult
+): AdminReportAvailableActionsDto => {
+  if (status !== UserReportStatus.PENDING) {
+    return { canSuspendUser: false, canDeleteContent: false };
+  }
+
+  // 처리 Service 잠금과 맞춰, soft-delete된 사용자에게는 정지 Action을 숨긴다.
+  const canSuspendUser =
+    userResult.kind === 'found' && userResult.user.deletedAt === null;
+
+  if (target === 'USER' || target === 'MESSAGE') {
+    return { canSuspendUser, canDeleteContent: false };
+  }
+
+  if (
+    contentResult.kind === 'review' ||
+    contentResult.kind === 'article' ||
+    contentResult.kind === 'comment'
+  ) {
+    return {
+      canSuspendUser,
+      canDeleteContent: contentResult.content.deletedAt === null,
+    };
+  }
+
+  return { canSuspendUser, canDeleteContent: false };
+};
+
+/**
  * 관리자 신고 상세 조회.
- * Repository에서 신고·대상을 조회한 뒤 AdminReportDetailDto로 매핑한다.
+ * 기존 targetInfo/content는 유지하고, 처리 Action용 targetUser·reportedContent를 추가한다.
  */
 export const getAdminReportDetail = async (
   reportId: number
@@ -665,10 +782,29 @@ export const getAdminReportDetail = async (
     throw new AppError('ADMIN_REPORT_NOT_FOUND');
   }
 
-  const { targetInfo, content } = await loadReportDetailTarget(
-    report.target,
-    report.targetId
-  );
+  // 앱에서 다루지 않는 대상은 상세 조립·Action 계산을 하지 않는다.
+  if (!isSupportedReportTarget(report.target)) {
+    throw new AppError('ADMIN_REPORT_UNSUPPORTED_TARGET');
+  }
+
+  // 기존 상세 조립과 Action용 조회를 병렬로 수행한다.
+  // (완전 중복 제거 리팩터는 하지 않고, 응답 계약만 확장한다.)
+  const [detailBundle, sanctionUserResult, reportedContentResult] =
+    await Promise.all([
+      loadReportDetailTarget(report.target, report.targetId),
+      findReportSanctionTargetUser(report.target, report.targetId),
+      findReportReportedContent(report.target, report.targetId),
+    ]);
+
+  // 저장된 targetId 형식 이상은 요청 400이 아니라 서버 데이터 오류로 본다.
+  if (
+    sanctionUserResult.kind === 'invalid_target_id' ||
+    reportedContentResult.kind === 'invalid_target_id'
+  ) {
+    throw new AppError('INTERNAL_SERVER_ERROR');
+  }
+
+  const { targetInfo, content } = detailBundle;
 
   return {
     id: report.id,
@@ -688,5 +824,238 @@ export const getAdminReportDetail = async (
     reporter: toDetailReporter(report.reporter),
     targetInfo,
     content,
+    targetUser: toDetailTargetUserFromResult(sanctionUserResult),
+    reportedContent: toReportedContentFromResult(reportedContentResult),
+    availableActions: toAvailableActions(
+      report.status,
+      report.target,
+      sanctionUserResult,
+      reportedContentResult
+    ),
   };
+};
+
+export type ResolveAdminReportInput = {
+  reportId: number;
+  adminId: number;
+  actions: AdminReportProcessAction[];
+};
+
+/** 신고 대상에 요청 Action이 모두 허용되는지 검사한다 */
+const assertActionsAllowedForTarget = (
+  target: UserReportTarget,
+  actions: AdminReportProcessAction[]
+) => {
+  if (!isSupportedReportTarget(target)) {
+    throw new AppError('ADMIN_REPORT_UNSUPPORTED_TARGET');
+  }
+
+  // DTO min(1)과 별도로, 빈 actions로 조치 없이 RESOLVED 되는 경로를 막는다.
+  if (actions.length === 0) {
+    throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+  }
+
+  const allowed = ALLOWED_ACTIONS_BY_TARGET[target];
+
+  for (const action of actions) {
+    if (!allowed.has(action)) {
+      throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+    }
+  }
+};
+
+/**
+ * SUSPEND_TARGET_USER — 대상 사용자 조회·잠금 후 7일 정지.
+ * 기존 종료일이 더 미래면 upsertSuspendedUserStatus가 기간을 보존한다.
+ */
+const executeSuspendTargetUser = async (
+  target: UserReportTarget,
+  targetId: string,
+  processedAt: Date,
+  tx: Prisma.TransactionClient
+) => {
+  const userResult = await findReportSanctionTargetUser(target, targetId, tx);
+
+  if (userResult.kind === 'invalid_target_id') {
+    // 저장된 신고 targetId 이상 — 요청 400이 아니다.
+    throw new AppError('INTERNAL_SERVER_ERROR');
+  }
+
+  if (userResult.kind === 'not_found') {
+    throw new AppError('ADMIN_REPORT_TARGET_USER_NOT_FOUND');
+  }
+
+  const lockedUser = await lockAdminMemberForStatusChange(
+    userResult.user.id,
+    tx
+  );
+
+  // soft-delete 회원은 잠금 대상에서 제외되므로 대상 없음으로 본다.
+  if (!lockedUser) {
+    throw new AppError('ADMIN_REPORT_TARGET_USER_NOT_FOUND');
+  }
+
+  await upsertSuspendedUserStatus(
+    {
+      userId: userResult.user.id,
+      suspendedAt: processedAt,
+      suspendedUntil: new Date(
+        processedAt.getTime() + ADMIN_REPORT_SUSPEND_DURATION_MS
+      ),
+    },
+    tx
+  );
+};
+
+/**
+ * DELETE_REPORTED_CONTENT — Repository soft delete 결과를 Service 오류로 매핑한다.
+ * already_deleted는 성공으로 보고 신고 처리를 계속한다.
+ */
+const executeDeleteReportedContent = async (
+  target: UserReportTarget,
+  targetId: string,
+  processedAt: Date,
+  tx: Prisma.TransactionClient
+): Promise<boolean> => {
+  const deleteResult = await softDeleteReportReportedContent(
+    target,
+    targetId,
+    processedAt,
+    tx
+  );
+
+  switch (deleteResult.kind) {
+    case 'deleted':
+      return false;
+    case 'already_deleted':
+      return true;
+    case 'not_found':
+      throw new AppError('ADMIN_REPORT_CONTENT_NOT_FOUND');
+    case 'invalid_target_id':
+      throw new AppError('INTERNAL_SERVER_ERROR');
+    case 'unsupported_target':
+      throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+    default:
+      throw new AppError('ADMIN_REPORT_INVALID_ACTIONS');
+  }
+};
+
+/**
+ * 관리자 신고 처리.
+ * 신고 잠금 → Action 검증·실행 → RESOLVED를 한 트랜잭션으로 묶는다.
+ * adminId는 인증 정보에서 전달받으며 요청 body에 두지 않는다.
+ */
+export const resolveAdminReport = async ({
+  reportId,
+  adminId,
+  actions,
+}: ResolveAdminReportInput): Promise<AdminReportResolveResultDto> => {
+  // 정지·삭제·상태 변경에 동일 시각을 쓴다.
+  const processedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    const report = await lockAdminReportForStatusChange(reportId, tx);
+
+    if (!report) {
+      throw new AppError('ADMIN_REPORT_NOT_FOUND');
+    }
+
+    if (report.status !== UserReportStatus.PENDING) {
+      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+    }
+
+    assertActionsAllowedForTarget(report.target, actions);
+
+    const shouldSuspend = actions.includes('SUSPEND_TARGET_USER');
+    const shouldDelete = actions.includes('DELETE_REPORTED_CONTENT');
+
+    if (shouldSuspend) {
+      await executeSuspendTargetUser(
+        report.target,
+        report.targetId,
+        processedAt,
+        tx
+      );
+    }
+
+    let contentAlreadyDeleted: boolean | null = null;
+
+    if (shouldDelete) {
+      contentAlreadyDeleted = await executeDeleteReportedContent(
+        report.target,
+        report.targetId,
+        processedAt,
+        tx
+      );
+    }
+
+    const statusUpdate = await updateAdminReportDecisionStatus(
+      reportId,
+      adminId,
+      UserReportStatus.RESOLVED,
+      tx
+    );
+
+    // 같은 트랜잭션에서 PENDING을 확인했으므로 실패는 경합·이상 상태로 본다.
+    if (statusUpdate.kind === 'not_updated') {
+      throw new AppError('ADMIN_REPORT_CONFLICT');
+    }
+
+    return {
+      reportId: statusUpdate.report.id,
+      status: statusUpdate.report.status,
+      adminId: statusUpdate.report.adminId,
+      actions,
+      processedAt,
+      contentAlreadyDeleted,
+    };
+  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
+};
+
+export type RejectAdminReportInput = {
+  reportId: number;
+  adminId: number;
+};
+
+/**
+ * 관리자 신고 반려.
+ * 신고 잠금 후 PENDING → REJECTED만 수행한다.
+ * 사용자·콘텐츠 제재는 하지 않으며, 대상 존재 여부와 무관하게 반려할 수 있다.
+ */
+export const rejectAdminReport = async ({
+  reportId,
+  adminId,
+}: RejectAdminReportInput): Promise<AdminReportRejectResultDto> => {
+  const processedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
+    const report = await lockAdminReportForStatusChange(reportId, tx);
+
+    if (!report) {
+      throw new AppError('ADMIN_REPORT_NOT_FOUND');
+    }
+
+    if (report.status !== UserReportStatus.PENDING) {
+      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+    }
+
+    const statusUpdate = await updateAdminReportDecisionStatus(
+      reportId,
+      adminId,
+      UserReportStatus.REJECTED,
+      tx
+    );
+
+    if (statusUpdate.kind === 'not_updated') {
+      throw new AppError('ADMIN_REPORT_CONFLICT');
+    }
+
+    return {
+      reportId: statusUpdate.report.id,
+      status: statusUpdate.report.status,
+      adminId: statusUpdate.report.adminId,
+      processedAt,
+    };
+  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
 };

@@ -1,5 +1,6 @@
-import { UserReportStatus, UserReportTarget } from '@prisma/client';
+import { UserReportStatus } from '@prisma/client';
 import { z } from 'zod';
+import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target.constants';
 import { listQuerySchema } from './admin-list-query.schema';
 
 /**
@@ -19,8 +20,8 @@ export const adminReportListQuerySchema = listQuerySchema
   .extend({
     // UserReport.status와 동일한 Prisma enum만 허용해 잘못된 값이 DB까지 내려가지 않게 한다.
     status: z.enum(UserReportStatus).optional(),
-    // UserReport.target과 동일한 Prisma enum만 허용해 대상 유형 필터 의미를 스키마와 일치시킨다.
-    target: z.enum(UserReportTarget).optional(),
+    // Prisma enum 전체가 아니라 앱에서 지원하는 신고 대상만 필터로 받는다.
+    target: z.enum(SUPPORTED_REPORT_TARGETS).optional(),
     // 공백만 있는 검색어는 의미가 없고, listQuerySchema.search와 같이 trim + min(1)로 맞춘다.
     // (실제 where 적용은 이후 커밋 — 여기서는 요청 계약만 고정한다.)
     targetUserKeyword: z.string().trim().min(1).optional(),
@@ -45,4 +46,40 @@ export const adminReportDetailParamsSchema = z.object({
 
 export type AdminReportDetailParams = z.infer<
   typeof adminReportDetailParamsSchema
+>;
+
+/**
+ * 신고 처리(resolve) 시 관리자가 선택할 수 있는 Action.
+ * Prisma enum이 아니라 요청 계약 전용 — DB 컬럼과 1:1로 묶이지 않게 스키마에 둔다.
+ */
+export const ADMIN_REPORT_PROCESS_ACTIONS = [
+  'SUSPEND_TARGET_USER',
+  'DELETE_REPORTED_CONTENT',
+] as const;
+
+export const adminReportProcessActionSchema = z.enum(
+  ADMIN_REPORT_PROCESS_ACTIONS
+);
+
+export type AdminReportProcessAction = z.infer<
+  typeof adminReportProcessActionSchema
+>;
+
+/**
+ * 신고 처리 요청 Body.
+ * 반려(reject) Body에는 actions를 두지 않는다 — 반려는 조치 없이 상태만 바꾼다.
+ */
+export const adminReportProcessBodySchema = z.object({
+  // 처리 API는 "무엇을 할지"가 핵심이라 actions를 필수로 둔다.
+  // 정의되지 않은 필드는 Zod 기본 정책(strip)으로 제거하고 검증은 통과시킨다.
+  actions: z
+    .array(adminReportProcessActionSchema)
+    // 빈 배열이면 처리/미처리가 모호해지므로 최소 1개를 요구한다.
+    .min(1)
+    // 같은 Action을 두 번 보내면 중복 실행·멱등성 이슈가 나기 쉬워 거부한다.
+    .refine((actions) => new Set(actions).size === actions.length),
+});
+
+export type AdminReportProcessBody = z.infer<
+  typeof adminReportProcessBodySchema
 >;

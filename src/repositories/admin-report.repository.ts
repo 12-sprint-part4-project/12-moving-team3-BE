@@ -1,4 +1,4 @@
-import { Prisma, UserReportTarget } from '@prisma/client';
+import { Prisma, UserReportStatus, UserReportTarget } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
@@ -56,14 +56,13 @@ export type AdminReportListRow = Prisma.UserReportGetPayload<{
 }>;
 
 /** 검색어로 찾은 대상 사용자·콘텐츠의 targetId 후보 (UserReport.targetId와 맞춰 string) */
-export type AdminReportTargetIdsByKeyword = {
+export interface AdminReportTargetIdsByKeyword {
   userIds: string[];
   reviewIds: string[];
   messageIds: string[];
   articleIds: string[];
   commentIds: string[];
-  chatRoomIds: string[];
-};
+}
 
 type AdminReportListWhereParams = Pick<
   AdminReportListQuery,
@@ -114,13 +113,6 @@ const buildTargetIdSearchOrConditions = (
     conditions.push({
       target: UserReportTarget.COMMENT,
       targetId: { in: targetIds.commentIds },
-    });
-  }
-
-  if (targetIds.chatRoomIds.length > 0) {
-    conditions.push({
-      target: UserReportTarget.CHAT_ROOM,
-      targetId: { in: targetIds.chatRoomIds },
     });
   }
 
@@ -215,7 +207,6 @@ const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
   messageIds: [],
   articleIds: [],
   commentIds: [],
-  chatRoomIds: [],
 };
 
 /**
@@ -225,7 +216,6 @@ const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
  * - USER: 일치 사용자 id
  * - REVIEW/ARTICLE/COMMENT: 작성자 userId
  * - MESSAGE: 발신자 senderId
- * - CHAT_ROOM: 참여자 participantId
  *
  * deletedAt은 걸지 않는다 — 탈퇴·삭제된 대상의 신고도 관리자가 검색할 수 있어야 한다.
  */
@@ -253,7 +243,7 @@ export const findReportTargetIdsByTargetUserKeyword = async (
 
   const userIds = matchedUsers.map((user) => user.id);
 
-  const [reviews, messages, articles, comments, chatRooms] = await Promise.all([
+  const [reviews, messages, articles, comments] = await Promise.all([
     db.review.findMany({
       where: { userId: { in: userIds } },
       select: { id: true },
@@ -278,17 +268,6 @@ export const findReportTargetIdsByTargetUserKeyword = async (
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
-    // 참여자 중 한 명이라도 검색 사용자면 해당 방 id를 후보에 넣는다.
-    db.chatRoom.findMany({
-      where: {
-        participants: {
-          some: { participantId: { in: userIds } },
-        },
-      },
-      select: { id: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
-    }),
   ]);
 
   return {
@@ -297,7 +276,6 @@ export const findReportTargetIdsByTargetUserKeyword = async (
     messageIds: messages.map((row) => String(row.id)),
     articleIds: articles.map((row) => String(row.id)),
     commentIds: comments.map((row) => String(row.id)),
-    chatRoomIds: chatRooms.map((row) => String(row.id)),
   };
 };
 
@@ -360,25 +338,6 @@ export const findReportTargetReviewsByIds = async (
       rating: true,
       content: true,
       user: { select: targetAuthorSelect },
-    },
-  });
-};
-
-/** CHAT_ROOM 대상 배치 조회 */
-export const findReportTargetChatRoomsByIds = async (
-  ids: number[],
-  db: DbClient = prisma
-) => {
-  if (ids.length === 0) {
-    return [];
-  }
-
-  return db.chatRoom.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      roomType: true,
-      createdAt: true,
     },
   });
 };
@@ -568,28 +527,6 @@ export const findReportDetailTargetReviewById = async (
 };
 
 /**
- * CHAT_ROOM 대상 단건.
- * ChatRoom에는 deletedAt이 없어 존재 여부만 확인한다.
- * participants는 상세 metadata에 쓰지 않으므로 조회하지 않는다.
- */
-export const findReportDetailTargetChatRoomById = async (
-  id: number,
-  db: DbClient = prisma
-) => {
-  return db.chatRoom.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      roomType: true,
-      createdAt: true,
-      lastMessageAt: true,
-      estimateRequestId: true,
-      quoteId: true,
-    },
-  });
-};
-
-/**
  * MESSAGE 대상 단건.
  * ChatMessage에는 deletedAt이 없고, 상세 DTO·목록과 같이 attachments는 조회하지 않는다.
  */
@@ -658,4 +595,564 @@ export const findReportDetailTargetCommentById = async (
       },
     },
   });
+};
+
+// --- 신고 처리: 제재 대상 사용자 조회 ---
+
+/**
+ * 정지 판단에 필요한 최소 사용자 필드.
+ * admin-member의 userStatus select와 맞춰 상태·정지 기간을 한 번에 가져온다.
+ */
+const reportSanctionTargetUserSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  // soft-delete된 사용자는 정지 잠금이 실패하므로 Action 가능 여부 판단에 필요
+  deletedAt: true,
+  userStatus: {
+    select: {
+      status: true,
+      suspendedAt: true,
+      suspendedUntil: true,
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+export type ReportSanctionTargetUserRow = Prisma.UserGetPayload<{
+  select: typeof reportSanctionTargetUserSelect;
+}>;
+
+/**
+ * 제재 대상 조회 결과.
+ * HTTP 결정은 Service가 하고, Repository는 실패 원인을 구분만 한다.
+ * - invalid_target_id: 형식 오류 — DB 조회 없이 조기 반환
+ * - not_found: 형식은 맞지만 대상/사용자가 없음
+ */
+export type FindReportSanctionTargetUserResult =
+  | { kind: 'found'; user: ReportSanctionTargetUserRow }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' };
+
+/** USER targetId(UUID) 형식 검사 — 잘못된 값으로 Prisma가 던지는 오류를 막기 위해 조회 전에 거른다 */
+const isUserTargetUuid = (targetId: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    targetId
+  );
+
+const toFoundSanctionUser = (
+  user: ReportSanctionTargetUserRow | null | undefined
+): FindReportSanctionTargetUserResult =>
+  user ? { kind: 'found', user } : { kind: 'not_found' };
+
+/**
+ * 신고 target/targetId로 정지 대상 사용자를 조회한다.
+ * 콘텐츠 대상은 관계(include)로 작성자·상태를 한 번에 가져온다.
+ * 콘텐츠 soft-delete 여부와 무관하게 작성자를 찾아야 제재가 가능하므로 deletedAt 필터는 두지 않는다.
+ * MESSAGE는 soft-delete 컬럼이 없고, 이 메서드는 메시지도 삭제하지 않는다.
+ */
+export const findReportSanctionTargetUser = async (
+  target: UserReportTarget,
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportSanctionTargetUserResult> => {
+  if (target === UserReportTarget.USER) {
+    if (!isUserTargetUuid(targetId)) {
+      return { kind: 'invalid_target_id' };
+    }
+
+    const user = await db.user.findUnique({
+      where: { id: targetId },
+      select: reportSanctionTargetUserSelect,
+    });
+
+    return toFoundSanctionUser(user);
+  }
+
+  // MESSAGE/REVIEW/ARTICLE/COMMENT의 targetId는 Int PK 문자열이다.
+  const numericId = parseNumericTargetId(targetId);
+  if (numericId === null) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  switch (target) {
+    case UserReportTarget.MESSAGE: {
+      const message = await db.chatMessage.findUnique({
+        where: { id: numericId },
+        select: {
+          sender: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(message?.sender);
+    }
+    case UserReportTarget.REVIEW: {
+      const review = await db.review.findUnique({
+        where: { id: numericId },
+        select: {
+          user: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(review?.user);
+    }
+    case UserReportTarget.ARTICLE: {
+      // UserReportTarget.ARTICLE → Post 모델
+      const article = await db.post.findUnique({
+        where: { id: numericId },
+        select: {
+          user: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(article?.user);
+    }
+    case UserReportTarget.COMMENT: {
+      const comment = await db.comment.findUnique({
+        where: { id: numericId },
+        select: {
+          user: { select: reportSanctionTargetUserSelect },
+        },
+      });
+
+      return toFoundSanctionUser(comment?.user);
+    }
+    default:
+      return { kind: 'not_found' };
+  }
+};
+
+// --- 신고 처리: 신고 콘텐츠 조회 ---
+
+/** REVIEW 콘텐츠 — soft-delete 후에도 상세·삭제 처리에 쓸 최소 필드 */
+const reportedReviewContentSelect = {
+  id: true,
+  userId: true,
+  rating: true,
+  content: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.ReviewSelect;
+
+/** ARTICLE(Post) 콘텐츠 — UserReportTarget.ARTICLE은 Post 모델에 대응한다 */
+const reportedArticleContentSelect = {
+  id: true,
+  userId: true,
+  category: true,
+  title: true,
+  content: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.PostSelect;
+
+/** COMMENT 콘텐츠 — soft-delete 행도 포함해 관리자가 원문을 확인할 수 있게 한다 */
+const reportedCommentContentSelect = {
+  id: true,
+  userId: true,
+  postId: true,
+  parentId: true,
+  content: true,
+  createdAt: true,
+  deletedAt: true,
+} satisfies Prisma.CommentSelect;
+
+/**
+ * MESSAGE 콘텐츠.
+ * ChatMessage에는 deletedAt이 없고, 이번 메서드는 메시지도 삭제하지 않는다.
+ */
+const reportedMessageContentSelect = {
+  id: true,
+  senderId: true,
+  roomId: true,
+  messageType: true,
+  content: true,
+  isFiltered: true,
+  createdAt: true,
+} satisfies Prisma.ChatMessageSelect;
+
+export type ReportedReviewContentRow = Prisma.ReviewGetPayload<{
+  select: typeof reportedReviewContentSelect;
+}>;
+
+export type ReportedArticleContentRow = Prisma.PostGetPayload<{
+  select: typeof reportedArticleContentSelect;
+}>;
+
+export type ReportedCommentContentRow = Prisma.CommentGetPayload<{
+  select: typeof reportedCommentContentSelect;
+}>;
+
+export type ReportedMessageContentRow = Prisma.ChatMessageGetPayload<{
+  select: typeof reportedMessageContentSelect;
+}>;
+
+/**
+ * 신고 콘텐츠 조회 결과.
+ * HTTP는 Service가 결정하고, Repository는 대상별 데이터·실패 원인만 구분한다.
+ * invalid_target_id는 요청 검증 오류가 아니라 저장된 신고 targetId 형식 이상일 수 있다.
+ */
+export type FindReportReportedContentResult =
+  | { kind: 'review'; content: ReportedReviewContentRow }
+  | { kind: 'article'; content: ReportedArticleContentRow }
+  | { kind: 'comment'; content: ReportedCommentContentRow }
+  | { kind: 'message'; content: ReportedMessageContentRow }
+  | { kind: 'no_content' }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' };
+
+/**
+ * 신고 target/targetId로 신고된 콘텐츠를 조회한다.
+ * 상세 화면의 콘텐츠 영역과 이후 soft-delete Action이 같은 계약을 쓰도록 최소 필드를 고정한다.
+ * deletedAt 필터를 두지 않아 이미 삭제된 콘텐츠도 반환한다.
+ */
+export const findReportReportedContent = async (
+  target: UserReportTarget,
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportReportedContentResult> => {
+  // USER 신고는 별도 콘텐츠 row가 없다 — 프로필은 사용자 조회 경로를 쓴다.
+  if (target === UserReportTarget.USER) {
+    return { kind: 'no_content' };
+  }
+
+  const numericId = parseNumericTargetId(targetId);
+  if (numericId === null) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  switch (target) {
+    case UserReportTarget.REVIEW: {
+      const content = await db.review.findUnique({
+        where: { id: numericId },
+        select: reportedReviewContentSelect,
+      });
+
+      return content
+        ? { kind: 'review', content }
+        : { kind: 'not_found' };
+    }
+    case UserReportTarget.ARTICLE: {
+      const content = await db.post.findUnique({
+        where: { id: numericId },
+        select: reportedArticleContentSelect,
+      });
+
+      return content
+        ? { kind: 'article', content }
+        : { kind: 'not_found' };
+    }
+    case UserReportTarget.COMMENT: {
+      const content = await db.comment.findUnique({
+        where: { id: numericId },
+        select: reportedCommentContentSelect,
+      });
+
+      return content
+        ? { kind: 'comment', content }
+        : { kind: 'not_found' };
+    }
+    case UserReportTarget.MESSAGE: {
+      const content = await db.chatMessage.findUnique({
+        where: { id: numericId },
+        select: reportedMessageContentSelect,
+      });
+
+      return content
+        ? { kind: 'message', content }
+        : { kind: 'not_found' };
+    }
+    default:
+      return { kind: 'not_found' };
+  }
+};
+
+// --- 신고 처리: 신고 콘텐츠 soft delete ---
+
+/** soft delete 가능한 신고 콘텐츠 대상 */
+export type SoftDeletableReportTarget =
+  | typeof UserReportTarget.REVIEW
+  | typeof UserReportTarget.ARTICLE
+  | typeof UserReportTarget.COMMENT;
+
+/**
+ * 신고 콘텐츠 soft delete 결과.
+ * HTTP는 Service가 결정하고, 이미 삭제됨/미존재/형식 오류를 Repository에서 구분한다.
+ */
+export type SoftDeleteReportReportedContentResult =
+  | {
+      kind: 'deleted';
+      target: SoftDeletableReportTarget;
+      id: number;
+    }
+  | {
+      kind: 'already_deleted';
+      target: SoftDeletableReportTarget;
+      id: number;
+    }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' }
+  | { kind: 'unsupported_target' };
+
+/**
+ * 조건부 soft delete가 0건일 때 미존재/이미 삭제를 구분한다.
+ * updateMany(count=0)만으로는 원인을 알 수 없어 한 번 더 조회한다.
+ */
+const resolveSoftDeleteMiss = async (
+  target: SoftDeletableReportTarget,
+  id: number,
+  deletedAt: Date | null | undefined
+): Promise<SoftDeleteReportReportedContentResult> => {
+  // 행 없음만 not_found. deletedAt이 있거나(이미 삭제) null인 경합도 already_deleted.
+  if (deletedAt === undefined) {
+    return { kind: 'not_found' };
+  }
+
+  return { kind: 'already_deleted', target, id };
+};
+
+const softDeleteReviewContent = async (
+  id: number,
+  deletedAt: Date,
+  db: DbClient
+): Promise<SoftDeleteReportReportedContentResult> => {
+  // id + deletedAt IS NULL 조건부 갱신으로 동시 삭제 시 한 요청만 성공하게 한다.
+  const updateResult = await db.review.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt },
+  });
+
+  if (updateResult.count === 1) {
+    return {
+      kind: 'deleted',
+      target: UserReportTarget.REVIEW,
+      id,
+    };
+  }
+
+  const review = await db.review.findUnique({
+    where: { id },
+    select: { id: true, deletedAt: true },
+  });
+
+  return resolveSoftDeleteMiss(
+    UserReportTarget.REVIEW,
+    id,
+    review?.deletedAt
+  );
+};
+
+const softDeleteArticleContent = async (
+  id: number,
+  deletedAt: Date,
+  db: DbClient
+): Promise<SoftDeleteReportReportedContentResult> => {
+  const updateResult = await db.post.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt },
+  });
+
+  if (updateResult.count === 1) {
+    return {
+      kind: 'deleted',
+      target: UserReportTarget.ARTICLE,
+      id,
+    };
+  }
+
+  const article = await db.post.findUnique({
+    where: { id },
+    select: { id: true, deletedAt: true },
+  });
+
+  return resolveSoftDeleteMiss(
+    UserReportTarget.ARTICLE,
+    id,
+    article?.deletedAt
+  );
+};
+
+/**
+ * 신고된 댓글 soft delete — 사용자 softDeleteComment와 동일하게
+ * 부모 + 활성 직계 대댓글을 함께 지우고, 실제 삭제 수만큼 commentCount를 줄인다.
+ * 자체 트랜잭션은 열지 않고 전달받은 db·deletedAt만 사용한다.
+ */
+const softDeleteCommentContent = async (
+  id: number,
+  deletedAt: Date,
+  db: DbClient
+): Promise<SoftDeleteReportReportedContentResult> => {
+  // postId는 요청값이 아니라 DB 행에서 가져온다.
+  const comment = await db.comment.findUnique({
+    where: { id },
+    select: { id: true, postId: true, deletedAt: true },
+  });
+
+  if (!comment) {
+    return { kind: 'not_found' };
+  }
+
+  // 부모가 이미 삭제됐으면 대댓글만 따로 지우지 않고 already_deleted로 끝낸다.
+  if (comment.deletedAt !== null) {
+    return {
+      kind: 'already_deleted',
+      target: UserReportTarget.COMMENT,
+      id: comment.id,
+    };
+  }
+
+  const deleteResult = await db.comment.updateMany({
+    where: {
+      postId: comment.postId,
+      deletedAt: null,
+      OR: [{ id: comment.id }, { parentId: comment.id }],
+    },
+    data: { deletedAt },
+  });
+
+  // 경합으로 조건부 갱신이 0건이면 카운트를 건드리지 않는다.
+  if (deleteResult.count === 0) {
+    return {
+      kind: 'already_deleted',
+      target: UserReportTarget.COMMENT,
+      id: comment.id,
+    };
+  }
+
+  await db.post.updateMany({
+    where: { id: comment.postId, deletedAt: null },
+    data: { commentCount: { decrement: deleteResult.count } },
+  });
+
+  return {
+    kind: 'deleted',
+    target: UserReportTarget.COMMENT,
+    id: comment.id,
+  };
+};
+
+/**
+ * 신고 target/targetId로 REVIEW·ARTICLE·COMMENT를 soft delete한다.
+ * 작성자 권한 검사는 하지 않는다 — 관리자 신고 처리 전용.
+ * MESSAGE/USER는 soft delete 대상이 아니므로 unsupported_target.
+ * deletedAt은 Service가 넘긴 처리 시각을 그대로 쓴다.
+ */
+export const softDeleteReportReportedContent = async (
+  target: UserReportTarget,
+  targetId: string,
+  deletedAt: Date,
+  db: DbClient = prisma
+): Promise<SoftDeleteReportReportedContentResult> => {
+  if (
+    target === UserReportTarget.USER ||
+    target === UserReportTarget.MESSAGE
+  ) {
+    return { kind: 'unsupported_target' };
+  }
+
+  const numericId = parseNumericTargetId(targetId);
+  if (numericId === null) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  switch (target) {
+    case UserReportTarget.REVIEW:
+      return softDeleteReviewContent(numericId, deletedAt, db);
+    case UserReportTarget.ARTICLE:
+      return softDeleteArticleContent(numericId, deletedAt, db);
+    case UserReportTarget.COMMENT:
+      return softDeleteCommentContent(numericId, deletedAt, db);
+    default:
+      return { kind: 'unsupported_target' };
+  }
+};
+
+// --- 신고 처리/반려: 행 잠금 및 상태 변경 ---
+
+/** FOR UPDATE로 잠근 신고 행 — Service가 PENDING 여부를 검사할 최소 필드 */
+export type AdminReportLockRow = {
+  id: number;
+  target: UserReportTarget;
+  targetId: string;
+  status: UserReportStatus;
+  adminId: number | null;
+};
+
+/**
+ * 처리·반려에서만 허용하는 최종 상태.
+ * 호출자가 PENDING 등 임의 상태로 바꾸지 못하게 타입으로 제한한다.
+ */
+export type AdminReportDecisionStatus =
+  | typeof UserReportStatus.RESOLVED
+  | typeof UserReportStatus.REJECTED;
+
+export type UpdateAdminReportDecisionStatusResult =
+  | {
+      kind: 'updated';
+      report: {
+        id: number;
+        status: AdminReportDecisionStatus;
+        adminId: number;
+      };
+    }
+  | { kind: 'not_updated' };
+
+/**
+ * 신고 행을 FOR UPDATE로 잠근다.
+ * 반드시 전달받은 Transaction Client에서만 실행한다 — 전역 prisma로 잠그지 않는다.
+ * 행이 없으면 null (HTTP 판단은 Service).
+ */
+export const lockAdminReportForStatusChange = async (
+  reportId: number,
+  tx: Prisma.TransactionClient
+): Promise<AdminReportLockRow | null> => {
+  const lockedReports = await tx.$queryRaw<AdminReportLockRow[]>`
+    SELECT
+      id,
+      target,
+      target_id AS "targetId",
+      status,
+      admin_id AS "adminId"
+    FROM user_reports
+    WHERE id = ${reportId}
+    FOR UPDATE
+  `;
+
+  return lockedReports[0] ?? null;
+};
+
+/**
+ * PENDING 신고만 RESOLVED/REJECTED로 변경하고 adminId를 기록한다.
+ * status = PENDING 조건으로 동시 처리 시 두 번째 갱신은 not_updated가 된다.
+ * 잠금과 같은 Transaction Client를 넘기는 것을 전제로 한다.
+ */
+export const updateAdminReportDecisionStatus = async (
+  reportId: number,
+  adminId: number,
+  status: AdminReportDecisionStatus,
+  db: DbClient
+): Promise<UpdateAdminReportDecisionStatusResult> => {
+  const updateResult = await db.userReport.updateMany({
+    where: {
+      id: reportId,
+      status: UserReportStatus.PENDING,
+    },
+    data: {
+      status,
+      adminId,
+    },
+  });
+
+  if (updateResult.count === 0) {
+    return { kind: 'not_updated' };
+  }
+
+  return {
+    kind: 'updated',
+    report: {
+      id: reportId,
+      status,
+      adminId,
+    },
+  };
 };

@@ -2,8 +2,10 @@ import type { NextFunction, Request, Response } from 'express';
 import type {
   AdminReportDetailParams,
   AdminReportListQuery,
+  AdminReportProcessBody,
 } from '../schemas/admin-report.schema';
 import * as adminReportService from '../services/admin-report.service';
+import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
 import { getValidated } from '../utils/validated.util';
 
 export const getReportStatistics = async (
@@ -51,6 +53,50 @@ export const getAdminReportDetail = async (
     const data = await adminReportService.getAdminReportDetail(reportId);
 
     // 관리자 API 공통 포맷: 성공 본문을 data로 감싼다.
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** 관리자 신고 처리 — Action 실행 후 RESOLVED */
+export const resolveAdminReport = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { reportId } = getValidated<AdminReportDetailParams>(res, 'params');
+    const { actions } = getValidated<AdminReportProcessBody>(res, 'body');
+    const { adminId } = getAuthenticatedAdmin(res);
+
+    const data = await adminReportService.resolveAdminReport({
+      reportId,
+      adminId,
+      actions,
+    });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** 관리자 신고 반려 — Action 없이 REJECTED만 저장 */
+export const rejectAdminReport = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { reportId } = getValidated<AdminReportDetailParams>(res, 'params');
+    const { adminId } = getAuthenticatedAdmin(res);
+
+    const data = await adminReportService.rejectAdminReport({
+      reportId,
+      adminId,
+    });
+
     res.status(200).json({ data });
   } catch (error) {
     next(error);

@@ -29,7 +29,7 @@ import * as notificationService from './notification.service';
 import {
   createPresignedViewUrl,
   getObjectMetadata,
-  toPresignedViewUrl,
+  toPublicViewUrl,
 } from './s3.service';
 
 interface CreateChatRoomResult {
@@ -485,7 +485,7 @@ export const getChatRoomList = async (
             id: partner.id,
             userType: partner.userType,
             nickname: partner.nickname,
-            profileImageUrl: await toPresignedViewUrl(partner.profileImageKey),
+            profileImageUrl: toPublicViewUrl(partner.profileImageKey),
           },
           lastMessage: lastMessage
             ? {
@@ -578,7 +578,7 @@ export const getChatRoomDetail = async (
       id: partner.id,
       userType: partner.userType,
       nickname: partner.nickname,
-      profileImageUrl: await toPresignedViewUrl(partner.profileImageKey),
+      profileImageUrl: toPublicViewUrl(partner.profileImageKey),
     },
     requestSummary: room.estimateRequest
       ? {

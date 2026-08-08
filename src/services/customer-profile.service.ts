@@ -4,7 +4,7 @@ import type { CustomerProfileBody } from '../schemas/customer-profile.schema';
 import { resolvePasswordHashForUpdate } from '../utils/auth-password.util';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
-import { deleteImage, toPresignedViewUrl } from './s3.service';
+import { deleteImage, toPublicViewUrl } from './s3.service';
 
 export interface RegisterCustomerProfileInput {
   userId: string;
@@ -58,7 +58,7 @@ export const getCustomerProfile = async (userId: string) => {
     nickname: profile.user.nickname,
     email: profile.user.email,
     phoneNumber: profile.user.phoneNumber,
-    profileImageUrl: await toPresignedViewUrl(profile.user.profileImageKey),
+    profileImageUrl: toPublicViewUrl(profile.user.profileImageKey),
     service: profile.service,
     region: profile.region,
     hasPassword: Boolean(localAuth?.passwordHash),
@@ -174,7 +174,7 @@ const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
     phoneNumber: profile.phoneNumber,
     region: profile.region,
     service: profile.service,
-    profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+    profileImageUrl: toPublicViewUrl(profile.profileImageKey),
     updatedAt: profile.updatedAt,
   };
 };
@@ -295,7 +295,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
     phoneNumber: profile.phoneNumber,
     region: profile.region,
     service: profile.service,
-    profileImageUrl: await toPresignedViewUrl(profile.profileImageKey),
+    profileImageUrl: toPublicViewUrl(profile.profileImageKey),
     updatedAt: profile.updatedAt,
   };
 };
