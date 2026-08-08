@@ -14,6 +14,7 @@ import { startReleaseExpiredSuspensionsCron } from './jobs/release-expired-suspe
 import { errorHandler } from './middlewares/error.handler';
 import { requestContextMiddleware } from './middlewares/request-context.middleware';
 import adminAuthRouter from './routes/admin-auth.route';
+import adminChatRouter from './routes/admin-chat.route';
 import adminCompletedRouter from './routes/admin-completed.route';
 import adminDashboardRouter from './routes/admin-dashboard.route';
 import adminEstimateRequestRouter from './routes/admin-estimate-request.route';
@@ -95,6 +96,7 @@ app.use('/api/admin/completed', adminCompletedRouter);
 app.use('/api/admin/members', adminMemberRouter);
 app.use('/api/admin/reviews', adminReviewRouter);
 app.use('/api/admin/reports', adminReportRouter);
+app.use('/api/admin/chats', adminChatRouter);
 app.use('/api/movers', moversRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/users/customers', customerRouter);

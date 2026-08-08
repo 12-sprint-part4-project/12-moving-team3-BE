@@ -293,6 +293,10 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 견적 요청입니다.',
   },
+  ADMIN_CHAT_ROOM_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 채팅방입니다.',
+  },
   ADMIN_REPORT_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 신고입니다.',
