@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as presignedUrlController from '../controllers/presigned-url.controller';
 import { requireAuthAllowSuspended } from '../middlewares/auth.middleware';
+import { requireCompletedProfileForChatAttachment } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { presignedUploadUrlQuerySchema } from '../schemas/presigned-url.schema';
 
@@ -13,6 +14,7 @@ router.get(
     query: presignedUploadUrlQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
   }),
+  requireCompletedProfileForChatAttachment,
   presignedUrlController.getPresignedUploadUrl
 );
 

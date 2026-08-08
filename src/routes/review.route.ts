@@ -4,6 +4,10 @@ import {
   requireAuth,
   requireAuthAllowSuspended,
 } from '../middlewares/auth.middleware';
+import {
+  requireCompletedCustomerProfile,
+  requireCompletedMoverProfile,
+} from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { quoteIdParamsSchema } from '../schemas/quote.schema';
 import {
@@ -21,6 +25,7 @@ router.get(
   '/mover',
   requireAuthAllowSuspended,
   allowUserTypes('MOVER'),
+  requireCompletedMoverProfile,
   validateRequest({
     query: reviewListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -33,6 +38,7 @@ router.get(
   '/customer/writable',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     query: reviewWritableQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -45,6 +51,7 @@ router.get(
   '/customer',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     query: reviewListQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -57,6 +64,7 @@ router.post(
   '/quotes/:quoteId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: quoteIdParamsSchema,
     body: reviewBodySchema,
@@ -70,6 +78,7 @@ router.patch(
   '/:reviewId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: reviewIdParamsSchema,
     body: reviewBodySchema,
@@ -83,6 +92,7 @@ router.delete(
   '/:reviewId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: reviewIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
