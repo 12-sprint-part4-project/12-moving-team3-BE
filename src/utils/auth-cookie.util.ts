@@ -6,7 +6,7 @@ export const AUTH_REFRESH_TOKEN_COOKIE_NAME = 'refreshToken';
 export const AUTH_REFRESH_TOKEN_COOKIE_OPTIONS = {
   httpOnly: true, // XSS로 스크립트에서 토큰 읽기 방지
   secure: env.nodeEnv === 'production',
-  sameSite: 'none',
+  sameSite: env.nodeEnv === 'production' ? 'none' : 'lax',
   path: '/api/auth', // 일반 유저 인증 경로에만 자동 전송
 } satisfies CookieOptions;
 
