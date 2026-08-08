@@ -317,3 +317,431 @@ paths:
                 error:
                   code: INTERNAL_SERVER_ERROR
                   message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/chats/{roomId}:
+    get:
+      tags: [Admin Chats]
+      summary: 관리자 채팅방 상세 조회
+      description: |
+        특정 채팅방의 기본 정보와 참여자 목록을 조회합니다.
+        동일 사용자의 재참여 row가 여러 개면 joinedAt이 가장 최근인 참여자만 포함합니다.
+        탈퇴 사용자·이탈 참여자도 목록에 포함되며, 탈퇴 여부는 isDeleted로 표시합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: 채팅방 ID
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+      responses:
+        '200':
+          description: 채팅방 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - roomType
+                      - estimateRequestId
+                      - quoteId
+                      - designatedMoverId
+                      - communityPostId
+                      - lastMessageAt
+                      - createdAt
+                      - updatedAt
+                      - participants
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      roomType:
+                        type: string
+                        enum: [GENERAL, DESIGNATED, COMMUNITY]
+                        example: GENERAL
+                      estimateRequestId:
+                        type: integer
+                        nullable: true
+                        example: 12
+                      quoteId:
+                        type: integer
+                        nullable: true
+                        example: 34
+                      designatedMoverId:
+                        type: integer
+                        nullable: true
+                        example: null
+                      communityPostId:
+                        type: integer
+                        nullable: true
+                        example: null
+                      lastMessageAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: '2026-08-08T08:00:00.000Z'
+                      createdAt:
+                        type: string
+                        format: date-time
+                        example: '2026-08-01T00:00:00.000Z'
+                      updatedAt:
+                        type: string
+                        format: date-time
+                        example: '2026-08-08T08:00:00.000Z'
+                      participants:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - name
+                            - nickname
+                            - email
+                            - userType
+                            - joinedAt
+                            - leftAt
+                            - isDeleted
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                              example: '550e8400-e29b-41d4-a716-446655440000'
+                            name:
+                              type: string
+                              example: 홍길동
+                            nickname:
+                              type: string
+                              example: 길동이
+                            email:
+                              type: string
+                              format: email
+                              example: user@example.com
+                            userType:
+                              type: string
+                              enum: [CUSTOMER, MOVER]
+                              example: CUSTOMER
+                            joinedAt:
+                              type: string
+                              format: date-time
+                              example: '2026-08-01T00:00:00.000Z'
+                            leftAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              example: null
+                            isDeleted:
+                              type: boolean
+                              example: false
+              example:
+                data:
+                  id: 1
+                  roomType: GENERAL
+                  estimateRequestId: 12
+                  quoteId: 34
+                  designatedMoverId: null
+                  communityPostId: null
+                  lastMessageAt: '2026-08-08T08:00:00.000Z'
+                  createdAt: '2026-08-01T00:00:00.000Z'
+                  updatedAt: '2026-08-08T08:00:00.000Z'
+                  participants:
+                    - id: '550e8400-e29b-41d4-a716-446655440000'
+                      name: 홍길동
+                      nickname: 길동이
+                      email: user@example.com
+                      userType: CUSTOMER
+                      joinedAt: '2026-08-01T00:00:00.000Z'
+                      leftAt: null
+                      isDeleted: false
+                    - id: '660e8400-e29b-41d4-a716-446655440111'
+                      name: 김기사
+                      nickname: 빠른이사맨
+                      email: mover@example.com
+                      userType: MOVER
+                      joinedAt: '2026-08-01T00:00:00.000Z'
+                      leftAt: null
+                      isDeleted: false
+        '400':
+          description: |
+            경로 파라미터 유효성 검사 실패.
+            roomId가 양의 정수가 아닌 경우를 포함합니다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 존재하지 않는 채팅방
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_CHAT_ROOM_NOT_FOUND
+                  message: 존재하지 않는 채팅방입니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
+
+  /api/admin/chats/{roomId}/messages:
+    get:
+      tags: [Admin Chats]
+      summary: 관리자 채팅 메시지 히스토리 조회
+      description: |
+        특정 채팅방의 메시지 히스토리를 id 내림차순 커서 페이지네이션으로 조회합니다.
+        관리자는 감사 목적으로 방 전체 메시지를 조회하며, 사용자 API의 joinedAt 제한을 적용하지 않습니다.
+        IMAGE 메시지의 attachments는 S3 Presigned URL 문자열 배열입니다.
+        TEXT 등 첨부가 없으면 빈 배열을 반환합니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          description: 채팅방 ID
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+        - name: before
+          in: query
+          required: false
+          description: |
+            이전 페이지 조회용 메시지 ID 커서.
+            전달 시 해당 id보다 작은(더 오래된) 메시지를 조회합니다.
+          schema:
+            type: integer
+            minimum: 1
+            example: 100
+        - name: limit
+          in: query
+          required: false
+          description: 한 번에 조회할 메시지 개수
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 30
+            example: 30
+      responses:
+        '200':
+          description: 메시지 히스토리 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [messages, meta]
+                    properties:
+                      messages:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - senderId
+                            - sender
+                            - messageType
+                            - content
+                            - isFiltered
+                            - attachments
+                            - createdAt
+                          properties:
+                            id:
+                              type: integer
+                              example: 100
+                            senderId:
+                              type: string
+                              format: uuid
+                              example: '550e8400-e29b-41d4-a716-446655440000'
+                            sender:
+                              type: object
+                              required:
+                                - id
+                                - name
+                                - nickname
+                                - email
+                                - userType
+                                - isDeleted
+                              properties:
+                                id:
+                                  type: string
+                                  format: uuid
+                                  example: '550e8400-e29b-41d4-a716-446655440000'
+                                name:
+                                  type: string
+                                  example: 홍길동
+                                nickname:
+                                  type: string
+                                  example: 길동이
+                                email:
+                                  type: string
+                                  format: email
+                                  example: user@example.com
+                                userType:
+                                  type: string
+                                  enum: [CUSTOMER, MOVER]
+                                  example: CUSTOMER
+                                isDeleted:
+                                  type: boolean
+                                  example: false
+                            messageType:
+                              type: string
+                              enum: [TEXT, IMAGE]
+                              example: TEXT
+                            content:
+                              type: string
+                              description: TEXT는 본문, IMAGE는 빈 문자열일 수 있음
+                              example: 안녕하세요
+                            isFiltered:
+                              type: boolean
+                              example: false
+                            attachments:
+                              type: array
+                              description: |
+                                S3 Presigned URL 문자열 배열.
+                                IMAGE 메시지에 첨부된 파일을 조회용 URL로 변환한 값이며,
+                                첨부가 없으면 빈 배열입니다.
+                              items:
+                                type: string
+                                format: uri
+                              example: []
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: '2026-08-08T08:00:00.000Z'
+                      meta:
+                        type: object
+                        required: [hasNext, nextCursor]
+                        properties:
+                          hasNext:
+                            type: boolean
+                            example: false
+                          nextCursor:
+                            type: integer
+                            nullable: true
+                            description: |
+                              다음 페이지 조회용 before 값.
+                              hasNext가 false이면 null입니다.
+                            example: null
+              examples:
+                textMessage:
+                  summary: TEXT 메시지
+                  value:
+                    data:
+                      messages:
+                        - id: 100
+                          senderId: '550e8400-e29b-41d4-a716-446655440000'
+                          sender:
+                            id: '550e8400-e29b-41d4-a716-446655440000'
+                            name: 홍길동
+                            nickname: 길동이
+                            email: user@example.com
+                            userType: CUSTOMER
+                            isDeleted: false
+                          messageType: TEXT
+                          content: 안녕하세요
+                          isFiltered: false
+                          attachments: []
+                          createdAt: '2026-08-08T08:00:00.000Z'
+                      meta:
+                        hasNext: false
+                        nextCursor: null
+                imageMessage:
+                  summary: IMAGE 메시지 (Presigned URL)
+                  value:
+                    data:
+                      messages:
+                        - id: 101
+                          senderId: '660e8400-e29b-41d4-a716-446655440111'
+                          sender:
+                            id: '660e8400-e29b-41d4-a716-446655440111'
+                            name: 김기사
+                            nickname: 빠른이사맨
+                            email: mover@example.com
+                            userType: MOVER
+                            isDeleted: false
+                          messageType: IMAGE
+                          content: ''
+                          isFiltered: false
+                          attachments:
+                            - 'https://example-bucket.s3.ap-northeast-2.amazonaws.com/chat-attachments/uuid_photo.jpg?X-Amz-Signature=...'
+                          createdAt: '2026-08-08T08:01:00.000Z'
+                      meta:
+                        hasNext: true
+                        nextCursor: 101
+        '400':
+          description: |
+            경로/쿼리 파라미터 유효성 검사 실패.
+            잘못된 roomId, before &lt; 1, limit 범위 초과 등을 포함합니다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 존재하지 않는 채팅방
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_CHAT_ROOM_NOT_FOUND
+                  message: 존재하지 않는 채팅방입니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.

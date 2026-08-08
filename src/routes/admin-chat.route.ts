@@ -22,6 +22,7 @@ router.get(
 );
 
 // 메시지 이력을 `/:roomId`보다 먼저 등록해 경로가 상세 조회로 잡히지 않게 한다
+// (Swagger: src/docs/admin-chat.swagger.yaml)
 router.get(
   '/:roomId/messages',
   requireAdminAuth,
@@ -33,7 +34,7 @@ router.get(
   adminChatController.getAdminChatMessages
 );
 
-// 관리자 채팅방 상세 조회
+// 관리자 채팅방 상세 조회 (Swagger: src/docs/admin-chat.swagger.yaml)
 router.get(
   '/:roomId',
   requireAdminAuth,
