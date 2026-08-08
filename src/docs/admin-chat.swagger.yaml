@@ -576,6 +576,7 @@ paths:
                             - sender
                             - messageType
                             - content
+                            - rawContent
                             - isFiltered
                             - attachments
                             - createdAt
@@ -624,8 +625,19 @@ paths:
                               example: TEXT
                             content:
                               type: string
-                              description: TEXT는 본문, IMAGE는 빈 문자열일 수 있음
+                              description: |
+                                ChatMessage.content.
+                                TEXT는 본문(필터링 시 마스킹된 값일 수 있음),
+                                IMAGE는 빈 문자열일 수 있음.
                               example: 안녕하세요
+                            rawContent:
+                              type: string
+                              nullable: true
+                              description: |
+                                필터링 전 원문(ChatMessageRawLog.rawContent).
+                                관리자 전용 조회 필드이며, RawLog가 없으면 null입니다.
+                                content를 대체하지 않고 별도 필드로 제공합니다.
+                              example: null
                             isFiltered:
                               type: boolean
                               example: false
@@ -674,9 +686,33 @@ paths:
                             isDeleted: false
                           messageType: TEXT
                           content: 안녕하세요
+                          rawContent: null
                           isFiltered: false
                           attachments: []
                           createdAt: '2026-08-08T08:00:00.000Z'
+                      meta:
+                        hasNext: false
+                        nextCursor: null
+                filteredMessage:
+                  summary: 필터링된 TEXT 메시지 (원문 포함)
+                  value:
+                    data:
+                      messages:
+                        - id: 102
+                          senderId: '550e8400-e29b-41d4-a716-446655440000'
+                          sender:
+                            id: '550e8400-e29b-41d4-a716-446655440000'
+                            name: 홍길동
+                            nickname: 길동이
+                            email: user@example.com
+                            userType: CUSTOMER
+                            isDeleted: false
+                          messageType: TEXT
+                          content: '[leave-test] ***'
+                          rawContent: '[leave-test] 실제 원문'
+                          isFiltered: true
+                          attachments: []
+                          createdAt: '2026-08-08T08:02:00.000Z'
                       meta:
                         hasNext: false
                         nextCursor: null
@@ -696,6 +732,7 @@ paths:
                             isDeleted: false
                           messageType: IMAGE
                           content: ''
+                          rawContent: null
                           isFiltered: false
                           attachments:
                             - 'https://example-bucket.s3.ap-northeast-2.amazonaws.com/chat-attachments/uuid_photo.jpg?X-Amz-Signature=...'
@@ -703,6 +740,7 @@ paths:
                       meta:
                         hasNext: true
                         nextCursor: 101
+
         '400':
           description: |
             경로/쿼리 파라미터 유효성 검사 실패.
