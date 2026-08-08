@@ -169,6 +169,7 @@ const toEstimateRequestListItem = (
     address: row.arrivalAddress,
     regionLabel: inferRegionLabelFromAddress(row.arrivalAddress),
   },
+  // designatedMovers는 repository에서 로그인 기사 moverId로 이미 필터됨
   isDesignated: row.designatedMovers.length > 0,
   designatedMoverId: row.designatedMovers[0]?.id ?? null,
   submittedAt: row.submittedAt,

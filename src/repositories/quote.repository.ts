@@ -399,6 +399,12 @@ export interface CustomerQuoteRow {
   moverId: string | null;
 }
 
+/** 지정 견적 요청 행(채팅 roomKey용 designatedMoverId) */
+export interface DesignatedMoverRef {
+  id: number;
+  moverId: string;
+}
+
 /** 대기 중 견적 요청 + 견적 목록 */
 export interface CustomerPendingEstimateRequestRow {
   id: number;
@@ -408,7 +414,7 @@ export interface CustomerPendingEstimateRequestRow {
   moveDate: Date | null;
   departureAddress: string | null;
   arrivalAddress: string | null;
-  designatedMovers: Array<{ id: number; moverId: string }>;
+  designatedMovers: DesignatedMoverRef[];
   quotes: CustomerQuoteRow[];
 }
 
@@ -424,7 +430,7 @@ export interface CustomerPastEstimateRequestRow {
   departureDetailAddress: string | null;
   arrivalAddress: string | null;
   arrivalDetailAddress: string | null;
-  designatedMovers: Array<{ id: number; moverId: string }>;
+  designatedMovers: DesignatedMoverRef[];
   quotes: CustomerQuoteRow[];
 }
 

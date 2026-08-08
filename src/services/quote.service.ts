@@ -25,6 +25,7 @@ import type {
   CustomerPastEstimateRequestRow,
   CustomerQuoteMoverRow,
   CustomerQuoteRow,
+  DesignatedMoverRef,
   FindCustomerPastEstimateRequestsParams,
   QuoteDetailRow,
   QuoteTransactionClient,
@@ -452,13 +453,16 @@ export const getQuoteDetail = async (
     throw new AppError('FORBIDDEN');
   }
 
-  const designated =
-    await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
-      quote.estimateRequestId,
-      input.moverId
-    );
+  const designatedMoverId = quote.isDesignated
+    ? (
+        await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+          quote.estimateRequestId,
+          input.moverId
+        )
+      )?.id ?? null
+    : null;
 
-  return toQuoteDetailDto(quote, designated?.id ?? null);
+  return toQuoteDetailDto(quote, designatedMoverId);
 };
 
 /**
@@ -489,7 +493,9 @@ export const getQuotes = async (
 
     const designatedByEstimateId =
       await designatedEstimateRequestRepository.findIdsByEstimateIdsAndMoverId(
-        items.map((item) => item.estimateRequestId),
+        items
+          .filter((item) => item.isDesignated)
+          .map((item) => item.estimateRequestId),
         input.moverId
       );
 
@@ -497,7 +503,9 @@ export const getQuotes = async (
       items: items.map((item) =>
         toRejectedQuoteListItem(
           item,
-          designatedByEstimateId.get(item.estimateRequestId) ?? null
+          item.isDesignated
+            ? (designatedByEstimateId.get(item.estimateRequestId) ?? null)
+            : null
         )
       ),
       meta: buildPaginationMeta(totalCount, input.page, input.limit),
@@ -514,7 +522,9 @@ export const getQuotes = async (
 
   const designatedByEstimateId =
     await designatedEstimateRequestRepository.findIdsByEstimateIdsAndMoverId(
-      items.map((item) => item.estimateRequestId),
+      items
+        .filter((item) => item.isDesignated)
+        .map((item) => item.estimateRequestId),
       input.moverId
     );
 
@@ -522,7 +532,9 @@ export const getQuotes = async (
     items: items.map((item) =>
       toSentQuoteListItem(
         item,
-        designatedByEstimateId.get(item.estimateRequestId) ?? null
+        item.isDesignated
+          ? (designatedByEstimateId.get(item.estimateRequestId) ?? null)
+          : null
       )
     ),
     meta: buildPaginationMeta(totalCount, input.page, input.limit),
@@ -657,7 +669,9 @@ const toCustomerQuoteItemDto = async (
     price: quote.price,
     status: quote.status,
     isDesignated: quote.isDesignated,
-    designatedMoverId: designatedByMoverId.get(quote.moverId) ?? null,
+    designatedMoverId: quote.isDesignated
+      ? (designatedByMoverId.get(quote.moverId) ?? null)
+      : null,
     mover: await toCustomerQuoteMoverDto(mover),
   };
 };
@@ -717,7 +731,7 @@ const toFullAddressLabel = (
  * designatedMovers 배열 → moverId → designatedMoverId 맵
  */
 const toDesignatedByMoverIdMap = (
-  designatedMovers: Array<{ id: number; moverId: string }>
+  designatedMovers: DesignatedMoverRef[]
 ): Map<string, number> =>
   new Map(designatedMovers.map((row) => [row.moverId, row.id]));
 
@@ -863,12 +877,14 @@ export const getCustomerQuoteDetail = async (
     throw new AppError('MOVER_NOT_FOUND');
   }
 
-  const designated =
-    quote.moverId != null
-      ? await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
-          quote.estimateRequestId,
-          quote.moverId
-        )
+  const designatedMoverId =
+    quote.isDesignated && quote.moverId != null
+      ? (
+          await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+            quote.estimateRequestId,
+            quote.moverId
+          )
+        )?.id ?? null
       : null;
 
   return {
@@ -878,7 +894,7 @@ export const getCustomerQuoteDetail = async (
     comment: quote.comment,
     status: quote.status,
     isDesignated: quote.isDesignated,
-    designatedMoverId: designated?.id ?? null,
+    designatedMoverId,
     estimateRequestStatus: quote.estimateRequest.status,
     serviceType: quote.estimateRequest.moveType,
     moveDate: quote.estimateRequest.moveDate,

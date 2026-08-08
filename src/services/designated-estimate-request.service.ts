@@ -104,6 +104,17 @@ export const createDesignatedEstimateRequest = async (
     throw new AppError('FORBIDDEN', '본인의 견적 요청만 지정할 수 있습니다.');
   }
 
+  // 멱등: 소유권 확인 직후 기존 지정 행이 있으면 상태와 무관하게 반환
+  const existing =
+    await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+      estimateRequestId,
+      moverId
+    );
+
+  if (existing) {
+    return toDto(existing);
+  }
+
   if (estimateRequest.status !== EstimateRequestStatus.SUBMITTED) {
     throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
   }
@@ -112,17 +123,6 @@ export const createDesignatedEstimateRequest = async (
 
   if (!mover || mover.deletedAt || mover.userType !== 'MOVER') {
     throw new AppError('MOVER_NOT_FOUND');
-  }
-
-  const existing =
-    await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
-      estimateRequestId,
-      moverId
-    );
-
-  // 이미 지정된 경우 기존 행을 반환 (designatedMoverId 유지 — 채팅 생성용)
-  if (existing) {
-    return toDto(existing);
   }
 
   const existingQuote = await quoteRepository.findExistingQuoteByStatuses(
