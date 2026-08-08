@@ -1,17 +1,8 @@
 import { z } from 'zod';
+import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target';
 
-/**
- * 공개 신고 생성 API에서 허용하는 대상만 둔다.
- * Prisma UserReportTarget에는 CHAT_ROOM이 남아 있어도(레거시 조회·반려용),
- * 신규 접수 경로에서는 받지 않기 위해 enum 전체를 그대로 쓰지 않는다.
- */
-const userReportTargetSchema = z.enum([
-  'USER',
-  'REVIEW',
-  'MESSAGE',
-  'ARTICLE',
-  'COMMENT',
-]);
+/** 공개 신고 생성 — Prisma enum 전체가 아니라 지원 대상만 허용한다. */
+const userReportTargetSchema = z.enum(SUPPORTED_REPORT_TARGETS);
 
 const userReportCategorySchema = z.enum([
   'INAPPROPRIATE_PROFILE',

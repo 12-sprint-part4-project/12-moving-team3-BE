@@ -62,7 +62,6 @@ export type AdminReportTargetIdsByKeyword = {
   messageIds: string[];
   articleIds: string[];
   commentIds: string[];
-  chatRoomIds: string[];
 };
 
 type AdminReportListWhereParams = Pick<
@@ -114,13 +113,6 @@ const buildTargetIdSearchOrConditions = (
     conditions.push({
       target: UserReportTarget.COMMENT,
       targetId: { in: targetIds.commentIds },
-    });
-  }
-
-  if (targetIds.chatRoomIds.length > 0) {
-    conditions.push({
-      target: UserReportTarget.CHAT_ROOM,
-      targetId: { in: targetIds.chatRoomIds },
     });
   }
 
@@ -215,7 +207,6 @@ const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
   messageIds: [],
   articleIds: [],
   commentIds: [],
-  chatRoomIds: [],
 };
 
 /**
@@ -225,7 +216,6 @@ const EMPTY_REPORT_TARGET_IDS_BY_KEYWORD: AdminReportTargetIdsByKeyword = {
  * - USER: 일치 사용자 id
  * - REVIEW/ARTICLE/COMMENT: 작성자 userId
  * - MESSAGE: 발신자 senderId
- * - CHAT_ROOM: 참여자 participantId
  *
  * deletedAt은 걸지 않는다 — 탈퇴·삭제된 대상의 신고도 관리자가 검색할 수 있어야 한다.
  */
@@ -253,7 +243,7 @@ export const findReportTargetIdsByTargetUserKeyword = async (
 
   const userIds = matchedUsers.map((user) => user.id);
 
-  const [reviews, messages, articles, comments, chatRooms] = await Promise.all([
+  const [reviews, messages, articles, comments] = await Promise.all([
     db.review.findMany({
       where: { userId: { in: userIds } },
       select: { id: true },
@@ -278,17 +268,6 @@ export const findReportTargetIdsByTargetUserKeyword = async (
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
     }),
-    // 참여자 중 한 명이라도 검색 사용자면 해당 방 id를 후보에 넣는다.
-    db.chatRoom.findMany({
-      where: {
-        participants: {
-          some: { participantId: { in: userIds } },
-        },
-      },
-      select: { id: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: REPORT_TARGET_CONTENT_ID_SEARCH_LIMIT,
-    }),
   ]);
 
   return {
@@ -297,7 +276,6 @@ export const findReportTargetIdsByTargetUserKeyword = async (
     messageIds: messages.map((row) => String(row.id)),
     articleIds: articles.map((row) => String(row.id)),
     commentIds: comments.map((row) => String(row.id)),
-    chatRoomIds: chatRooms.map((row) => String(row.id)),
   };
 };
 
@@ -360,25 +338,6 @@ export const findReportTargetReviewsByIds = async (
       rating: true,
       content: true,
       user: { select: targetAuthorSelect },
-    },
-  });
-};
-
-/** CHAT_ROOM 대상 배치 조회 */
-export const findReportTargetChatRoomsByIds = async (
-  ids: number[],
-  db: DbClient = prisma
-) => {
-  if (ids.length === 0) {
-    return [];
-  }
-
-  return db.chatRoom.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      roomType: true,
-      createdAt: true,
     },
   });
 };
@@ -568,28 +527,6 @@ export const findReportDetailTargetReviewById = async (
 };
 
 /**
- * CHAT_ROOM 대상 단건.
- * ChatRoom에는 deletedAt이 없어 존재 여부만 확인한다.
- * participants는 상세 metadata에 쓰지 않으므로 조회하지 않는다.
- */
-export const findReportDetailTargetChatRoomById = async (
-  id: number,
-  db: DbClient = prisma
-) => {
-  return db.chatRoom.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      roomType: true,
-      createdAt: true,
-      lastMessageAt: true,
-      estimateRequestId: true,
-      quoteId: true,
-    },
-  });
-};
-
-/**
  * MESSAGE 대상 단건.
  * ChatMessage에는 deletedAt이 없고, 상세 DTO·목록과 같이 attachments는 조회하지 않는다.
  */
@@ -688,15 +625,13 @@ export type ReportSanctionTargetUserRow = Prisma.UserGetPayload<{
 /**
  * 제재 대상 조회 결과.
  * HTTP 결정은 Service가 하고, Repository는 실패 원인을 구분만 한다.
- * - unsupported_target: CHAT_ROOM처럼 이 경로에서 사용자를 특정할 수 없음
  * - invalid_target_id: 형식 오류 — DB 조회 없이 조기 반환
  * - not_found: 형식은 맞지만 대상/사용자가 없음
  */
 export type FindReportSanctionTargetUserResult =
   | { kind: 'found'; user: ReportSanctionTargetUserRow }
   | { kind: 'not_found' }
-  | { kind: 'invalid_target_id' }
-  | { kind: 'unsupported_target' };
+  | { kind: 'invalid_target_id' };
 
 /** USER targetId(UUID) 형식 검사 — 잘못된 값으로 Prisma가 던지는 오류를 막기 위해 조회 전에 거른다 */
 const isUserTargetUuid = (targetId: string): boolean =>
@@ -720,11 +655,6 @@ export const findReportSanctionTargetUser = async (
   targetId: string,
   db: DbClient = prisma
 ): Promise<FindReportSanctionTargetUserResult> => {
-  // 채팅방은 참여자가 복수라 단일 제재 사용자를 정할 수 없다.
-  if (target === UserReportTarget.CHAT_ROOM) {
-    return { kind: 'unsupported_target' };
-  }
-
   if (target === UserReportTarget.USER) {
     if (!isUserTargetUuid(targetId)) {
       return { kind: 'invalid_target_id' };
@@ -787,8 +717,7 @@ export const findReportSanctionTargetUser = async (
       return toFoundSanctionUser(comment?.user);
     }
     default:
-      // 알 수 없는 enum 값은 지원하지 않는 대상으로 취급해 호출자가 분기할 수 있게 한다.
-      return { kind: 'unsupported_target' };
+      return { kind: 'not_found' };
   }
 };
 
@@ -870,8 +799,7 @@ export type FindReportReportedContentResult =
   | { kind: 'message'; content: ReportedMessageContentRow }
   | { kind: 'no_content' }
   | { kind: 'not_found' }
-  | { kind: 'invalid_target_id' }
-  | { kind: 'unsupported_target' };
+  | { kind: 'invalid_target_id' };
 
 /**
  * 신고 target/targetId로 신고된 콘텐츠를 조회한다.
@@ -886,11 +814,6 @@ export const findReportReportedContent = async (
   // USER 신고는 별도 콘텐츠 row가 없다 — 프로필은 사용자 조회 경로를 쓴다.
   if (target === UserReportTarget.USER) {
     return { kind: 'no_content' };
-  }
-
-  // CHAT_ROOM은 이번 콘텐츠 조회 범위에서 제외한다.
-  if (target === UserReportTarget.CHAT_ROOM) {
-    return { kind: 'unsupported_target' };
   }
 
   const numericId = parseNumericTargetId(targetId);
@@ -940,7 +863,7 @@ export const findReportReportedContent = async (
         : { kind: 'not_found' };
     }
     default:
-      return { kind: 'unsupported_target' };
+      return { kind: 'not_found' };
   }
 };
 
@@ -1111,7 +1034,7 @@ const softDeleteCommentContent = async (
 /**
  * 신고 target/targetId로 REVIEW·ARTICLE·COMMENT를 soft delete한다.
  * 작성자 권한 검사는 하지 않는다 — 관리자 신고 처리 전용.
- * MESSAGE/USER/CHAT_ROOM은 unsupported_target.
+ * MESSAGE/USER는 soft delete 대상이 아니므로 unsupported_target.
  * deletedAt은 Service가 넘긴 처리 시각을 그대로 쓴다.
  */
 export const softDeleteReportReportedContent = async (
@@ -1122,8 +1045,7 @@ export const softDeleteReportReportedContent = async (
 ): Promise<SoftDeleteReportReportedContentResult> => {
   if (
     target === UserReportTarget.USER ||
-    target === UserReportTarget.MESSAGE ||
-    target === UserReportTarget.CHAT_ROOM
+    target === UserReportTarget.MESSAGE
   ) {
     return { kind: 'unsupported_target' };
   }

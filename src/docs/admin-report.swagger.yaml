@@ -18,7 +18,6 @@ paths:
         - MESSAGE: 메시지 보낸 사람
         - ARTICLE: 게시글 작성자
         - COMMENT: 댓글 작성자
-        - CHAT_ROOM: 채팅방 참여자
 
         날짜 필터는 신고 접수일(UserReport.createdAt) 기준입니다.
         reportedFrom이 없으면 전체 기간을 조회합니다.
@@ -42,7 +41,7 @@ paths:
           description: 신고 대상 유형 필터
           schema:
             type: string
-            enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+            enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
             example: USER
         - name: targetUserKeyword
           in: query
@@ -129,7 +128,7 @@ paths:
                               example: '550e8400-e29b-41d4-a716-446655440000'
                             target:
                               type: string
-                              enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                              enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
                               example: USER
                             targetId:
                               type: string
@@ -213,19 +212,6 @@ paths:
                                           type: string
                                         nickname:
                                           type: string
-                                - type: object
-                                  required: [type, id, roomType, createdAt]
-                                  properties:
-                                    type:
-                                      type: string
-                                      enum: [CHAT_ROOM]
-                                    id:
-                                      type: integer
-                                    roomType:
-                                      type: string
-                                    createdAt:
-                                      type: string
-                                      format: date-time
                                 - type: object
                                   required: [type, id, content, messageType, sender]
                                   properties:
@@ -481,8 +467,6 @@ paths:
         대상이 없거나 콘텐츠를 조회할 수 없으면 content·reportedContent는 null입니다.
         PENDING이 아니거나 대상을 찾을 수 없으면 availableActions는 false입니다.
         삭제된 대상 사용자는 canSuspendUser가 false이다.
-        CHAT_ROOM은 상태가 PENDING이어도
-        canSuspendUser와 canDeleteContent가 모두 false이다.
         USER와 MESSAGE는 canDeleteContent가 항상 false이다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
@@ -528,7 +512,7 @@ paths:
                         example: 1
                       target:
                         type: string
-                        enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                        enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
                         example: REVIEW
                       targetId:
                         type: string
@@ -600,7 +584,7 @@ paths:
                         properties:
                           type:
                             type: string
-                            enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                            enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
                           id:
                             type: string
                           exists:
@@ -744,7 +728,7 @@ paths:
                         properties:
                           type:
                             type: string
-                            enum: [USER, REVIEW, CHAT_ROOM, MESSAGE, ARTICLE, COMMENT]
+                            enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
                           id:
                             type: string
                           title:
@@ -792,7 +776,7 @@ paths:
                       reportedContent:
                         nullable: true
                         description: |
-                          신고 콘텐츠(type으로 구분). USER/CHAT_ROOM·미존재면 null.
+                          신고 콘텐츠(type으로 구분). USER·미존재면 null.
                           REVIEW/ARTICLE/COMMENT는 deletedAt을 포함한다.
                         type: object
                         required: [type, id]
@@ -900,15 +884,22 @@ paths:
                     canSuspendUser: true
                     canDeleteContent: true
         '400':
-          description: Path Parameter(reportId) 형식 검증 실패
+          description: Path Parameter 검증 실패 또는 지원하지 않는 신고 대상
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error:
-                  code: ADMIN_INVALID_QUERY_PARAM
-                  message: 조회 조건이 올바르지 않습니다.
+              examples:
+                invalidParam:
+                  value:
+                    error:
+                      code: ADMIN_INVALID_QUERY_PARAM
+                      message: 조회 조건이 올바르지 않습니다.
+                unsupportedTarget:
+                  value:
+                    error:
+                      code: ADMIN_REPORT_UNSUPPORTED_TARGET
+                      message: 처리할 수 없는 신고 대상입니다.
         '401':
           description: 관리자 Access Token이 없거나 유효하지 않음
           content:
@@ -947,7 +938,7 @@ paths:
       description: |
         PENDING 신고에 대해 선택한 Action을 실행하고 RESOLVED로 변경합니다.
         adminId는 Access Token의 인증 정보에서만 사용하며 요청 본문으로 받지 않습니다.
-        CHAT_ROOM 또는 대상에 허용되지 않는 Action은 거절됩니다.
+        지원하지 않는 신고 대상이거나 대상에 허용되지 않는 Action은 거절됩니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -1035,7 +1026,7 @@ paths:
                   contentAlreadyDeleted: false
         '400':
           description: |
-            Path/Body 검증 실패, 허용되지 않는 Action, 또는 지원하지 않는 신고 대상(CHAT_ROOM)
+            Path/Body 검증 실패, 허용되지 않는 Action, 또는 지원하지 않는 신고 대상
           content:
             application/json:
               schema:
@@ -1122,7 +1113,7 @@ paths:
       summary: 관리자 신고 반려
       description: |
         PENDING 신고를 REJECTED로 변경합니다. 요청 body와 Action은 없습니다.
-        사용자 정지·콘텐츠 삭제는 수행하지 않으며, CHAT_ROOM·대상 누락 신고도 반려할 수 있습니다.
+        사용자 정지·콘텐츠 삭제는 수행하지 않으며, 대상 누락 신고도 반려할 수 있습니다.
         adminId는 Access Token의 인증 정보에서만 사용합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:

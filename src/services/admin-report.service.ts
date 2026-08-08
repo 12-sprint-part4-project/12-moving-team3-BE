@@ -5,6 +5,10 @@ import {
   type UserReportTarget,
   type UserType,
 } from '@prisma/client';
+import {
+  isSupportedReportTarget,
+  type SupportedReportTarget,
+} from '../constants/report-target';
 import type {
   AdminReportAvailableActionsDto,
   AdminReportDetailContentDto,
@@ -28,7 +32,6 @@ import {
   findAdminReportById,
   findAdminReportsWithCount,
   findReportDetailTargetArticleById,
-  findReportDetailTargetChatRoomById,
   findReportDetailTargetCommentById,
   findReportDetailTargetMessageById,
   findReportDetailTargetReviewById,
@@ -36,7 +39,6 @@ import {
   findReportReportedContent,
   findReportSanctionTargetUser,
   findReportTargetArticlesByIds,
-  findReportTargetChatRoomsByIds,
   findReportTargetCommentsByIds,
   findReportTargetIdsByTargetUserKeyword,
   findReportTargetMessagesByIds,
@@ -75,7 +77,7 @@ const ADMIN_REPORT_DECISION_TX_OPTIONS = {
 
 /** 신고 대상별 허용 Action — DTO 통과 후에도 Service에서 다시 검증한다 */
 const ALLOWED_ACTIONS_BY_TARGET: Record<
-  UserReportTarget,
+  SupportedReportTarget,
   ReadonlySet<AdminReportProcessAction>
 > = {
   USER: new Set(['SUSPEND_TARGET_USER']),
@@ -83,7 +85,6 @@ const ALLOWED_ACTIONS_BY_TARGET: Record<
   REVIEW: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
   ARTICLE: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
   COMMENT: new Set(['SUSPEND_TARGET_USER', 'DELETE_REPORTED_CONTENT']),
-  CHAT_ROOM: new Set(),
 };
 
 export const getReportStatistics = async ({
@@ -130,35 +131,35 @@ const loadTargetInfoMap = async (
 ): Promise<Map<string, AdminReportTargetInfoDto>> => {
   const infoByKey = new Map<string, AdminReportTargetInfoDto>();
 
-  const idsByTarget: Record<UserReportTarget, string[]> = {
+  const idsByTarget: Record<SupportedReportTarget, string[]> = {
     USER: [],
     REVIEW: [],
-    CHAT_ROOM: [],
     MESSAGE: [],
     ARTICLE: [],
     COMMENT: [],
   };
 
   for (const item of items) {
+    // 지원 대상만 배치 조회한다. 그 외 target은 targetInfo null로 남긴다.
+    if (!isSupportedReportTarget(item.target)) {
+      continue;
+    }
     idsByTarget[item.target].push(item.targetId);
   }
 
   const userIds = [...new Set(idsByTarget.USER)];
   const reviewIds = toUniqueNumericTargetIds(idsByTarget.REVIEW);
-  const chatRoomIds = toUniqueNumericTargetIds(idsByTarget.CHAT_ROOM);
   const messageIds = toUniqueNumericTargetIds(idsByTarget.MESSAGE);
   const articleIds = toUniqueNumericTargetIds(idsByTarget.ARTICLE);
   const commentIds = toUniqueNumericTargetIds(idsByTarget.COMMENT);
 
-  const [users, reviews, chatRooms, messages, articles, comments] =
-    await Promise.all([
-      findReportTargetUsersByIds(userIds),
-      findReportTargetReviewsByIds(reviewIds),
-      findReportTargetChatRoomsByIds(chatRoomIds),
-      findReportTargetMessagesByIds(messageIds),
-      findReportTargetArticlesByIds(articleIds),
-      findReportTargetCommentsByIds(commentIds),
-    ]);
+  const [users, reviews, messages, articles, comments] = await Promise.all([
+    findReportTargetUsersByIds(userIds),
+    findReportTargetReviewsByIds(reviewIds),
+    findReportTargetMessagesByIds(messageIds),
+    findReportTargetArticlesByIds(articleIds),
+    findReportTargetCommentsByIds(commentIds),
+  ]);
 
   for (const user of users) {
     infoByKey.set(`USER:${user.id}`, {
@@ -184,15 +185,6 @@ const loadTargetInfoMap = async (
             nickname: review.user.nickname,
           }
         : null,
-    });
-  }
-
-  for (const room of chatRooms) {
-    infoByKey.set(`CHAT_ROOM:${room.id}`, {
-      type: 'CHAT_ROOM',
-      id: room.id,
-      roomType: room.roomType,
-      createdAt: room.createdAt,
     });
   }
 
@@ -247,7 +239,10 @@ const loadTargetInfoMap = async (
 };
 
 /** 대상 조회 키 — Int PK는 숫자로 정규화해 Map lookup과 맞춘다 */
-const toTargetInfoKey = (target: UserReportTarget, targetId: string): string => {
+const toTargetInfoKey = (
+  target: SupportedReportTarget,
+  targetId: string
+): string => {
   if (target === 'USER') {
     return `USER:${targetId}`;
   }
@@ -274,9 +269,10 @@ const toAdminReportListItem = (
   },
   target: row.target,
   targetId: row.targetId,
-  // 삭제되었거나 targetId가 깨진 경우 null로 내려 목록 UI가 fallback 처리할 수 있게 한다.
-  targetInfo:
-    targetInfoMap.get(toTargetInfoKey(row.target, row.targetId)) ?? null,
+  // 지원 대상만 Map에 넣으므로, 그 외·삭제·깨진 targetId는 null이다.
+  targetInfo: isSupportedReportTarget(row.target)
+    ? (targetInfoMap.get(toTargetInfoKey(row.target, row.targetId)) ?? null)
+    : null,
   category: row.category,
   status: row.status,
   createdAt: row.createdAt,
@@ -420,7 +416,7 @@ const toDetailReporter = (
 
 /** 대상 미존재 시에도 targetInfo 객체 형태를 유지한다 */
 const toMissingTargetInfo = (
-  type: UserReportTarget,
+  type: SupportedReportTarget,
   targetId: string
 ): AdminReportDetailTargetDto => ({
   type,
@@ -449,7 +445,7 @@ type DetailTargetBundle = {
 
 /** 대상 없음·잘못된 targetId 공통 fallback — 신고 상세 응답 구조는 유지한다 */
 const toMissingTargetBundle = (
-  type: UserReportTarget,
+  type: SupportedReportTarget,
   targetId: string
 ): DetailTargetBundle => ({
   targetInfo: toMissingTargetInfo(type, targetId),
@@ -517,45 +513,6 @@ const loadReviewReportTarget = async (
       createdAt: review.createdAt,
       deletedAt: review.deletedAt,
       metadata: { rating: review.rating },
-    },
-  };
-};
-
-/** CHAT_ROOM 대상 상세 — soft-delete 컬럼이 없어 존재 시 isDeleted: false */
-const loadChatRoomReportTarget = async (
-  targetId: string
-): Promise<DetailTargetBundle> => {
-  const id = parseNumericTargetId(targetId);
-  if (id === null) {
-    return toMissingTargetBundle('CHAT_ROOM', targetId);
-  }
-
-  const room = await findReportDetailTargetChatRoomById(id);
-  if (!room) {
-    return toMissingTargetBundle('CHAT_ROOM', targetId);
-  }
-
-  return {
-    targetInfo: {
-      type: 'CHAT_ROOM',
-      id: targetId,
-      exists: true,
-      isDeleted: false,
-      user: null,
-    },
-    content: {
-      type: 'CHAT_ROOM',
-      id: String(room.id),
-      title: '채팅방',
-      body: null,
-      createdAt: room.createdAt,
-      deletedAt: null,
-      metadata: {
-        roomType: room.roomType,
-        estimateRequestId: room.estimateRequestId,
-        quoteId: room.quoteId,
-        lastMessageAt: room.lastMessageAt,
-      },
     },
   };
 };
@@ -671,7 +628,7 @@ const loadCommentReportTarget = async (
 
 /** target 타입별 Repository 조회 후 targetInfo·content를 조립한다 */
 const loadReportDetailTarget = async (
-  target: UserReportTarget,
+  target: SupportedReportTarget,
   targetId: string
 ): Promise<DetailTargetBundle> => {
   switch (target) {
@@ -679,17 +636,17 @@ const loadReportDetailTarget = async (
       return loadUserReportTarget(targetId);
     case 'REVIEW':
       return loadReviewReportTarget(targetId);
-    case 'CHAT_ROOM':
-      return loadChatRoomReportTarget(targetId);
     case 'MESSAGE':
       return loadMessageReportTarget(targetId);
     case 'ARTICLE':
       return loadArticleReportTarget(targetId);
     case 'COMMENT':
       return loadCommentReportTarget(targetId);
-    default:
-      // Prisma enum 외 값이 들어오면 대상 없음으로 안전하게 처리한다.
-      return toMissingTargetBundle(target, targetId);
+    default: {
+      // 지원 대상 union이 늘어나도 누락 분기 없이 구조를 유지한다.
+      const exhaustive: never = target;
+      return toMissingTargetBundle(exhaustive, targetId);
+    }
   }
 };
 
@@ -766,7 +723,6 @@ const toReportedContentFromResult = (
       };
     case 'no_content':
     case 'not_found':
-    case 'unsupported_target':
     case 'invalid_target_id':
       return null;
     default:
@@ -782,15 +738,11 @@ const toReportedContentFromResult = (
  */
 const toAvailableActions = (
   status: UserReportStatus,
-  target: UserReportTarget,
+  target: SupportedReportTarget,
   userResult: FindReportSanctionTargetUserResult,
   contentResult: FindReportReportedContentResult
 ): AdminReportAvailableActionsDto => {
   if (status !== UserReportStatus.PENDING) {
-    return { canSuspendUser: false, canDeleteContent: false };
-  }
-
-  if (target === 'CHAT_ROOM') {
     return { canSuspendUser: false, canDeleteContent: false };
   }
 
@@ -828,6 +780,11 @@ export const getAdminReportDetail = async (
   // 목록과 달리 단건이므로 없으면 바로 404로 끊는다.
   if (!report) {
     throw new AppError('ADMIN_REPORT_NOT_FOUND');
+  }
+
+  // 앱에서 다루지 않는 대상은 상세 조립·Action 계산을 하지 않는다.
+  if (!isSupportedReportTarget(report.target)) {
+    throw new AppError('ADMIN_REPORT_UNSUPPORTED_TARGET');
   }
 
   // 기존 상세 조립과 Action용 조회를 병렬로 수행한다.
@@ -889,7 +846,7 @@ const assertActionsAllowedForTarget = (
   target: UserReportTarget,
   actions: AdminReportProcessAction[]
 ) => {
-  if (target === 'CHAT_ROOM') {
+  if (!isSupportedReportTarget(target)) {
     throw new AppError('ADMIN_REPORT_UNSUPPORTED_TARGET');
   }
 
@@ -924,10 +881,7 @@ const executeSuspendTargetUser = async (
     throw new AppError('INTERNAL_SERVER_ERROR');
   }
 
-  if (
-    userResult.kind === 'not_found' ||
-    userResult.kind === 'unsupported_target'
-  ) {
+  if (userResult.kind === 'not_found') {
     throw new AppError('ADMIN_REPORT_TARGET_USER_NOT_FOUND');
   }
 
@@ -1066,7 +1020,7 @@ export type RejectAdminReportInput = {
 /**
  * 관리자 신고 반려.
  * 신고 잠금 후 PENDING → REJECTED만 수행한다.
- * 사용자·콘텐츠·CHAT_ROOM 제재는 하지 않으며, 대상 존재 여부와 무관하게 반려할 수 있다.
+ * 사용자·콘텐츠 제재는 하지 않으며, 대상 존재 여부와 무관하게 반려할 수 있다.
  */
 export const rejectAdminReport = async ({
   reportId,

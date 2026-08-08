@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { isSupportedReportTarget } from '../constants/report-target';
 import type { ReportCreateBody } from '../schemas/report.schema';
 import * as reportRepository from '../repositories/report.repository';
 import { AppError } from '../utils/app.error';
@@ -12,20 +13,11 @@ export interface CreateReportInput {
   body: ReportCreateBody;
 }
 
-/** 공개 신고 생성에서 허용하는 대상. Prisma enum과 분리해 레거시 CHAT_ROOM 접수를 막는다. */
-const CREATABLE_REPORT_TARGETS = new Set([
-  'USER',
-  'REVIEW',
-  'MESSAGE',
-  'ARTICLE',
-  'COMMENT',
-]);
-
 export const createReport = async ({ reporterId, body }: CreateReportInput) => {
   const { target, targetId, category } = body;
 
-  // 스키마 검증을 우회한 직접 호출에서도 CHAT_ROOM이 Repository까지 내려가지 않게 한다.
-  if (!CREATABLE_REPORT_TARGETS.has(target)) {
+  // 스키마를 우회한 직접 호출에서도 지원 대상만 Repository로 넘긴다.
+  if (!isSupportedReportTarget(target)) {
     throw new AppError('INVALID_REQUEST_BODY');
   }
 
@@ -38,7 +30,7 @@ export const createReport = async ({ reporterId, body }: CreateReportInput) => {
     throw new AppError('REPORT_TARGET_NOT_FOUND');
   }
 
-  // ownerId가 있는 대상만 자기 신고를 막는다(콘텐츠/유저). ownerId가 null이면 검사하지 않는다.
+  // ownerId가 있는 대상만 자기 신고를 막는다(콘텐츠/유저).
   if (targetInfo.ownerId !== null && targetInfo.ownerId === reporterId) {
     throw new AppError('REPORT_SELF_NOT_ALLOWED');
   }

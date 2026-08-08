@@ -1,5 +1,4 @@
 import type {
-  ChatRoomType,
   MessageType,
   MoveType,
   PostsCategory,
@@ -10,6 +9,7 @@ import type {
   UserStatus,
   UserType,
 } from '@prisma/client';
+import type { SupportedReportTarget } from '../constants/report-target';
 import type { AdminReportProcessAction } from '../schemas/admin-report.schema';
 import type { PaginationDto } from './admin-member.dto';
 
@@ -46,13 +46,6 @@ export interface AdminReportReviewTargetInfoDto {
   author: AdminReportTargetAuthorDto | null;
 }
 
-export interface AdminReportChatRoomTargetInfoDto {
-  type: 'CHAT_ROOM';
-  id: number;
-  roomType: ChatRoomType;
-  createdAt: Date;
-}
-
 export interface AdminReportMessageTargetInfoDto {
   type: 'MESSAGE';
   id: number;
@@ -83,7 +76,6 @@ export interface AdminReportCommentTargetInfoDto {
 export type AdminReportTargetInfoDto =
   | AdminReportUserTargetInfoDto
   | AdminReportReviewTargetInfoDto
-  | AdminReportChatRoomTargetInfoDto
   | AdminReportMessageTargetInfoDto
   | AdminReportArticleTargetInfoDto
   | AdminReportCommentTargetInfoDto;
@@ -93,6 +85,7 @@ export interface AdminReportListItemDto {
   id: number;
   reporterId: string;
   reporter: AdminReportReporterDto;
+  /** Prisma 저장값. 앱 분기·필터는 SupportedReportTarget만 사용한다. */
   target: UserReportTarget;
   targetId: string;
   targetInfo: AdminReportTargetInfoDto | null;
@@ -197,7 +190,7 @@ export interface AdminReportDetailUserSummaryDto {
  * 상세는 exists/isDeleted로 구분해 프론트가 "없음"과 "삭제됨"을 다르게 표시할 수 있게 한다.
  */
 export interface AdminReportDetailTargetDto {
-  type: UserReportTarget;
+  type: SupportedReportTarget;
   id: string;
   /** DB에 해당 대상 레코드가 있는지 */
   exists: boolean;
@@ -219,7 +212,7 @@ export interface AdminReportDetailTargetDto {
  * 필드 단위로는 title/body를 nullable로 둬 유형별 차이를 흡수한다.
  */
 export interface AdminReportDetailContentDto {
-  type: UserReportTarget;
+  type: SupportedReportTarget;
   id: string;
   /** 게시글 제목 등. 메시지·댓글처럼 제목이 없으면 null */
   title: string | null;
@@ -228,7 +221,7 @@ export interface AdminReportDetailContentDto {
   createdAt: Date | null;
   deletedAt: Date | null;
   /**
-   * rating, messageType, roomType, category처럼 유형 전용 필드를 담는 확장 슬롯.
+   * rating, messageType, category처럼 유형 전용 필드를 담는 확장 슬롯.
    * 공통 필드를 늘리지 않고도 상세 화면이 필요한 메타를 받을 수 있다.
    */
   metadata: Record<string, unknown> | null;
@@ -297,7 +290,7 @@ export interface AdminReportDetailReportedMessageContentDto {
 
 /**
  * 신고된 콘텐츠 상세.
- * USER는 null, CHAT_ROOM은 이번 Action 범위에서 지원하지 않아 null로 둔다.
+ * USER처럼 별도 콘텐츠가 없거나 조회 실패면 상위 reportedContent를 null로 둔다.
  */
 export type AdminReportDetailReportedContentDto =
   | AdminReportDetailReportedReviewContentDto
@@ -341,6 +334,7 @@ export interface AdminReportRejectResultDto {
  */
 export interface AdminReportDetailDto {
   id: number;
+  /** Prisma 저장값. 상세 조립은 SupportedReportTarget만 처리한다. */
   target: UserReportTarget;
   targetId: string;
   category: UserReportCategory;
@@ -354,9 +348,9 @@ export interface AdminReportDetailDto {
   targetInfo: AdminReportDetailTargetDto;
   /** USER 신고이거나 콘텐츠를 조회할 수 없으면 null */
   content: AdminReportDetailContentDto | null;
-  /** 정지 Action용 대상 사용자. 없거나 CHAT_ROOM이면 null */
+  /** 정지 Action용 대상 사용자. 없으면 null */
   targetUser: AdminReportDetailTargetUserDto | null;
-  /** 콘텐츠 삭제 Action·표시용. USER/CHAT_ROOM·미존재면 null */
+  /** 콘텐츠 삭제 Action·표시용. USER·미존재면 null */
   reportedContent: AdminReportDetailReportedContentDto | null;
   availableActions: AdminReportAvailableActionsDto;
 }

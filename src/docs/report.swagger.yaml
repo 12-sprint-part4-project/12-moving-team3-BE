@@ -67,7 +67,7 @@ paths:
         - reporterId는 인증 토큰의 사용자
         - 동일 reporter + target + targetId 중복 신고 불가
         - 자기 자신(USER) 또는 본인 콘텐츠(REVIEW/ARTICLE/COMMENT/MESSAGE) 신고 불가
-        - 지원 대상: USER, REVIEW, MESSAGE, ARTICLE, COMMENT (CHAT_ROOM 신규 접수 불가)
+        - 지원 대상: USER, REVIEW, MESSAGE, ARTICLE, COMMENT
       security:
         - bearerAuth: []
       requestBody:
