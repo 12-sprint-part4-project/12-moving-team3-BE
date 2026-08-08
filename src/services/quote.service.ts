@@ -18,6 +18,7 @@ import type {
   SentQuoteListItemDto,
 } from '../dtos/quote.dto';
 import { existsMoverProfile } from '../repositories/estimate-request.repository';
+import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as quoteRepository from '../repositories/quote.repository';
 import type {
   CreateQuoteData,
@@ -344,9 +345,12 @@ const isClosedEstimateRequestCard = (status: EstimateRequestStatus): boolean =>
   status === EstimateRequestStatus.CANCELED;
 
 /**
- * 견적 상세 응답 DTO 변환
+ * 견적 상세 DTO 변환
  */
-const toQuoteDetailDto = (quote: QuoteDetailRow): QuoteDetailDto => {
+const toQuoteDetailDto = (
+  quote: QuoteDetailRow,
+  designatedMoverId: number | null
+): QuoteDetailDto => {
   const { estimateRequest } = quote;
 
   return {
@@ -360,6 +364,7 @@ const toQuoteDetailDto = (quote: QuoteDetailRow): QuoteDetailDto => {
     customer: { name: estimateRequest.user.name },
     moveType: estimateRequest.moveType,
     isDesignated: quote.isDesignated,
+    designatedMoverId,
     requestedAt: estimateRequest.submittedAt ?? estimateRequest.createdAt,
     moveDate: estimateRequest.moveDate,
     fromAddress: estimateRequest.departureAddress,
@@ -371,7 +376,8 @@ const toQuoteDetailDto = (quote: QuoteDetailRow): QuoteDetailDto => {
  * 반려 견적 목록 아이템 DTO 변환
  */
 const toRejectedQuoteListItem = (
-  quote: RejectedQuoteListRow
+  quote: RejectedQuoteListRow,
+  designatedMoverId: number | null
 ): RejectedQuoteListItemDto => {
   const { estimateRequest } = quote;
 
@@ -381,6 +387,7 @@ const toRejectedQuoteListItem = (
     customer: { name: estimateRequest.user.name },
     moveType: estimateRequest.moveType,
     isDesignated: quote.isDesignated,
+    designatedMoverId,
     moveDate: estimateRequest.moveDate,
     fromRegionLabel: inferDistrictLabelFromAddress(
       estimateRequest.departureAddress
@@ -395,7 +402,10 @@ const toRejectedQuoteListItem = (
 /**
  * 보낸 견적 목록 아이템 DTO 변환
  */
-const toSentQuoteListItem = (quote: SentQuoteListRow): SentQuoteListItemDto => {
+const toSentQuoteListItem = (
+  quote: SentQuoteListRow,
+  designatedMoverId: number | null
+): SentQuoteListItemDto => {
   const { estimateRequest } = quote;
 
   return {
@@ -405,6 +415,7 @@ const toSentQuoteListItem = (quote: SentQuoteListRow): SentQuoteListItemDto => {
     moveType: estimateRequest.moveType,
     isConfirmed: quote.status === QuoteStatus.CONFIRMED,
     isDesignated: quote.isDesignated,
+    designatedMoverId,
     moveDate: estimateRequest.moveDate,
     fromRegionLabel: inferDistrictLabelFromAddress(
       estimateRequest.departureAddress
@@ -441,7 +452,13 @@ export const getQuoteDetail = async (
     throw new AppError('FORBIDDEN');
   }
 
-  return toQuoteDetailDto(quote);
+  const designated =
+    await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+      quote.estimateRequestId,
+      input.moverId
+    );
+
+  return toQuoteDetailDto(quote, designated?.id ?? null);
 };
 
 /**
@@ -470,8 +487,19 @@ export const getQuotes = async (
         take: input.limit,
       });
 
+    const designatedByEstimateId =
+      await designatedEstimateRequestRepository.findIdsByEstimateIdsAndMoverId(
+        items.map((item) => item.estimateRequestId),
+        input.moverId
+      );
+
     return {
-      items: items.map(toRejectedQuoteListItem),
+      items: items.map((item) =>
+        toRejectedQuoteListItem(
+          item,
+          designatedByEstimateId.get(item.estimateRequestId) ?? null
+        )
+      ),
       meta: buildPaginationMeta(totalCount, input.page, input.limit),
     };
   }
@@ -484,8 +512,19 @@ export const getQuotes = async (
       take: input.limit,
     });
 
+  const designatedByEstimateId =
+    await designatedEstimateRequestRepository.findIdsByEstimateIdsAndMoverId(
+      items.map((item) => item.estimateRequestId),
+      input.moverId
+    );
+
   return {
-    items: items.map(toSentQuoteListItem),
+    items: items.map((item) =>
+      toSentQuoteListItem(
+        item,
+        designatedByEstimateId.get(item.estimateRequestId) ?? null
+      )
+    ),
     meta: buildPaginationMeta(totalCount, input.page, input.limit),
   };
 };
@@ -605,7 +644,8 @@ const toCustomerQuoteMoverDto = async (
  */
 const toCustomerQuoteItemDto = async (
   quote: CustomerQuoteRow,
-  moverMap: Map<string, CustomerQuoteMoverRow>
+  moverMap: Map<string, CustomerQuoteMoverRow>,
+  designatedByMoverId: Map<string, number>
 ): Promise<CustomerQuoteItemDto | null> => {
   if (!quote.moverId) return null;
 
@@ -617,6 +657,7 @@ const toCustomerQuoteItemDto = async (
     price: quote.price,
     status: quote.status,
     isDesignated: quote.isDesignated,
+    designatedMoverId: designatedByMoverId.get(quote.moverId) ?? null,
     mover: await toCustomerQuoteMoverDto(mover),
   };
 };
@@ -626,10 +667,13 @@ const toCustomerQuoteItemDto = async (
  */
 const mapCustomerQuoteItems = async (
   quotes: CustomerQuoteRow[],
-  moverMap: Map<string, CustomerQuoteMoverRow>
+  moverMap: Map<string, CustomerQuoteMoverRow>,
+  designatedByMoverId: Map<string, number>
 ): Promise<CustomerQuoteItemDto[]> => {
   const items = await Promise.all(
-    quotes.map((quote) => toCustomerQuoteItemDto(quote, moverMap))
+    quotes.map((quote) =>
+      toCustomerQuoteItemDto(quote, moverMap, designatedByMoverId)
+    )
   );
 
   return items.filter((item): item is CustomerQuoteItemDto => item != null);
@@ -640,7 +684,8 @@ const mapCustomerQuoteItems = async (
  */
 const buildCustomerQuoteItems = async (
   quotes: CustomerQuoteRow[],
-  customerId: string
+  customerId: string,
+  designatedByMoverId: Map<string, number>
 ): Promise<CustomerQuoteItemDto[]> => {
   const moverIds = quotes
     .map((quote) => quote.moverId)
@@ -651,7 +696,7 @@ const buildCustomerQuoteItems = async (
     customerId
   );
 
-  return mapCustomerQuoteItems(quotes, moverMap);
+  return mapCustomerQuoteItems(quotes, moverMap, designatedByMoverId);
 };
 
 /**
@@ -667,6 +712,14 @@ const toFullAddressLabel = (
 
   return parts.length > 0 ? parts.join(' ') : null;
 };
+
+/**
+ * designatedMovers 배열 → moverId → designatedMoverId 맵
+ */
+const toDesignatedByMoverIdMap = (
+  designatedMovers: Array<{ id: number; moverId: string }>
+): Map<string, number> =>
+  new Map(designatedMovers.map((row) => [row.moverId, row.id]));
 
 /**
  * 과거 견적 요청 그룹 DTO 변환
@@ -686,7 +739,11 @@ const toPastQuoteGroupDto = async (
     row.departureDetailAddress
   ),
   toAddress: toFullAddressLabel(row.arrivalAddress, row.arrivalDetailAddress),
-  quotes: await mapCustomerQuoteItems(row.quotes, moverMap),
+  quotes: await mapCustomerQuoteItems(
+    row.quotes,
+    moverMap,
+    toDesignatedByMoverIdMap(row.designatedMovers)
+  ),
 });
 
 /**
@@ -725,7 +782,8 @@ export const getCustomerPendingQuotes = async (
 
   const quotes = await buildCustomerQuoteItems(
     estimateRequest.quotes,
-    customerId
+    customerId,
+    toDesignatedByMoverIdMap(estimateRequest.designatedMovers)
   );
 
   return {
@@ -805,6 +863,14 @@ export const getCustomerQuoteDetail = async (
     throw new AppError('MOVER_NOT_FOUND');
   }
 
+  const designated =
+    quote.moverId != null
+      ? await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+          quote.estimateRequestId,
+          quote.moverId
+        )
+      : null;
+
   return {
     quoteId: quote.id,
     estimateRequestId: quote.estimateRequestId,
@@ -812,6 +878,7 @@ export const getCustomerQuoteDetail = async (
     comment: quote.comment,
     status: quote.status,
     isDesignated: quote.isDesignated,
+    designatedMoverId: designated?.id ?? null,
     estimateRequestStatus: quote.estimateRequest.status,
     serviceType: quote.estimateRequest.moveType,
     moveDate: quote.estimateRequest.moveDate,

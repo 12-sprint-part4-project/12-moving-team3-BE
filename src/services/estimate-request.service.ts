@@ -48,6 +48,8 @@ export interface EstimateRequestListItem {
   departure: { address: string | null; regionLabel: string | null };
   arrival: { address: string | null; regionLabel: string | null };
   isDesignated: boolean;
+  /** EstimateDesignatedMover.id — 지정 채팅방 생성용. 비지정이면 null */
+  designatedMoverId: number | null;
   submittedAt: Date | null;
   quoteCount: QuoteCount;
 }
@@ -168,6 +170,7 @@ const toEstimateRequestListItem = (
     regionLabel: inferRegionLabelFromAddress(row.arrivalAddress),
   },
   isDesignated: row.designatedMovers.length > 0,
+  designatedMoverId: row.designatedMovers[0]?.id ?? null,
   submittedAt: row.submittedAt,
   quoteCount: countQuotesByDesignation(row.quotes),
 });

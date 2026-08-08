@@ -120,8 +120,9 @@ export const createDesignatedEstimateRequest = async (
       moverId
     );
 
+  // 이미 지정된 경우 기존 행을 반환 (designatedMoverId 유지 — 채팅 생성용)
   if (existing) {
-    throw new AppError('DESIGNATED_ALREADY_EXISTS');
+    return toDto(existing);
   }
 
   const existingQuote = await quoteRepository.findExistingQuoteByStatuses(
@@ -221,7 +222,26 @@ export const createDesignatedEstimateRequest = async (
 
     return created;
   } catch (error) {
-    if (isUniqueConstraintError(error)) {
+    // 동시 요청·tx 내 재조회로 이미 존재하면 기존 행 반환 (알림 미발송)
+    if (
+      (error instanceof AppError &&
+        error.code === 'DESIGNATED_ALREADY_EXISTS') ||
+      isUniqueConstraintError(error)
+    ) {
+      const raced =
+        await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+          estimateRequestId,
+          moverId
+        );
+
+      if (raced) {
+        return toDto(raced);
+      }
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       throw new AppError('DESIGNATED_ALREADY_EXISTS');
     }
 
