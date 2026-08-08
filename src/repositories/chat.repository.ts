@@ -99,7 +99,6 @@ export const findActiveUserById = async (userId: string) => {
     },
     select: {
       id: true,
-      userType: true,
     },
   });
 };
@@ -234,14 +233,18 @@ export const findRoomByEstimateAndParticipants = async (params: {
   return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
 };
 
+interface FindRoomByCommunityPostAndParticipantsParams {
+  communityPostId: number;
+  participantIds: string[];
+}
+
 /**
  * 가구나눔 게시글 + COMMUNITY + 활성 참여자 조합으로 기존 채팅방을 조회한다.
  * 동일 게시글이라도 참여자 쌍이 다르면 별도 방이다.
  */
-export const findRoomByCommunityPostAndParticipants = async (params: {
-  communityPostId: number;
-  participantIds: string[];
-}): Promise<ChatRoomRecord | null> => {
+export const findRoomByCommunityPostAndParticipants = async (
+  params: FindRoomByCommunityPostAndParticipantsParams
+): Promise<ChatRoomRecord | null> => {
   const rooms = await prisma.chatRoom.findMany({
     where: {
       communityPostId: params.communityPostId,

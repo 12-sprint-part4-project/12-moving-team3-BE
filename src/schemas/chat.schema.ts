@@ -13,7 +13,7 @@ const createEstimateChatRoomBodySchema = z.object({
 /** POST /api/chat/rooms — 가구나눔(COMMUNITY) 채팅방 생성 body */
 const createCommunityChatRoomBodySchema = z.object({
   /** 상대 users.id (게시글 작성자). 견적 API와 필드명 공유 */
-  moverId: z.string(),
+  moverId: z.uuid(),
   communityPostId: z.number().int().positive(),
   roomType: z.literal('COMMUNITY'),
 });
