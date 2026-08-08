@@ -61,7 +61,11 @@ export type AdminChatDetailRow = Prisma.ChatRoomGetPayload<{
   select: typeof adminChatDetailSelect;
 }>;
 
-/** 관리자 메시지 히스토리 select — Presigned URL 변환은 Service에서 fileKey로 처리 */
+/**
+ * 관리자 메시지 히스토리 select.
+ * Presigned URL 변환은 Service에서 fileKey로 처리한다.
+ * rawLog는 관리자 전용 원문 조회용이며, 없으면 null이다.
+ */
 const adminChatMessageSelect = {
   id: true,
   roomId: true,
@@ -84,6 +88,12 @@ const adminChatMessageSelect = {
     orderBy: { id: 'asc' as const },
     select: {
       fileKey: true,
+    },
+  },
+  // ChatMessage.rawLog (ChatMessageRawLog) — N+1 없이 nested select로 함께 조회한다.
+  rawLog: {
+    select: {
+      rawContent: true,
     },
   },
 } satisfies Prisma.ChatMessageSelect;
