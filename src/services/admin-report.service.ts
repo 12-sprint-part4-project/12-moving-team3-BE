@@ -27,7 +27,7 @@ import type {
   AdminReportResolveResultDto,
   AdminReportTargetInfoDto,
 } from '../dtos/admin-report.dto';
-import { prisma } from '../lib/prisma';
+import { runAuditedTransaction } from '../lib/audit-context';
 import {
   findAdminReportById,
   findAdminReportsWithCount,
@@ -1044,7 +1044,7 @@ export const resolveAdminReport = async ({
   // 정지·삭제·상태 변경에 동일 시각을 쓴다.
   const processedAt = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const report = await lockAdminReportForStatusChange(reportId, tx);
 
     if (!report) {
@@ -1119,7 +1119,7 @@ export const rejectAdminReport = async ({
 }: RejectAdminReportInput): Promise<AdminReportRejectResultDto> => {
   const processedAt = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
     const report = await lockAdminReportForStatusChange(reportId, tx);
 

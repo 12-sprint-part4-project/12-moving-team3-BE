@@ -4,6 +4,7 @@ import {
   MoveType as MoveTypeEnum,
   Prisma,
 } from '@prisma/client';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import type {
@@ -422,7 +423,7 @@ export const createEstimateRequest = async (userId: string) => {
   const todayStartUtc = toUtcDateOnly(getTodayDateStringKst());
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await runAuditedTransaction(async (tx) => {
       const active = await estimateRequestRepository.findActiveEstimateRequest(
         userId,
         todayStartUtc,

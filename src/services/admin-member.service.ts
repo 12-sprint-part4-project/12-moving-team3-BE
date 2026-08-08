@@ -4,7 +4,7 @@ import type {
   AdminMemberListResultDto,
   AdminMemberStatusResultDto,
 } from '../dtos/admin-member.dto';
-import { prisma } from '../lib/prisma';
+import { runAuditedTransaction } from '../lib/audit-context';
 import {
   countAdminMemberReports,
   countConfirmedQuotesByMoverId,
@@ -163,7 +163,7 @@ const changeAdminMemberStatus = async (
   adminId: number,
   data: AdminMemberStatusUpdate
 ): Promise<AdminMemberStatusResultDto> => {
-  const statusInfo = await prisma.$transaction(async (tx) => {
+  const statusInfo = await runAuditedTransaction(async (tx) => {
     // soft delete와 상태 변경 race를 막기 위해 회원 row를 먼저 잠근다.
     const member = await lockAdminMemberForStatusChange(memberId, tx);
 

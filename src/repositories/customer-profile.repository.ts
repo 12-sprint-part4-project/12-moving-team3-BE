@@ -1,4 +1,5 @@
 import { MoveType, Region } from '@prisma/client';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 
 export const findCustomerProfileByUserId = async (userId: string) => {
@@ -59,7 +60,7 @@ export interface RegisterCustomerProfileInput {
 export const registerCustomerProfile = async (
   input: RegisterCustomerProfileInput
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const hasProfileUpdate =
       input.region !== undefined || input.service !== undefined;
 

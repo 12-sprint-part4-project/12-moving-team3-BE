@@ -1,5 +1,5 @@
 import { HistoryAction, Prisma } from '@prisma/client';
-import { prisma } from '../lib/prisma';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { createHistory } from '../repositories/history.repository';
 import {
   activateUserStatusesByUserIds,
@@ -36,7 +36,7 @@ const toStatusHistoryJson = (
 export const releaseExpiredSuspensions = async (
   now: Date = new Date()
 ): Promise<ReleaseExpiredSuspensionsResult> => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const expiredStatuses = await findExpiredSuspendedStatuses(now, tx);
 
     if (expiredStatuses.length === 0) {

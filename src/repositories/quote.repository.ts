@@ -5,6 +5,7 @@ import {
   type MoveType,
   type Quote,
 } from '@prisma/client';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import {
   SENT_QUOTE_STATUSES,
@@ -250,7 +251,7 @@ export const createQuote = async (
 export const runInTransaction = async <T>(
   handler: (tx: QuoteTransactionClient) => Promise<T>
 ): Promise<T> => {
-  return prisma.$transaction(async (tx) => handler(tx));
+  return runAuditedTransaction(async (tx) => handler(tx));
 };
 
 /** 견적 상세 조회용 select */
