@@ -128,6 +128,8 @@ paths:
         moveType은 하나의 이사 유형만 선택할 수 있습니다.
         startDate가 없으면 전체 기간을 조회하며, 이 경우 endDate는 적용되지 않습니다.
         startDate만 입력하면 해당 일의 이사 완료 요청을 조회하고, endDate도 입력하면 두 날짜 사이의 이사일을 기준으로 조회합니다.
+        필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
+        missingFields에 누락 필드명을 담아 반환합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -206,6 +208,7 @@ paths:
                         - moveDate
                         - mover
                         - price
+                        - missingFields
                       properties:
                         id:
                           type: integer
@@ -219,26 +222,49 @@ paths:
                           example: '010-1234-5678'
                         moveType:
                           type: string
+                          nullable: true
                           enum: [SMALL, HOME, OFFICE]
                           example: HOME
                         departureAddress:
                           type: string
+                          nullable: true
                           example: 서울특별시 강남구 테헤란로 123
                         arrivalAddress:
                           type: string
+                          nullable: true
                           example: 서울특별시 송파구 올림픽로 456
                         moveDate:
                           type: string
                           format: date-time
+                          nullable: true
                           example: '2026-07-15T00:00:00.000Z'
                         mover:
                           type: string
-                          description: 확정 견적의 이사 기사명
+                          nullable: true
+                          description: 확정 견적의 이사 기사명. 없으면 null
                           example: 빠른이사
                         price:
                           type: integer
-                          description: 확정 견적 금액
+                          nullable: true
+                          description: 확정 견적 금액. 없으면 null
                           example: 250000
+                        missingFields:
+                          type: array
+                          description: |
+                            상태 불변식상 있어야 하지만 null인 응답 필드명.
+                            정상 데이터면 빈 배열
+                          items:
+                            type: string
+                            enum:
+                              [
+                                moveType,
+                                departureAddress,
+                                arrivalAddress,
+                                moveDate,
+                                mover,
+                                price,
+                              ]
+                          example: []
                   meta:
                     type: object
                     required: [page, pageSize, totalCount, totalPages]
@@ -266,6 +292,7 @@ paths:
                     moveDate: '2026-07-15T00:00:00.000Z'
                     mover: 빠른이사
                     price: 250000
+                    missingFields: []
                 meta:
                   page: 1
                   pageSize: 10
@@ -310,6 +337,8 @@ paths:
         견적 요청 ID로 COMPLETED 상태의 완료 건 상세 정보를 조회합니다.
         존재하지 않거나 COMPLETED가 아닌 상태면 404를 반환합니다.
         출발지·도착지 주소 상세(우편번호, 상세주소)와 확정 견적(confirmedQuote) 정보를 함께 반환합니다.
+        필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
+        missingFields에 누락 필드명을 담아 반환합니다. confirmedQuote 자체가 없으면 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -345,6 +374,7 @@ paths:
                       - arrivalZipCode
                       - moveDate
                       - confirmedQuote
+                      - missingFields
                     properties:
                       id:
                         type: integer
@@ -354,41 +384,52 @@ paths:
                         example: 홍길동
                       moveType:
                         type: string
+                        nullable: true
                         enum: [SMALL, HOME, OFFICE]
                         example: HOME
                       departureAddress:
                         type: string
+                        nullable: true
                         example: 서울특별시 강남구 테헤란로 123
                       departureDetailAddress:
                         type: string
+                        nullable: true
                         example: 101동 1001호
                       departureZipCode:
                         type: string
+                        nullable: true
                         example: '06236'
                       arrivalAddress:
                         type: string
+                        nullable: true
                         example: 서울특별시 송파구 올림픽로 456
                       arrivalDetailAddress:
                         type: string
+                        nullable: true
                         example: A동 502호
                       arrivalZipCode:
                         type: string
+                        nullable: true
                         example: '05551'
                       moveDate:
                         type: string
                         format: date-time
+                        nullable: true
                         description: 실제 이사일
                         example: '2026-07-15T00:00:00.000Z'
                       confirmedQuote:
                         type: object
+                        nullable: true
                         required: [moverName, price, comment, createdAt]
-                        description: 확정 견적 정보
+                        description: 확정 견적 정보. 없으면 null
                         properties:
                           moverName:
                             type: string
+                            nullable: true
                             example: 빠른이사
                           price:
                             type: integer
+                            nullable: true
                             description: 확정 견적 금액
                             example: 250000
                           comment:
@@ -399,8 +440,18 @@ paths:
                           createdAt:
                             type: string
                             format: date-time
+                            nullable: true
                             description: 견적 생성 일시
                             example: '2026-07-10T11:00:00.000Z'
+                      missingFields:
+                        type: array
+                        description: |
+                          상태 불변식상 있어야 하지만 null인 응답 필드명.
+                          confirmedQuote 하위 누락은 confirmedQuote.moverName 형태로 표시.
+                          정상 데이터면 빈 배열
+                        items:
+                          type: string
+                        example: []
               example:
                 data:
                   id: 123
@@ -418,6 +469,7 @@ paths:
                     price: 250000
                     comment: 안전하게 모시겠습니다.
                     createdAt: '2026-07-10T11:00:00.000Z'
+                  missingFields: []
         '400':
           description: Path Parameter(estimateRequestId) 유효성 검사 실패
           content:
@@ -449,7 +501,7 @@ paths:
                   code: ADMIN_ESTIMATE_REQUEST_NOT_FOUND
                   message: 존재하지 않는 견적 요청입니다.
         '500':
-          description: 서버 내부 오류 (완료 건에 필수 주소·이사일·확정 견적 등이 누락된 경우 포함)
+          description: 서버 내부 오류
           content:
             application/json:
               schema:
