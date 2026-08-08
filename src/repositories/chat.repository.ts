@@ -286,8 +286,14 @@ export const findRoomDetailById = async (roomId: number) => {
     where: { id: roomId },
     select: {
       id: true,
+      roomType: true,
       quoteId: true,
       updatedAt: true,
+      quote: {
+        select: {
+          status: true,
+        },
+      },
       estimateRequest: {
         select: {
           id: true,
@@ -410,6 +416,11 @@ export const findActiveRoomsByUserId = async (userId: string) => {
     select: {
       id: true,
       roomType: true,
+      quote: {
+        select: {
+          status: true,
+        },
+      },
       participants: {
         orderBy: { joinedAt: 'desc' },
         select: {

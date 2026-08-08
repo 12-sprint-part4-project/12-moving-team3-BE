@@ -2,6 +2,7 @@ import type {
   ChatRoomType,
   MessageType,
   MoveType,
+  QuoteStatus,
   UserType,
 } from '@prisma/client';
 import {
@@ -63,6 +64,8 @@ interface ChatRoomLastMessage {
 interface ChatRoomListItem {
   roomId: number;
   roomType: ChatRoomType;
+  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
+  quoteStatus: QuoteStatus | null;
   partner: ChatRoomPartner;
   lastMessage: ChatRoomLastMessage | null;
   partnerLastReadMessageId: number | null;
@@ -79,6 +82,7 @@ interface UnreadCountResult {
 }
 
 interface ChatRoomDetailResult {
+  roomType: ChatRoomType;
   partner: ChatRoomPartner;
   requestSummary: {
     estimateRequestId: number;
@@ -88,6 +92,8 @@ interface ChatRoomDetailResult {
     destinationAddress: string | null;
   } | null;
   quoteId: number | null;
+  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
+  quoteStatus: QuoteStatus | null;
   isMessagingAllowed: boolean;
   /** 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null */
   partnerLastReadMessageId: number | null;
@@ -581,6 +587,7 @@ export const getChatRoomList = async (
         return {
           roomId: room.id,
           roomType: room.roomType,
+          quoteStatus: room.quote?.status ?? null,
           partner: {
             id: partner.id,
             userType: partner.userType,
@@ -674,6 +681,7 @@ export const getChatRoomDetail = async (
   );
 
   return {
+    roomType: room.roomType,
     partner: {
       id: partner.id,
       userType: partner.userType,
@@ -692,6 +700,7 @@ export const getChatRoomDetail = async (
         }
       : null,
     quoteId: room.quoteId,
+    quoteStatus: room.quote?.status ?? null,
     isMessagingAllowed: isMessagingAllowedByEstimateStatus(
       room.estimateRequest?.status
     ),

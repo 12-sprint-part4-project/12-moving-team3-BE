@@ -48,6 +48,11 @@ const router = Router();
  *                           roomType:
  *                             type: string
  *                             enum: [GENERAL, DESIGNATED, COMMUNITY]
+ *                           quoteStatus:
+ *                             type: string
+ *                             nullable: true
+ *                             enum: [PENDING, CONFIRMED, REJECTED]
+ *                             description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
  *                           partner:
  *                             type: object
  *                             properties:
@@ -547,6 +552,9 @@ router.post(
  *                 data:
  *                   type: object
  *                   properties:
+ *                     roomType:
+ *                       type: string
+ *                       enum: [GENERAL, DESIGNATED, COMMUNITY]
  *                     partner:
  *                       type: object
  *                       properties:
@@ -584,6 +592,11 @@ router.post(
  *                     quoteId:
  *                       type: integer
  *                       nullable: true
+ *                     quoteStatus:
+ *                       type: string
+ *                       nullable: true
+ *                       enum: [PENDING, CONFIRMED, REJECTED]
+ *                       description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
  *                     isMessagingAllowed:
  *                       type: boolean
  *                     partnerLastReadMessageId:
