@@ -1,7 +1,8 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import env from '../config/env';
-import { auditContextStorage, getAuditContext } from './request-context';
+import { getAuditContext } from './request-context';
 
 const connectionString = env.databaseUrl;
 
@@ -30,6 +31,17 @@ const MUTATING_OPERATIONS = new Set<string>([
   'deleteMany',
 ]);
 
+/** Prisma model name(PascalCase) → TransactionClient delegate(camelCase) */
+const toDelegateName = (model: string) =>
+  model.charAt(0).toLowerCase() + model.slice(1);
+
+/**
+ * Extension 래핑 재진입 방지.
+ * adapter-pg에서는 query(args)가 interactive tx의 set_config와
+ * 같은 연결에 붙지 않으므로, 반드시 같은 tx delegate로 실행한다.
+ */
+const auditWrapStorage = new AsyncLocalStorage<boolean>();
+
 /**
  * 모든 모델 쓰기에 세션 변수(user/admin/skip)를 자동 주입한다.
  * 명시적 runAuditedTransaction 안에서는 중첩 래핑을 하지 않는다.
@@ -39,32 +51,40 @@ export const prisma = basePrisma.$extends({
   name: 'audit-session-context',
   query: {
     $allModels: {
-      async $allOperations({ operation, args, query }) {
+      async $allOperations({ model, operation, args, query }) {
         if (!MUTATING_OPERATIONS.has(operation)) {
           return query(args);
         }
 
-        const store = auditContextStorage.getStore();
-        if (store?.inExplicitAuditedTx) {
+        const { inExplicitAuditedTx } = getAuditContext();
+        if (inExplicitAuditedTx || auditWrapStorage.getStore()) {
+          // 이미 감사 tx 안 — 중첩 set_config 금지. tx delegate 경로면 여기로 오면 안 됨.
           return query(args);
         }
 
         const { userId, adminId, skipAudit } = getAuditContext();
+        const delegateName = toDelegateName(model);
 
-        // set_config(is_local=true)는 트랜잭션 단위라 쓰기와 한 트랜잭션으로 묶는다.
-        const [, result] = await basePrisma.$transaction([
-          basePrisma.$executeRaw`
-            SELECT
-              set_config('app.current_user_id', ${userId ?? ''}, true),
-              set_config('app.current_admin_id', ${adminId != null ? String(adminId) : ''}, true),
-              set_config('app.skip_audit', ${skipAudit ? 'true' : ''}, true)
-          `,
-          query(args),
-        ]);
+        return auditWrapStorage.run(true, () =>
+          basePrisma.$transaction(async (tx) => {
+            await tx.$executeRaw`
+              SELECT
+                set_config('app.current_user_id', ${userId ?? ''}, true),
+                set_config('app.current_admin_id', ${adminId != null ? String(adminId) : ''}, true),
+                set_config('app.skip_audit', ${skipAudit ? 'true' : ''}, true)
+            `;
 
-        return result;
+            const delegate = (tx as Record<string, any>)[delegateName];
+            if (!delegate || typeof delegate[operation] !== 'function') {
+              throw new Error(
+                `audit extension: tx.${delegateName}.${operation} not found (model=${model})`
+              );
+            }
+
+            return delegate[operation](args);
+          })
+        );
       },
     },
   },
 }) as unknown as PrismaClient;
-
