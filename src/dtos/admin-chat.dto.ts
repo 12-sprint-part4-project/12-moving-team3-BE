@@ -54,3 +54,68 @@ export interface AdminChatListResultDto {
   items: AdminChatListItemDto[];
   pagination: PaginationDto;
 }
+
+/** 관리자 채팅방 상세 조회 응답 DTO */
+export interface AdminChatDetailDto {
+  id: number;
+  roomType: ChatRoomType;
+  /** Prisma ChatRoom.estimateRequestId */
+  estimateRequestId: number | null;
+  /** Prisma ChatRoom.quoteId */
+  quoteId: number | null;
+  /** Prisma ChatRoom.designatedMoverId */
+  designatedMoverId: number | null;
+  /** Prisma ChatRoom.communityPostId */
+  communityPostId: number | null;
+  /** Prisma ChatRoom.lastMessageAt — 메시지가 한 번도 없으면 null */
+  lastMessageAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  /** 목록과 동일 참여자 DTO. 재참여 중복 정규화는 Service에서 처리한다. */
+  participants: AdminChatParticipantDto[];
+}
+
+/**
+ * 관리자 메시지 발신자 요약.
+ * 참여자(AdminChatParticipantDto)와 달리 joinedAt/leftAt이 없어 별도 타입으로 둔다.
+ */
+export interface AdminChatMessageSenderDto {
+  id: string;
+  name: string;
+  nickname: string;
+  email: string;
+  userType: UserType;
+  /** User.deletedAt 유무로 Service에서 정규화한다. */
+  isDeleted: boolean;
+}
+
+/**
+ * 관리자 채팅 메시지 DTO.
+ * attachments는 사용자 채팅과 같이 Presigned URL 문자열 배열이다.
+ */
+export interface AdminChatMessageDto {
+  id: number;
+  senderId: string;
+  sender: AdminChatMessageSenderDto;
+  messageType: MessageType;
+  content: string;
+  isFiltered: boolean;
+  /** IMAGE면 Presigned URL 목록, TEXT면 빈 배열 */
+  attachments: string[];
+  createdAt: Date;
+}
+
+/** 사용자 채팅 메시지 API와 동일한 커서 페이지네이션 meta */
+export interface AdminChatMessagesMetaDto {
+  hasNext: boolean;
+  nextCursor: number | null;
+}
+
+/**
+ * 관리자 메시지 히스토리 응답 DTO.
+ * Controller의 `{ data }` wrapper는 포함하지 않는다.
+ */
+export interface AdminChatMessagesResultDto {
+  messages: AdminChatMessageDto[];
+  meta: AdminChatMessagesMetaDto;
+}
