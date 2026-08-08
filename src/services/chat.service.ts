@@ -2,6 +2,7 @@ import type {
   ChatRoomType,
   MessageType,
   MoveType,
+  QuoteStatus,
   UserType,
 } from '@prisma/client';
 import {
@@ -15,6 +16,8 @@ import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
 import type {
   CreateChatRoomBody,
+  CreateCommunityChatRoomBody,
+  CreateEstimateChatRoomBody,
   GetChatMessagesQuery,
   MarkChatRoomAsReadBody,
   SendChatMessageBody,
@@ -61,6 +64,8 @@ interface ChatRoomLastMessage {
 interface ChatRoomListItem {
   roomId: number;
   roomType: ChatRoomType;
+  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
+  quoteStatus: QuoteStatus | null;
   partner: ChatRoomPartner;
   lastMessage: ChatRoomLastMessage | null;
   partnerLastReadMessageId: number | null;
@@ -77,6 +82,7 @@ interface UnreadCountResult {
 }
 
 interface ChatRoomDetailResult {
+  roomType: ChatRoomType;
   partner: ChatRoomPartner;
   requestSummary: {
     estimateRequestId: number;
@@ -86,6 +92,8 @@ interface ChatRoomDetailResult {
     destinationAddress: string | null;
   } | null;
   quoteId: number | null;
+  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
+  quoteStatus: QuoteStatus | null;
   isMessagingAllowed: boolean;
   /** 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null */
   partnerLastReadMessageId: number | null;
@@ -131,6 +139,21 @@ interface LeaveChatRoomResult {
 
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
+
+/**
+ * 채팅 응답용 quoteStatus.
+ * COMMUNITY는 견적과 무관하므로 항상 null.
+ */
+const toQuoteStatus = (
+  roomType: ChatRoomType,
+  quote: { status: QuoteStatus } | null | undefined
+): QuoteStatus | null => {
+  if (roomType === 'COMMUNITY') {
+    return null;
+  }
+
+  return quote?.status ?? null;
+};
 
 /** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
 const selectPartnerParticipant = <
@@ -234,16 +257,114 @@ const findExistingRoom = async (params: {
  * - 지정 요청으로 방이 이미 있으면 quoteId만 업데이트(200)
  * - 동일 조건의 기존 방이 있으면 그대로 반환(200)
  * - 없으면 신규 생성(201)
- * - COMMUNITY는 현재 미지원
+ * - COMMUNITY: 가구나눔 게시글 기준, 견적 무관, 고객·기사 모두 가능
  */
 export const createChatRoom = async (
   authUser: AuthenticatedUser,
   body: CreateChatRoomBody
 ): Promise<CreateChatRoomResult> => {
   if (body.roomType === 'COMMUNITY') {
+    return createCommunityChatRoom(authUser, body);
+  }
+
+  return createEstimateChatRoom(authUser, body);
+};
+
+/**
+ * 가구나눔(COMMUNITY) 채팅방을 생성하거나 기존 방을 반환한다.
+ * - 참여자: 요청자 + 게시글 작성자 (userType 제한 없음)
+ * - 견적 필드(estimate/quote/designated)는 사용하지 않음
+ * - 동일 게시글·동일 참여자 쌍이면 기존 방 반환(200)
+ */
+const createCommunityChatRoom = async (
+  authUser: AuthenticatedUser,
+  body: CreateCommunityChatRoomBody
+): Promise<CreateChatRoomResult> => {
+  const post = await chatRepository.findFurnitureSharePostById(
+    body.communityPostId
+  );
+
+  if (!post) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  if (post.isCompleted === true) {
+    throw new AppError('INVALID_REQUEST', '나눔이 완료된 게시글입니다.');
+  }
+
+  if (body.moverId !== post.userId) {
     throw new AppError('INVALID_REQUEST');
   }
 
+  if (authUser.userId === post.userId) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const author = await chatRepository.findActiveUserById(post.userId);
+
+  if (!author) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  const participantIds = [authUser.userId, post.userId];
+
+  const existingRoom =
+    await chatRepository.findRoomByCommunityPostAndParticipants({
+      communityPostId: post.id,
+      participantIds,
+    });
+
+  if (existingRoom) {
+    return {
+      status: 200,
+      data: {
+        roomId: existingRoom.id,
+        roomType: existingRoom.roomType,
+        quoteId: existingRoom.quoteId,
+        createdAt: toIsoString(existingRoom.createdAt),
+        updatedAt: toIsoString(existingRoom.updatedAt),
+      },
+    };
+  }
+
+  const createdRoom = await chatRepository.createChatRoom({
+    communityPostId: post.id,
+    roomType: 'COMMUNITY',
+    participantIds,
+  });
+
+  try {
+    await notificationService.notifyChatRoomOpenedToCounterparts({
+      creatorId: authUser.userId,
+      participantIds,
+      chatRoomId: createdRoom.id,
+    });
+  } catch (error) {
+    console.error(
+      `[createChatRoom] community chat room opened notification failed roomId=${createdRoom.id}`,
+      error
+    );
+  }
+
+  return {
+    status: 201,
+    data: {
+      roomId: createdRoom.id,
+      roomType: createdRoom.roomType,
+      quoteId: createdRoom.quoteId,
+      createdAt: toIsoString(createdRoom.createdAt),
+      updatedAt: toIsoString(createdRoom.updatedAt),
+    },
+  };
+};
+
+/**
+ * 견적(GENERAL·DESIGNATED) 채팅방을 생성하거나 기존 방을 반환한다.
+ */
+const createEstimateChatRoom = async (
+  authUser: AuthenticatedUser,
+  body: CreateEstimateChatRoomBody
+): Promise<CreateChatRoomResult> => {
   const mover = await chatRepository.findMoverById(body.moverId);
 
   if (!mover) {
@@ -481,6 +602,7 @@ export const getChatRoomList = async (
         return {
           roomId: room.id,
           roomType: room.roomType,
+          quoteStatus: toQuoteStatus(room.roomType, room.quote),
           partner: {
             id: partner.id,
             userType: partner.userType,
@@ -574,6 +696,7 @@ export const getChatRoomDetail = async (
   );
 
   return {
+    roomType: room.roomType,
     partner: {
       id: partner.id,
       userType: partner.userType,
@@ -592,6 +715,7 @@ export const getChatRoomDetail = async (
         }
       : null,
     quoteId: room.quoteId,
+    quoteStatus: toQuoteStatus(room.roomType, room.quote),
     isMessagingAllowed: isMessagingAllowedByEstimateStatus(
       room.estimateRequest?.status
     ),

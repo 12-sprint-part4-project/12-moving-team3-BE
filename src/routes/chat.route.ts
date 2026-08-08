@@ -4,6 +4,7 @@ import {
   requireAuth,
   requireAuthAllowSuspended,
 } from '../middlewares/auth.middleware';
+import { requireCompletedProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   chatRoomIdParamsSchema,
@@ -48,6 +49,11 @@ const router = Router();
  *                           roomType:
  *                             type: string
  *                             enum: [GENERAL, DESIGNATED, COMMUNITY]
+ *                           quoteStatus:
+ *                             type: string
+ *                             nullable: true
+ *                             enum: [PENDING, CONFIRMED, REJECTED]
+ *                             description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
  *                           partner:
  *                             type: object
  *                             properties:
@@ -231,6 +237,7 @@ router.get(
 router.get(
   '/rooms/:roomId/messages',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     query: getChatMessagesQuerySchema,
@@ -362,6 +369,7 @@ router.get(
 router.post(
   '/rooms/:roomId/messages',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     body: sendChatMessageBodySchema,
@@ -438,6 +446,7 @@ router.post(
 router.post(
   '/rooms/:roomId/read',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     body: markChatRoomAsReadBodySchema,
@@ -507,6 +516,7 @@ router.post(
 router.post(
   '/rooms/:roomId/leave',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
@@ -547,6 +557,9 @@ router.post(
  *                 data:
  *                   type: object
  *                   properties:
+ *                     roomType:
+ *                       type: string
+ *                       enum: [GENERAL, DESIGNATED, COMMUNITY]
  *                     partner:
  *                       type: object
  *                       properties:
@@ -584,6 +597,11 @@ router.post(
  *                     quoteId:
  *                       type: integer
  *                       nullable: true
+ *                     quoteStatus:
+ *                       type: string
+ *                       nullable: true
+ *                       enum: [PENDING, CONFIRMED, REJECTED]
+ *                       description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
  *                     isMessagingAllowed:
  *                       type: boolean
  *                     partnerLastReadMessageId:
@@ -612,6 +630,7 @@ router.post(
 router.get(
   '/rooms/:roomId',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
@@ -626,8 +645,9 @@ router.get(
  *     tags: [Chat]
  *     summary: 채팅방 생성
  *     description: |
- *       지정 요청 시점(`quoteId` 없음)과 견적 발송 시점(`quoteId` 있음) 모두에서 호출 가능합니다.
+ *       견적 채팅(`GENERAL`/`DESIGNATED`): 지정 요청 시점(`quoteId` 없음)과 견적 발송 시점(`quoteId` 있음) 모두에서 호출 가능합니다.
  *       이미 `designatedMoverId`로 방이 있으면 새 방을 만들지 않고 기존 방에 `quoteId`만 업데이트합니다.
+ *       커뮤니티 채팅(`COMMUNITY`): 가구나눔 게시글 기준. 견적과 무관하며 고객·기사 모두 이용 가능합니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
@@ -636,28 +656,51 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required: [moverId, roomType]
- *             properties:
- *               moverId:
- *                 type: string
- *                 format: uuid
- *                 description: 상대 기사님 ID (users.id)
- *               estimateRequestId:
- *                 type: integer
- *               designatedMoverId:
- *                 type: integer
- *                 description: EstimateDesignatedMover.id
- *               quoteId:
- *                 type: integer
- *               roomType:
- *                 type: string
- *                 enum: [GENERAL, DESIGNATED, COMMUNITY]
- *           example:
- *             moverId: 11111111-1111-1111-1111-111111111111
- *             estimateRequestId: 10
- *             designatedMoverId: 5
- *             roomType: DESIGNATED
+ *             oneOf:
+ *               - type: object
+ *                 required: [moverId, roomType]
+ *                 properties:
+ *                   moverId:
+ *                     type: string
+ *                     format: uuid
+ *                     description: 상대 기사님 ID (users.id)
+ *                   estimateRequestId:
+ *                     type: integer
+ *                   designatedMoverId:
+ *                     type: integer
+ *                     description: EstimateDesignatedMover.id
+ *                   quoteId:
+ *                     type: integer
+ *                   roomType:
+ *                     type: string
+ *                     enum: [GENERAL, DESIGNATED]
+ *               - type: object
+ *                 required: [moverId, communityPostId, roomType]
+ *                 properties:
+ *                   moverId:
+ *                     type: string
+ *                     format: uuid
+ *                     description: 상대 유저 ID (게시글 작성자 users.id). 필드명은 견적 API와 공유
+ *                   communityPostId:
+ *                     type: integer
+ *                     description: 가구나눔 게시글 ID
+ *                   roomType:
+ *                     type: string
+ *                     enum: [COMMUNITY]
+ *           examples:
+ *             designated:
+ *               summary: 지정 견적 채팅방
+ *               value:
+ *                 moverId: 11111111-1111-1111-1111-111111111111
+ *                 estimateRequestId: 10
+ *                 designatedMoverId: 5
+ *                 roomType: DESIGNATED
+ *             community:
+ *               summary: 가구나눔 커뮤니티 채팅방
+ *               value:
+ *                 moverId: 22222222-2222-2222-2222-222222222222
+ *                 communityPostId: 123
+ *                 roomType: COMMUNITY
  *     responses:
  *       201:
  *         description: 신규 채팅방 생성
@@ -719,6 +762,7 @@ router.get(
 router.post(
   '/rooms',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     body: createChatRoomBodySchema,
     errorCode: 'INVALID_REQUEST',

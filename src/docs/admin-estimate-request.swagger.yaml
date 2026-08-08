@@ -10,6 +10,8 @@ paths:
         search는 견적 요청 ID(정수), 요청자 이름 또는 전화번호를 대상으로 검색합니다.
         startDate가 없으면 전체 기간을 조회하며, 이 경우 endDate는 적용되지 않습니다.
         startDate만 입력하면 해당 일의 제출 요청을 조회하고, endDate도 입력하면 두 날짜 사이의 제출 요청을 조회합니다.
+        제출 후 필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
+        missingFields에 누락 필드명을 담아 반환합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -91,6 +93,7 @@ paths:
                         - status
                         - estimateCount
                         - mover
+                        - missingFields
                       properties:
                         id:
                           type: integer
@@ -104,17 +107,25 @@ paths:
                           example: '010-1234-5678'
                         moveType:
                           type: string
+                          nullable: true
                           enum: [SMALL, HOME, OFFICE]
+                          description: 누락 시 null. missingFields에 moveType 포함
                           example: HOME
                         departureAddress:
                           type: string
+                          nullable: true
+                          description: 누락 시 null
                           example: 서울특별시 강남구 테헤란로 123
                         arrivalAddress:
                           type: string
+                          nullable: true
+                          description: 누락 시 null
                           example: 서울특별시 송파구 올림픽로 456
                         submittedAt:
                           type: string
                           format: date-time
+                          nullable: true
+                          description: 누락 시 null
                           example: '2026-07-15T09:30:00.000Z'
                         status:
                           type: string
@@ -130,6 +141,21 @@ paths:
                           nullable: true
                           description: 확정된 견적의 이사 기사명. 확정 견적이 없으면 null
                           example: 빠른이사
+                        missingFields:
+                          type: array
+                          description: |
+                            상태 불변식상 있어야 하지만 null인 응답 필드명.
+                            정상 데이터면 빈 배열
+                          items:
+                            type: string
+                            enum:
+                              [
+                                moveType,
+                                departureAddress,
+                                arrivalAddress,
+                                submittedAt,
+                              ]
+                          example: []
                   meta:
                     type: object
                     required: [page, pageSize, totalCount, totalPages]
@@ -158,6 +184,7 @@ paths:
                     status: SUBMITTED
                     estimateCount: 3
                     mover: null
+                    missingFields: []
                 meta:
                   page: 1
                   pageSize: 10
@@ -306,6 +333,8 @@ paths:
         출발지·도착지 주소 상세(우편번호, 상세주소)와 요청에 등록된 견적 목록을 함께 반환합니다.
         quotes는 생성일 최신순(createdAt desc, id desc)으로 정렬됩니다.
         반려(REJECTED) 견적은 price가 null일 수 있습니다.
+        필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
+        missingFields에 누락 필드명을 담아 반환합니다. quotes의 mover가 없으면 moverName은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -343,6 +372,7 @@ paths:
                       - status
                       - estimateCount
                       - quotes
+                      - missingFields
                     properties:
                       id:
                         type: integer
@@ -352,29 +382,37 @@ paths:
                         example: 홍길동
                       moveType:
                         type: string
+                        nullable: true
                         enum: [SMALL, HOME, OFFICE]
                         example: HOME
                       departureAddress:
                         type: string
+                        nullable: true
                         example: 서울특별시 강남구 테헤란로 123
                       departureDetailAddress:
                         type: string
+                        nullable: true
                         example: 101동 1001호
                       departureZipCode:
                         type: string
+                        nullable: true
                         example: '06236'
                       arrivalAddress:
                         type: string
+                        nullable: true
                         example: 서울특별시 송파구 올림픽로 456
                       arrivalZipCode:
                         type: string
+                        nullable: true
                         example: '05551'
                       arrivalDetailAddress:
                         type: string
+                        nullable: true
                         example: A동 502호
                       submittedAt:
                         type: string
                         format: date-time
+                        nullable: true
                         example: '2026-07-15T09:30:00.000Z'
                       status:
                         type: string
@@ -403,6 +441,8 @@ paths:
                               example: 10
                             moverName:
                               type: string
+                              nullable: true
+                              description: 기사 정보가 없으면 null
                               example: 빠른이사
                             price:
                               type: integer
@@ -417,6 +457,12 @@ paths:
                               type: string
                               format: date-time
                               example: '2026-07-16T11:00:00.000Z'
+                      missingFields:
+                        type: array
+                        description: 상태 불변식상 있어야 하지만 null인 응답 필드명. 정상 데이터면 빈 배열
+                        items:
+                          type: string
+                        example: []
               example:
                 data:
                   id: 123
@@ -442,6 +488,7 @@ paths:
                       price: null
                       status: REJECTED
                       createdAt: '2026-07-16T11:00:00.000Z'
+                  missingFields: []
         '400':
           description: Path Parameter(estimateRequestId) 유효성 검사 실패
           content:
@@ -473,7 +520,7 @@ paths:
                   code: ADMIN_ESTIMATE_REQUEST_NOT_FOUND
                   message: 존재하지 않는 견적 요청입니다.
         '500':
-          description: 서버 내부 오류 (제출된 견적 요청에 필수 주소·이사 유형 등이 누락된 경우 포함)
+          description: 서버 내부 오류
           content:
             application/json:
               schema:

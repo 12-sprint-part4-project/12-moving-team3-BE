@@ -13,6 +13,7 @@ import {
   optionalAuth,
   requireAuth,
 } from '../middlewares/auth.middleware';
+import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
 
 const router = Router();
 
@@ -35,6 +36,7 @@ router.get(
   '/favorites',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     query: favoriteMoversQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',

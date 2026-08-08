@@ -17,6 +17,7 @@ import {
   AdminCompletedRequestDetailDto,
 } from '../dtos/admin-estimate-request.dto';
 import { AppError } from '../utils/app.error';
+import { collectMissingFields } from '../utils/admin-missing-fields.util';
 import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
 // 완료 처리는 cron에 의해 이사 다음 날(COMPLETED)로 변경되지만,
@@ -32,7 +33,12 @@ export const getCompletedStatistics = async ({
   };
 
   const quoteWhere: Prisma.QuoteWhereInput = {
-    ...(dateRange && { estimateRequest: { moveDate: dateRange } }),
+    estimateRequest: {
+      status: { in: [EstimateRequestStatus.COMPLETED] },
+      ...(dateRange && {
+        moveDate: dateRange,
+      }),
+    },
     status: { in: [QuoteStatus.CONFIRMED] },
   };
 
@@ -95,28 +101,33 @@ export const getCompletedList = async (
     getEstimateRequestCount(where),
   ]);
 
+  // 필수값 누락 시 500 대신 null + missingFields로 내려 관리자가 원인을 확인할 수 있게 한다.
   const data = estimateRequests.map((item) => {
-    if (
-      item.moveType == null ||
-      item.departureAddress == null ||
-      item.arrivalAddress == null ||
-      item.moveDate == null ||
-      item.confirmedQuote == null ||
-      item.confirmedQuote.mover == null ||
-      item.confirmedQuote.price == null
-    ) {
-      throw new AppError('INTERNAL_SERVER_ERROR');
-    }
+    const moveType = item.moveType;
+    const departureAddress = item.departureAddress;
+    const arrivalAddress = item.arrivalAddress;
+    const moveDate = item.moveDate;
+    const mover = item.confirmedQuote?.mover?.name ?? null;
+    const price = item.confirmedQuote?.price ?? null;
+
     return {
       id: item.id,
       userName: item.user.name,
       phoneNumber: item.user.phoneNumber,
-      moveType: item.moveType,
-      departureAddress: item.departureAddress,
-      arrivalAddress: item.arrivalAddress,
-      moveDate: item.moveDate,
-      mover: item.confirmedQuote.mover.name,
-      price: item.confirmedQuote.price,
+      moveType,
+      departureAddress,
+      arrivalAddress,
+      moveDate,
+      mover,
+      price,
+      missingFields: collectMissingFields({
+        moveType,
+        departureAddress,
+        arrivalAddress,
+        moveDate,
+        mover,
+        price,
+      }),
     };
   });
 
@@ -166,40 +177,54 @@ export const getCompletedRequestDetail = async (
     throw new AppError('ADMIN_ESTIMATE_REQUEST_NOT_FOUND');
   }
 
-  if (
-    estimateRequest.moveType == null ||
-    estimateRequest.departureAddress == null ||
-    estimateRequest.departureDetailAddress == null ||
-    estimateRequest.departureZipCode == null ||
-    estimateRequest.arrivalAddress == null ||
-    estimateRequest.arrivalDetailAddress == null ||
-    estimateRequest.arrivalZipCode == null ||
-    estimateRequest.moveDate == null ||
-    estimateRequest.confirmedQuote == null ||
-    estimateRequest.confirmedQuote.mover == null ||
-    estimateRequest.confirmedQuote.price == null
-  ) {
-    throw new AppError('INTERNAL_SERVER_ERROR');
-  }
+  const moveType = estimateRequest.moveType;
+  const departureAddress = estimateRequest.departureAddress;
+  const departureDetailAddress = estimateRequest.departureDetailAddress;
+  const departureZipCode = estimateRequest.departureZipCode;
+  const arrivalAddress = estimateRequest.arrivalAddress;
+  const arrivalDetailAddress = estimateRequest.arrivalDetailAddress;
+  const arrivalZipCode = estimateRequest.arrivalZipCode;
+  const moveDate = estimateRequest.moveDate;
+
+  const confirmedQuote =
+    estimateRequest.confirmedQuote == null
+      ? null
+      : {
+          moverName: estimateRequest.confirmedQuote.mover?.name ?? null,
+          price: estimateRequest.confirmedQuote.price ?? null,
+          comment: estimateRequest.confirmedQuote.comment ?? null,
+          createdAt: estimateRequest.confirmedQuote.createdAt,
+        };
 
   return {
     data: {
       id: estimateRequest.id,
       userName: estimateRequest.user.name,
-      moveType: estimateRequest.moveType,
-      departureZipCode: estimateRequest.departureZipCode,
-      departureDetailAddress: estimateRequest.departureDetailAddress,
-      arrivalZipCode: estimateRequest.arrivalZipCode,
-      arrivalDetailAddress: estimateRequest.arrivalDetailAddress,
-      departureAddress: estimateRequest.departureAddress,
-      arrivalAddress: estimateRequest.arrivalAddress,
-      moveDate: estimateRequest.moveDate,
-      confirmedQuote: {
-        moverName: estimateRequest.confirmedQuote.mover.name,
-        price: estimateRequest.confirmedQuote.price,
-        comment: estimateRequest.confirmedQuote.comment,
-        createdAt: estimateRequest.confirmedQuote.createdAt,
-      },
+      moveType,
+      departureZipCode,
+      departureDetailAddress,
+      arrivalZipCode,
+      arrivalDetailAddress,
+      departureAddress,
+      arrivalAddress,
+      moveDate,
+      confirmedQuote,
+      missingFields: collectMissingFields({
+        moveType,
+        departureAddress,
+        departureDetailAddress,
+        departureZipCode,
+        arrivalAddress,
+        arrivalDetailAddress,
+        arrivalZipCode,
+        moveDate,
+        confirmedQuote,
+        ...(confirmedQuote && {
+          'confirmedQuote.moverName': confirmedQuote.moverName,
+          'confirmedQuote.price': confirmedQuote.price,
+          'confirmedQuote.createdAt': confirmedQuote.createdAt,
+        }),
+      }),
     },
   };
 };

@@ -4,6 +4,7 @@ import type {
   DesignatedEstimateExistenceDto,
   DesignatedEstimateMoverDto,
 } from '../dtos/designated-estimate-request.dto';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
@@ -135,7 +136,7 @@ export const createDesignatedEstimateRequest = async (
   }
 
   try {
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await runAuditedTransaction(async (tx) => {
       const locked = await quoteRepository.findEstimateRequestForUpdate(
         tx,
         estimateRequestId

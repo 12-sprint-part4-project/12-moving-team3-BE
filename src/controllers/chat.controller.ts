@@ -125,9 +125,16 @@ export const leaveChatRoom = async (_req: Request, res: Response) => {
 };
 
 /** POST /api/chat/rooms — 채팅방 생성 요청을 처리한다. */
-export const createChatRoom = async (req: Request, res: Response) => {
+export const createChatRoom = async (_req: Request, res: Response) => {
   const authUser = getAuthenticatedUser(res);
-  const body = req.body as CreateChatRoomBody;
+
+  const validated = res.locals.validated as ValidatedLocals | undefined;
+  const body = validated?.body as CreateChatRoomBody | undefined;
+
+  if (body === undefined) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
   const result = await chatService.createChatRoom(authUser, body);
 
   res.status(result.status).json({

@@ -1,4 +1,5 @@
 import { PostsCategory, Region, type Prisma } from '@prisma/client';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import type {
   CreatePostBody,
@@ -414,7 +415,7 @@ export const updatePost = async (
     return run(db);
   }
 
-  return prisma.$transaction(async (tx) => run(tx));
+  return runAuditedTransaction(async (tx) => run(tx));
 };
 
 /** 게시글 soft delete */
