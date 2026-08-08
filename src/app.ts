@@ -12,6 +12,7 @@ import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
 import { startNotificationOutboxCron } from './jobs/notification-outbox.job';
 import { startReleaseExpiredSuspensionsCron } from './jobs/release-expired-suspensions.job';
 import { errorHandler } from './middlewares/error.handler';
+import { requestContextMiddleware } from './middlewares/request-context.middleware';
 import adminAuthRouter from './routes/admin-auth.route';
 import adminCompletedRouter from './routes/admin-completed.route';
 import adminDashboardRouter from './routes/admin-dashboard.route';
@@ -61,6 +62,8 @@ app.use(
 );
 
 app.use(express.json());
+// 요청 범위 Audit Context — auth 미들웨어보다 앞에 두어 actor 주입이 같은 스토어를 쓰게 한다.
+app.use(requestContextMiddleware);
 // Cookie Header를 req.cookies로 파싱해 Refresh Token을 안전하게 읽게 한다.
 app.use(cookieParser());
 
