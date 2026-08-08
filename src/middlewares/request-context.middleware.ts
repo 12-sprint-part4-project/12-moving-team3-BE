@@ -1,16 +1,21 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import { auditContextStorage } from '../lib/request-context';
+import {
+  auditContextStorage,
+  type AuditContextStore,
+} from '../lib/request-context';
 
 /**
- * 요청마다 빈 Audit Context 스토어를 만들고 이후 async 체인에 전파한다.
- * actor 값은 auth / admin-auth 미들웨어에서 채운다.
+ * 요청마다 Audit Context 스토어를 연다.
+ * Express는 next() 이후 async로 이어지므로 run(() => next())만으로는
+ * await/Prisma 시점에 getStore()가 비는 경우가 있다.
+ * enterWith로 현재 요청 async 리소스에 스토어를 고정한다.
  */
 export const requestContextMiddleware: RequestHandler = (
   _req: Request,
   _res: Response,
   next: NextFunction
 ) => {
-  auditContextStorage.run({}, () => {
-    next();
-  });
+  const store: AuditContextStore = {};
+  auditContextStorage.enterWith(store);
+  next();
 };

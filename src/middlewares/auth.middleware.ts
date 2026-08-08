@@ -11,12 +11,17 @@ export interface AuthenticatedUser {
   userType: ApiUserType;
 }
 
-/** Audit Context에 userId를 심는다. 스토어가 없으면(미들웨어 미적용) 무시한다. */
+/** Audit Context에 userId를 심는다. 스토어가 없으면(미들웨어 미적용) 경고만 남긴다. */
 const setAuditUserId = (userId: string): void => {
   const store = auditContextStorage.getStore();
   if (store) {
     store.userId = userId;
+    return;
   }
+
+  console.warn(
+    '[auth] audit context store missing — History user_id may be null'
+  );
 };
 
 const authenticateAccessToken = (req: Parameters<RequestHandler>[0]): AuthenticatedUser => {
@@ -58,13 +63,17 @@ export const requireAuthAllowSuspended: RequestHandler = (req, res, next) => {
 export const requireAuth: RequestHandler = async (req, res, next) => {
   try {
     const user = authenticateAccessToken(req);
+    // await 전에 actor를 심어, Prisma 조회 중 ALS가 흔들려도 Extension이 읽을 값을 남긴다.
+    res.locals.user = user;
+    setAuditUserId(user.userId);
+
     const userStatus = await authRepository.findUserStatusByUserId(user.userId);
 
     if (userStatus?.status === UserStatus.SUSPENDED) {
       throw new AppError('USER_SUSPENDED');
     }
 
-    res.locals.user = user;
+    // await 이후에도 스토어가 있으면 다시 한번 보강
     setAuditUserId(user.userId);
     next();
   } catch (error) {

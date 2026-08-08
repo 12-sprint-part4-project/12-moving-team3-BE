@@ -30,6 +30,10 @@ export const requireAdminAuth: RequestHandler = (req, res, next) => {
     const store = auditContextStorage.getStore();
     if (store) {
       store.adminId = payload.sub;
+    } else {
+      console.warn(
+        '[admin-auth] audit context store missing — History admin_user_id may be null'
+      );
     }
 
     next();
