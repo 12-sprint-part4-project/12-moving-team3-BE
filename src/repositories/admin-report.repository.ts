@@ -1,7 +1,13 @@
-import { Prisma, UserReportStatus, UserReportTarget } from '@prisma/client';
+import {
+  Prisma,
+  UserReportStatus,
+  UserReportTarget,
+  UserType,
+} from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
+import { countAdminMemberReports } from './admin-member.repository';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -404,7 +410,10 @@ export const findReportTargetCommentsByIds = async (
 // --- 신고 상세 조회 ---
 // 목록 배치 조회와 달리 soft-delete 행도 가져와 Service가 exists/isDeleted를 구분하게 한다.
 
-/** 상세용 사용자 요약 — 탈퇴 판단을 위해 deletedAt을 포함한다 */
+/**
+ * 상세용 사용자 요약 — 탈퇴 판단용 deletedAt·신고자 이미지용 profileImageKey를 포함한다.
+ * 전화번호는 선택하지 않는다.
+ */
 const detailUserSummarySelect = {
   id: true,
   name: true,
@@ -412,6 +421,7 @@ const detailUserSummarySelect = {
   email: true,
   userType: true,
   deletedAt: true,
+  profileImageKey: true,
 } satisfies Prisma.UserSelect;
 
 /** 신고 상세 select — reporter 탈퇴 정보·처리 admin을 FK로 함께 조회한다 */
@@ -602,11 +612,13 @@ export const findReportDetailTargetCommentById = async (
 /**
  * 정지 판단에 필요한 최소 사용자 필드.
  * admin-member의 userStatus select와 맞춰 상태·정지 기간을 한 번에 가져온다.
+ * profileImageKey는 URL로 변환하지 않고 key만 내려 신고자·reportedContent와 맞춘다.
  */
 const reportSanctionTargetUserSelect = {
   id: true,
   name: true,
   nickname: true,
+  profileImageKey: true,
   // soft-delete된 사용자는 정지 잠금이 실패하므로 Action 가능 여부 판단에 필요
   deletedAt: true,
   userStatus: {
@@ -618,6 +630,10 @@ const reportSanctionTargetUserSelect = {
   },
 } satisfies Prisma.UserSelect;
 
+/**
+ * 제재·처리용 대상 사용자.
+ * reportCount는 포함하지 않는다 — 처리 경로에서 불필요한 집계 쿼리를 피한다.
+ */
 export type ReportSanctionTargetUserRow = Prisma.UserGetPayload<{
   select: typeof reportSanctionTargetUserSelect;
 }>;
@@ -633,6 +649,23 @@ export type FindReportSanctionTargetUserResult =
   | { kind: 'not_found' }
   | { kind: 'invalid_target_id' };
 
+/**
+ * 신고 상세용 대상 사용자 — 처리용 row에 reportCount만 추가한다.
+ * reportCount는 User select로 가져올 수 없어(폴리모픽 targetId) 별도 집계로 붙인다.
+ */
+export type ReportDetailSanctionTargetUserRow = ReportSanctionTargetUserRow & {
+  /**
+   * 해당 회원이 직접(USER) 또는 작성 콘텐츠를 통해 받은 신고 누적 건수.
+   * 회원 관리 상세의 reportCount와 필드명·집계 기준이 같다.
+   */
+  reportCount: number;
+};
+
+export type FindReportDetailSanctionTargetUserResult =
+  | { kind: 'found'; user: ReportDetailSanctionTargetUserRow }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' };
+
 /** USER targetId(UUID) 형식 검사 — 잘못된 값으로 Prisma가 던지는 오류를 막기 위해 조회 전에 거른다 */
 const isUserTargetUuid = (targetId: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -645,10 +678,11 @@ const toFoundSanctionUser = (
   user ? { kind: 'found', user } : { kind: 'not_found' };
 
 /**
- * 신고 target/targetId로 정지 대상 사용자를 조회한다.
+ * 신고 target/targetId로 정지 대상 사용자를 조회한다 (처리·잠금용).
  * 콘텐츠 대상은 관계(include)로 작성자·상태를 한 번에 가져온다.
  * 콘텐츠 soft-delete 여부와 무관하게 작성자를 찾아야 제재가 가능하므로 deletedAt 필터는 두지 않는다.
  * MESSAGE는 soft-delete 컬럼이 없고, 이 메서드는 메시지도 삭제하지 않는다.
+ * reportCount는 조회하지 않는다 — 상세 전용 함수에서만 집계한다.
  */
 export const findReportSanctionTargetUser = async (
   target: UserReportTarget,
@@ -719,6 +753,30 @@ export const findReportSanctionTargetUser = async (
     default:
       return { kind: 'not_found' };
   }
+};
+
+/**
+ * 신고 상세용 대상 사용자 조회.
+ * 처리용 findReportSanctionTargetUser를 재사용한 뒤, found일 때만 reportCount를 붙인다.
+ */
+export const findReportDetailSanctionTargetUser = async (
+  target: UserReportTarget,
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportDetailSanctionTargetUserResult> => {
+  const result = await findReportSanctionTargetUser(target, targetId, db);
+
+  if (result.kind !== 'found') {
+    return result;
+  }
+
+  // 상세 응답용 — 처리 경로와 달리 회원 관리와 동일한 누적 신고 횟수가 필요하다.
+  const reportCount = await countAdminMemberReports(result.user.id, db);
+
+  return {
+    kind: 'found',
+    user: { ...result.user, reportCount },
+  };
 };
 
 // --- 신고 처리: 신고 콘텐츠 조회 ---
@@ -865,6 +923,95 @@ export const findReportReportedContent = async (
     default:
       return { kind: 'not_found' };
   }
+};
+
+// --- USER 신고: 신고 콘텐츠로 쓸 회원 프로필 조회 ---
+
+/**
+ * USER 신고 콘텐츠용 프로필 row.
+ * findReportDetailTargetUserById와 동일 select를 재사용해
+ * 상세 target 사용자·신고 콘텐츠 경로의 필드 계약이 어긋나지 않게 한다.
+ */
+export type ReportedUserProfileRow = NonNullable<
+  Awaited<ReturnType<typeof findReportDetailTargetUserById>>
+>;
+
+/** 기사 프로필이 확정된 USER 신고 콘텐츠 row */
+export type ReportedMoverProfileRow = ReportedUserProfileRow & {
+  moverProfile: NonNullable<ReportedUserProfileRow['moverProfile']>;
+};
+
+/** 고객 프로필이 확정된 USER 신고 콘텐츠 row */
+export type ReportedCustomerProfileRow = ReportedUserProfileRow & {
+  customerProfile: NonNullable<ReportedUserProfileRow['customerProfile']>;
+};
+
+/**
+ * USER 신고 회원 프로필 조회 결과.
+ * HTTP는 Service가 결정하고, Repository는 유형·실패 원인만 구분한다.
+ * - invalid_target_id: targetId UUID 형식 오류 — Prisma 예외를 막기 위해 조회 전 반환
+ * - not_found: 형식은 맞지만 User 행이 없음
+ * - profile_missing: User는 있으나 userType에 맞는 프로필 관계가 없음
+ *   (미존재와 구분해야 Service가 “대상 없음”과 “프로필 미작성”을 다르게 처리할 수 있다)
+ */
+export type FindReportedUserProfileResult =
+  | { kind: 'mover_profile'; profile: ReportedMoverProfileRow }
+  | { kind: 'customer_profile'; profile: ReportedCustomerProfileRow }
+  | { kind: 'profile_missing' }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_target_id' };
+
+/**
+ * USER 신고의 targetId로 신고된 회원 프로필을 조회한다.
+ * UserReport.targetId → User.id → userType별 CustomerProfile/MoverProfile.
+ * soft-delete(deletedAt) 필터를 두지 않아 탈퇴 회원도 관리자가 검토할 수 있게 한다.
+ * 프로필 이미지 URL은 만들지 않고 profileImageKey만 반환한다 (URL 조립은 상위 계층 책임).
+ */
+export const findReportedUserProfile = async (
+  targetId: string,
+  db: DbClient = prisma
+): Promise<FindReportedUserProfileResult> => {
+  // 잘못된 UUID로 Prisma가 던지는 오류를 막기 위해 조회 전에 형식을 검증한다.
+  if (!isUserTargetUuid(targetId)) {
+    return { kind: 'invalid_target_id' };
+  }
+
+  // 신고 상세 USER 조회와 같은 select·soft-delete 정책을 재사용한다.
+  const user = await findReportDetailTargetUserById(targetId, db);
+
+  if (!user) {
+    return { kind: 'not_found' };
+  }
+
+  // userType에 맞는 프로필만 콘텐츠로 인정한다 — 반대 타입 relation은 무시한다.
+  if (user.userType === UserType.MOVER) {
+    if (!user.moverProfile) {
+      return { kind: 'profile_missing' };
+    }
+
+    const profile: ReportedMoverProfileRow = {
+      ...user,
+      moverProfile: user.moverProfile,
+    };
+
+    return { kind: 'mover_profile', profile };
+  }
+
+  if (user.userType === UserType.CUSTOMER) {
+    if (!user.customerProfile) {
+      return { kind: 'profile_missing' };
+    }
+
+    const profile: ReportedCustomerProfileRow = {
+      ...user,
+      customerProfile: user.customerProfile,
+    };
+
+    return { kind: 'customer_profile', profile };
+  }
+
+  // UserType은 CUSTOMER|MOVER만 있지만, 예상 밖 값이면 프로필 콘텐츠로 취급하지 않는다.
+  return { kind: 'profile_missing' };
 };
 
 // --- 신고 처리: 신고 콘텐츠 soft delete ---
