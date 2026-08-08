@@ -466,11 +466,14 @@ paths:
         targetUser에는 계정 상태(ACTIVE/SUSPENDED)·정지 시각·전체 신고 누적 횟수(reportCount)가 포함됩니다.
         UserStatusInfo가 없으면 status는 ACTIVE, suspendedAt·suspendedUntil은 null로 정규화합니다.
         USER 대상이면 targetInfo.user에 profileImageKey·profile(customer/mover)이 포함될 수 있습니다.
-        (부적절한 프로필 신고 상세 검토용. 전화번호는 포함하지 않습니다.)
-        대상이 없거나 콘텐츠를 조회할 수 없으면 content·reportedContent는 null입니다.
+        USER 신고의 reportedContent는 회원 프로필(type=USER, userType=MOVER|CUSTOMER)입니다.
+        사용자·프로필이 없으면 reportedContent는 null이지만 targetUser·정지 Action은 기존 정책을 따릅니다.
+        (부적절한 프로필 신고 상세 검토용. 전화번호·email은 포함하지 않습니다.)
+        콘텐츠 대상을 조회할 수 없으면 content·reportedContent는 null입니다.
         PENDING이 아니거나 대상을 찾을 수 없으면 availableActions는 false입니다.
         삭제된 대상 사용자는 canSuspendUser가 false이다.
         USER와 MESSAGE는 canDeleteContent가 항상 false이다.
+        (USER 프로필을 reportedContent로 내려도 콘텐츠 삭제 Action은 활성화되지 않습니다.)
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -803,115 +806,425 @@ paths:
                       reportedContent:
                         nullable: true
                         description: |
-                          신고 콘텐츠(type으로 구분). USER·미존재면 null.
-                          REVIEW/ARTICLE/COMMENT는 deletedAt을 포함한다.
-                        type: object
-                        required: [type, id]
-                        properties:
-                          type:
-                            type: string
-                            enum: [REVIEW, ARTICLE, COMMENT, MESSAGE]
-                          id:
-                            type: string
-                          title:
-                            type: string
-                          content:
-                            type: string
-                          rating:
-                            type: integer
-                          category:
-                            type: string
-                          postId:
-                            type: integer
-                          parentId:
-                            type: integer
-                            nullable: true
-                          roomId:
-                            type: integer
-                          messageType:
-                            type: string
-                            enum: [TEXT, IMAGE]
-                          isFiltered:
-                            type: boolean
-                          createdAt:
-                            type: string
-                            format: date-time
-                          updatedAt:
-                            type: string
-                            format: date-time
-                            nullable: true
-                          deletedAt:
-                            type: string
-                            format: date-time
-                            nullable: true
+                          신고 콘텐츠(type으로 구분).
+                          USER는 회원 프로필(type=USER + userType=MOVER|CUSTOMER).
+                          사용자·프로필 미존재면 null. REVIEW/ARTICLE/COMMENT는 deletedAt을 포함한다.
+                        oneOf:
+                          - type: object
+                            description: REVIEW 콘텐츠
+                            required:
+                              [type, id, rating, content, createdAt, updatedAt, deletedAt]
+                            properties:
+                              type:
+                                type: string
+                                enum: [REVIEW]
+                              id:
+                                type: string
+                              rating:
+                                type: integer
+                              content:
+                                type: string
+                              createdAt:
+                                type: string
+                                format: date-time
+                              updatedAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                              deletedAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                          - type: object
+                            description: ARTICLE 콘텐츠
+                            required:
+                              [type, id, category, title, content, createdAt, updatedAt, deletedAt]
+                            properties:
+                              type:
+                                type: string
+                                enum: [ARTICLE]
+                              id:
+                                type: string
+                              category:
+                                type: string
+                              title:
+                                type: string
+                              content:
+                                type: string
+                              createdAt:
+                                type: string
+                                format: date-time
+                              updatedAt:
+                                type: string
+                                format: date-time
+                              deletedAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                          - type: object
+                            description: COMMENT 콘텐츠
+                            required: [type, id, postId, parentId, content, createdAt, deletedAt]
+                            properties:
+                              type:
+                                type: string
+                                enum: [COMMENT]
+                              id:
+                                type: string
+                              postId:
+                                type: integer
+                              parentId:
+                                type: integer
+                                nullable: true
+                              content:
+                                type: string
+                              createdAt:
+                                type: string
+                                format: date-time
+                              deletedAt:
+                                type: string
+                                format: date-time
+                                nullable: true
+                          - type: object
+                            description: MESSAGE 콘텐츠
+                            required:
+                              [type, id, roomId, messageType, content, isFiltered, createdAt]
+                            properties:
+                              type:
+                                type: string
+                                enum: [MESSAGE]
+                              id:
+                                type: string
+                              roomId:
+                                type: integer
+                              messageType:
+                                type: string
+                                enum: [TEXT, IMAGE]
+                              content:
+                                type: string
+                              isFiltered:
+                                type: boolean
+                              createdAt:
+                                type: string
+                                format: date-time
+                          - type: object
+                            description: USER 기사(MOVER) 프로필 콘텐츠
+                            required:
+                              - type
+                              - userType
+                              - id
+                              - name
+                              - nickname
+                              - profileImageKey
+                              - shortDescription
+                              - description
+                              - career
+                              - service
+                              - serviceRegions
+                            properties:
+                              type:
+                                type: string
+                                enum: [USER]
+                              userType:
+                                type: string
+                                enum: [MOVER]
+                              id:
+                                type: string
+                                format: uuid
+                              name:
+                                type: string
+                              nickname:
+                                type: string
+                              profileImageKey:
+                                type: string
+                                nullable: true
+                              shortDescription:
+                                type: string
+                                nullable: true
+                              description:
+                                type: string
+                                nullable: true
+                              career:
+                                type: integer
+                                nullable: true
+                              service:
+                                type: array
+                                items:
+                                  type: string
+                                  enum: [SMALL, HOME, OFFICE]
+                              serviceRegions:
+                                type: array
+                                items:
+                                  type: object
+                                  required: [region]
+                                  properties:
+                                    region:
+                                      type: string
+                                      enum:
+                                        [
+                                          SEOUL,
+                                          GYEONGGI,
+                                          INCHEON,
+                                          GANGWON,
+                                          CHUNGBUK,
+                                          CHUNGNAM,
+                                          SEJONG,
+                                          DAEJEON,
+                                          JEONBUK,
+                                          GWANGJU_JEONNAM,
+                                          GYEONGBUK,
+                                          DAEGU,
+                                          ULSAN,
+                                          GYEONGNAM,
+                                          BUSAN,
+                                          JEJU,
+                                        ]
+                          - type: object
+                            description: USER 고객(CUSTOMER) 프로필 콘텐츠
+                            required:
+                              - type
+                              - userType
+                              - id
+                              - name
+                              - nickname
+                              - profileImageKey
+                              - region
+                              - service
+                            properties:
+                              type:
+                                type: string
+                                enum: [USER]
+                              userType:
+                                type: string
+                                enum: [CUSTOMER]
+                              id:
+                                type: string
+                                format: uuid
+                              name:
+                                type: string
+                              nickname:
+                                type: string
+                              profileImageKey:
+                                type: string
+                                nullable: true
+                              region:
+                                type: string
+                                nullable: true
+                                enum:
+                                  [
+                                    SEOUL,
+                                    GYEONGGI,
+                                    INCHEON,
+                                    GANGWON,
+                                    CHUNGBUK,
+                                    CHUNGNAM,
+                                    SEJONG,
+                                    DAEJEON,
+                                    JEONBUK,
+                                    GWANGJU_JEONNAM,
+                                    GYEONGBUK,
+                                    DAEGU,
+                                    ULSAN,
+                                    GYEONGNAM,
+                                    BUSAN,
+                                    JEJU,
+                                  ]
+                              service:
+                                type: array
+                                items:
+                                  type: string
+                                  enum: [SMALL, HOME, OFFICE]
                       availableActions:
                         type: object
                         required: [canSuspendUser, canDeleteContent]
                         properties:
                           canSuspendUser:
                             type: boolean
+                            description: PENDING이고 삭제되지 않은 대상 사용자가 있으면 true
                           canDeleteContent:
                             type: boolean
-              example:
-                data:
-                  id: 1
-                  target: REVIEW
-                  targetId: '12'
-                  category: ABUSIVE_LANGUAGE
-                  status: PENDING
-                  adminId: null
-                  admin: null
-                  createdAt: '2026-08-01T10:00:00.000Z'
-                  reporter:
-                    id: '550e8400-e29b-41d4-a716-446655440000'
-                    name: 홍길동
-                    nickname: 길동이
-                    email: reporter@example.com
-                    userType: CUSTOMER
-                    isDeleted: false
-                    deletedAt: null
-                    profileImageKey: profiles/user-550e8400.jpg
-                  targetInfo:
-                    type: REVIEW
-                    id: '12'
-                    exists: true
-                    isDeleted: false
-                    user:
-                      id: '550e8400-e29b-41d4-a716-446655440001'
-                      name: 김철수
-                      nickname: 철수
-                      email: author@example.com
-                      userType: MOVER
-                      isDeleted: false
-                      deletedAt: null
-                  content:
-                    type: REVIEW
-                    id: '12'
-                    title: 리뷰
-                    body: 불쾌한 리뷰 내용
-                    createdAt: '2026-07-30T09:00:00.000Z'
-                    deletedAt: null
-                    metadata:
-                      rating: 1
-                  targetUser:
-                    id: '550e8400-e29b-41d4-a716-446655440001'
-                    name: 김철수
-                    nickname: 철수
-                    status: ACTIVE
-                    suspendedAt: null
-                    suspendedUntil: null
-                    reportCount: 3
-                  reportedContent:
-                    type: REVIEW
-                    id: '12'
-                    rating: 1
-                    content: 불쾌한 리뷰 내용
-                    createdAt: '2026-07-30T09:00:00.000Z'
-                    updatedAt: null
-                    deletedAt: null
-                  availableActions:
-                    canSuspendUser: true
-                    canDeleteContent: true
+                            description: |
+                              REVIEW/ARTICLE/COMMENT이고 아직 삭제되지 않았을 때만 true.
+                              USER·MESSAGE는 항상 false.
+              examples:
+                reviewReport:
+                  summary: REVIEW 신고 상세
+                  value:
+                    data:
+                      id: 1
+                      target: REVIEW
+                      targetId: '12'
+                      category: ABUSIVE_LANGUAGE
+                      status: PENDING
+                      adminId: null
+                      admin: null
+                      createdAt: '2026-08-01T10:00:00.000Z'
+                      reporter:
+                        id: '550e8400-e29b-41d4-a716-446655440000'
+                        name: 홍길동
+                        nickname: 길동이
+                        email: reporter@example.com
+                        userType: CUSTOMER
+                        isDeleted: false
+                        deletedAt: null
+                        profileImageKey: profiles/user-550e8400.jpg
+                      targetInfo:
+                        type: REVIEW
+                        id: '12'
+                        exists: true
+                        isDeleted: false
+                        user:
+                          id: '550e8400-e29b-41d4-a716-446655440001'
+                          name: 김철수
+                          nickname: 철수
+                          email: author@example.com
+                          userType: MOVER
+                          isDeleted: false
+                          deletedAt: null
+                      content:
+                        type: REVIEW
+                        id: '12'
+                        title: 리뷰
+                        body: 불쾌한 리뷰 내용
+                        createdAt: '2026-07-30T09:00:00.000Z'
+                        deletedAt: null
+                        metadata:
+                          rating: 1
+                      targetUser:
+                        id: '550e8400-e29b-41d4-a716-446655440001'
+                        name: 김철수
+                        nickname: 철수
+                        status: ACTIVE
+                        suspendedAt: null
+                        suspendedUntil: null
+                        reportCount: 3
+                      reportedContent:
+                        type: REVIEW
+                        id: '12'
+                        rating: 1
+                        content: 불쾌한 리뷰 내용
+                        createdAt: '2026-07-30T09:00:00.000Z'
+                        updatedAt: null
+                        deletedAt: null
+                      availableActions:
+                        canSuspendUser: true
+                        canDeleteContent: true
+                userMoverProfileReport:
+                  summary: USER 기사 프로필 신고 상세
+                  value:
+                    data:
+                      id: 2
+                      target: USER
+                      targetId: '550e8400-e29b-41d4-a716-446655440001'
+                      category: INAPPROPRIATE_PROFILE
+                      status: PENDING
+                      adminId: null
+                      admin: null
+                      createdAt: '2026-08-01T11:00:00.000Z'
+                      reporter:
+                        id: '550e8400-e29b-41d4-a716-446655440000'
+                        name: 홍길동
+                        nickname: 길동이
+                        email: reporter@example.com
+                        userType: CUSTOMER
+                        isDeleted: false
+                        deletedAt: null
+                        profileImageKey: null
+                      targetInfo:
+                        type: USER
+                        id: '550e8400-e29b-41d4-a716-446655440001'
+                        exists: true
+                        isDeleted: false
+                        user:
+                          id: '550e8400-e29b-41d4-a716-446655440001'
+                          name: 김철수
+                          nickname: 철수
+                          email: mover@example.com
+                          userType: MOVER
+                          isDeleted: false
+                          deletedAt: null
+                          profileImageKey: profiles/mover-550e8400.jpg
+                      content: null
+                      targetUser:
+                        id: '550e8400-e29b-41d4-a716-446655440001'
+                        name: 김철수
+                        nickname: 철수
+                        status: ACTIVE
+                        suspendedAt: null
+                        suspendedUntil: null
+                        reportCount: 2
+                      reportedContent:
+                        type: USER
+                        userType: MOVER
+                        id: '550e8400-e29b-41d4-a716-446655440001'
+                        name: 김철수
+                        nickname: 철수
+                        profileImageKey: profiles/mover-550e8400.jpg
+                        shortDescription: 경력 5년 이사 전문가
+                        description: 안전하고 꼼꼼한 이사 도와드립니다.
+                        career: 5
+                        service: [HOME, OFFICE]
+                        serviceRegions:
+                          - region: SEOUL
+                          - region: GYEONGGI
+                      availableActions:
+                        canSuspendUser: true
+                        canDeleteContent: false
+                userCustomerProfileReport:
+                  summary: USER 고객 프로필 신고 상세
+                  value:
+                    data:
+                      id: 3
+                      target: USER
+                      targetId: '550e8400-e29b-41d4-a716-446655440002'
+                      category: INAPPROPRIATE_PROFILE
+                      status: PENDING
+                      adminId: null
+                      admin: null
+                      createdAt: '2026-08-01T12:00:00.000Z'
+                      reporter:
+                        id: '550e8400-e29b-41d4-a716-446655440000'
+                        name: 홍길동
+                        nickname: 길동이
+                        email: reporter@example.com
+                        userType: MOVER
+                        isDeleted: false
+                        deletedAt: null
+                        profileImageKey: profiles/user-550e8400.jpg
+                      targetInfo:
+                        type: USER
+                        id: '550e8400-e29b-41d4-a716-446655440002'
+                        exists: true
+                        isDeleted: false
+                        user:
+                          id: '550e8400-e29b-41d4-a716-446655440002'
+                          name: 이영희
+                          nickname: 영희
+                          email: customer@example.com
+                          userType: CUSTOMER
+                          isDeleted: false
+                          deletedAt: null
+                          profileImageKey: null
+                      content: null
+                      targetUser:
+                        id: '550e8400-e29b-41d4-a716-446655440002'
+                        name: 이영희
+                        nickname: 영희
+                        status: SUSPENDED
+                        suspendedAt: '2026-07-28T00:00:00.000Z'
+                        suspendedUntil: '2026-08-04T00:00:00.000Z'
+                        reportCount: 1
+                      reportedContent:
+                        type: USER
+                        userType: CUSTOMER
+                        id: '550e8400-e29b-41d4-a716-446655440002'
+                        name: 이영희
+                        nickname: 영희
+                        profileImageKey: null
+                        region: SEOUL
+                        service: [HOME, SMALL]
+                      availableActions:
+                        canSuspendUser: true
+                        canDeleteContent: false
         '400':
           description: Path Parameter 검증 실패 또는 지원하지 않는 신고 대상
           content:

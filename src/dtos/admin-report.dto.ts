@@ -295,14 +295,50 @@ export interface AdminReportDetailReportedMessageContentDto {
 }
 
 /**
+ * USER 신고 — 기사(MOVER) 프로필 콘텐츠.
+ * type + userType으로 판별한다. email·deletedAt 등 내부 필드는 노출하지 않는다.
+ */
+export interface AdminReportDetailReportedMoverProfileContentDto {
+  type: 'USER';
+  userType: 'MOVER';
+  id: string;
+  name: string;
+  nickname: string;
+  profileImageKey: string | null;
+  shortDescription: string | null;
+  description: string | null;
+  career: number | null;
+  service: MoveType[];
+  serviceRegions: AdminReportDetailMoverServiceRegionDto[];
+}
+
+/**
+ * USER 신고 — 고객(CUSTOMER) 프로필 콘텐츠.
+ * type + userType으로 판별한다. 전화번호·email은 노출하지 않는다.
+ */
+export interface AdminReportDetailReportedCustomerProfileContentDto {
+  type: 'USER';
+  userType: 'CUSTOMER';
+  id: string;
+  name: string;
+  nickname: string;
+  profileImageKey: string | null;
+  region: Region | null;
+  service: MoveType[];
+}
+
+/**
  * 신고된 콘텐츠 상세.
- * USER처럼 별도 콘텐츠가 없거나 조회 실패면 상위 reportedContent를 null로 둔다.
+ * USER는 회원 프로필, 그 외는 콘텐츠 row.
+ * 프로필/콘텐츠 미존재·조회 실패면 상위 reportedContent를 null로 둔다.
  */
 export type AdminReportDetailReportedContentDto =
   | AdminReportDetailReportedReviewContentDto
   | AdminReportDetailReportedArticleContentDto
   | AdminReportDetailReportedCommentContentDto
-  | AdminReportDetailReportedMessageContentDto;
+  | AdminReportDetailReportedMessageContentDto
+  | AdminReportDetailReportedMoverProfileContentDto
+  | AdminReportDetailReportedCustomerProfileContentDto;
 
 /**
  * 관리자 신고 처리(resolve) 결과.
@@ -356,7 +392,11 @@ export interface AdminReportDetailDto {
   content: AdminReportDetailContentDto | null;
   /** 정지 Action용 대상 사용자. 없으면 null */
   targetUser: AdminReportDetailTargetUserDto | null;
-  /** 콘텐츠 삭제 Action·표시용. USER·미존재면 null */
+  /**
+   * 콘텐츠 삭제 Action·표시용.
+   * USER는 회원 프로필, 그 외는 콘텐츠. 프로필/콘텐츠 없으면 null.
+   * USER여도 canDeleteContent는 항상 false다.
+   */
   reportedContent: AdminReportDetailReportedContentDto | null;
   availableActions: AdminReportAvailableActionsDto;
 }

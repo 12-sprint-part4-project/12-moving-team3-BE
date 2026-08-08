@@ -37,6 +37,7 @@ import {
   findReportDetailTargetReviewById,
   findReportDetailTargetUserById,
   findReportReportedContent,
+  findReportedUserProfile,
   findReportSanctionTargetUser,
   findReportTargetArticlesByIds,
   findReportTargetCommentsByIds,
@@ -53,6 +54,7 @@ import {
   type AdminReportListRow,
   type AdminReportTargetIdsByKeyword,
   type FindReportReportedContentResult,
+  type FindReportedUserProfileResult,
   type FindReportSanctionTargetUserResult,
   type ReportSanctionTargetUserRow,
 } from '../repositories/admin-report.repository';
@@ -738,6 +740,75 @@ const toReportedContentFromResult = (
 };
 
 /**
+ * USER 신고 프로필 조회 결과 → reportedContent DTO.
+ * email·deletedAt 등 검토에 불필요한 필드는 매핑하지 않는다.
+ * 사용자/프로필 없음은 null — targetUser·정지 Action과 독립이다.
+ */
+const toReportedUserProfileFromResult = (
+  result: FindReportedUserProfileResult
+): AdminReportDetailReportedContentDto | null => {
+  if (result.kind === 'mover_profile') {
+    const { profile } = result;
+    return {
+      type: 'USER',
+      userType: 'MOVER',
+      id: profile.id,
+      name: profile.name,
+      nickname: profile.nickname,
+      profileImageKey: profile.profileImageKey,
+      shortDescription: profile.moverProfile.shortDescription,
+      description: profile.moverProfile.description,
+      career: profile.moverProfile.career,
+      service: profile.moverProfile.service,
+      serviceRegions: profile.moverProfile.serviceRegions.map((item) => ({
+        region: item.region,
+      })),
+    };
+  }
+
+  if (result.kind === 'customer_profile') {
+    const { profile } = result;
+    return {
+      type: 'USER',
+      userType: 'CUSTOMER',
+      id: profile.id,
+      name: profile.name,
+      nickname: profile.nickname,
+      profileImageKey: profile.profileImageKey,
+      region: profile.customerProfile.region,
+      service: profile.customerProfile.service,
+    };
+  }
+
+  // not_found / profile_missing — invalid_target_id는 호출 전에 별도 처리한다.
+  return null;
+};
+
+/**
+ * 상세용 reportedContent 로드.
+ * USER는 기존 findReportedUserProfile을 쓰고, 콘텐츠 대상은 findReportReportedContent를 유지한다.
+ */
+const loadReportedContentForDetail = async (
+  target: SupportedReportTarget,
+  targetId: string
+): Promise<
+  | { source: 'user_profile'; result: FindReportedUserProfileResult }
+  | { source: 'content'; result: FindReportReportedContentResult }
+> => {
+  if (target === 'USER') {
+    return {
+      source: 'user_profile',
+      result: await findReportedUserProfile(targetId),
+    };
+  }
+
+  return {
+    source: 'content',
+    result: await findReportReportedContent(target, targetId),
+  };
+};
+
+/**
  * availableActions 계산.
  * PENDING이 아니거나 대상을 못 찾으면 해당 Action은 false.
  * 삭제된 사용자는 정지 잠금이 실패하므로 canSuspendUser를 false로 둔다.
@@ -796,22 +867,37 @@ export const getAdminReportDetail = async (
 
   // 기존 상세 조립과 Action용 조회를 병렬로 수행한다.
   // (완전 중복 제거 리팩터는 하지 않고, 응답 계약만 확장한다.)
-  const [detailBundle, sanctionUserResult, reportedContentResult] =
-    await Promise.all([
-      loadReportDetailTarget(report.target, report.targetId),
-      findReportSanctionTargetUser(report.target, report.targetId),
-      findReportReportedContent(report.target, report.targetId),
-    ]);
+  const [detailBundle, sanctionUserResult, reportedLoad] = await Promise.all([
+    loadReportDetailTarget(report.target, report.targetId),
+    findReportSanctionTargetUser(report.target, report.targetId),
+    loadReportedContentForDetail(report.target, report.targetId),
+  ]);
 
   // 저장된 targetId 형식 이상은 요청 400이 아니라 서버 데이터 오류로 본다.
+  const reportedInvalidTargetId =
+    reportedLoad.source === 'user_profile'
+      ? reportedLoad.result.kind === 'invalid_target_id'
+      : reportedLoad.result.kind === 'invalid_target_id';
+
   if (
     sanctionUserResult.kind === 'invalid_target_id' ||
-    reportedContentResult.kind === 'invalid_target_id'
+    reportedInvalidTargetId
   ) {
     throw new AppError('INTERNAL_SERVER_ERROR');
   }
 
   const { targetInfo, content } = detailBundle;
+
+  // USER는 프로필, 그 외는 콘텐츠 row. Action 계산용 content 결과는 USER에선 no_content로 둔다.
+  const reportedContent =
+    reportedLoad.source === 'user_profile'
+      ? toReportedUserProfileFromResult(reportedLoad.result)
+      : toReportedContentFromResult(reportedLoad.result);
+
+  const contentResultForActions: FindReportReportedContentResult =
+    reportedLoad.source === 'content'
+      ? reportedLoad.result
+      : { kind: 'no_content' };
 
   return {
     id: report.id,
@@ -832,12 +918,12 @@ export const getAdminReportDetail = async (
     targetInfo,
     content,
     targetUser: toDetailTargetUserFromResult(sanctionUserResult),
-    reportedContent: toReportedContentFromResult(reportedContentResult),
+    reportedContent,
     availableActions: toAvailableActions(
       report.status,
       report.target,
       sanctionUserResult,
-      reportedContentResult
+      contentResultForActions
     ),
   };
 };
