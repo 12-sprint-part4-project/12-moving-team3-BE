@@ -401,7 +401,11 @@ const toDetailTargetUserSummary = (
   profile: toDetailUserProfile(user),
 });
 
-/** 신고자 row → 상세 reporter DTO */
+/**
+ * 신고자 row → 상세 reporter DTO.
+ * profileImageKey는 상세 select에 포함돼 있어 추가 조회 없이 매핑한다.
+ * 관리자 API는 URL 변환 없이 key를 그대로 내려 회원 상세·targetInfo.user와 맞춘다.
+ */
 const toDetailReporter = (
   reporter: AdminReportDetailRow['reporter']
 ): AdminReportDetailReporterDto => ({
@@ -412,6 +416,7 @@ const toDetailReporter = (
   userType: reporter.userType,
   isDeleted: reporter.deletedAt !== null,
   deletedAt: reporter.deletedAt,
+  profileImageKey: reporter.profileImageKey,
 });
 
 /** 대상 미존재 시에도 targetInfo 객체 형태를 유지한다 */
@@ -653,6 +658,7 @@ const loadReportDetailTarget = async (
 /**
  * 제재 대상 사용자 행 → 상세 DTO.
  * userStatus가 없으면 회원 목록과 같이 ACTIVE·null로 정규화한다.
+ * reportCount는 Repository 값을 그대로 쓰며 Service에서 재집계하지 않는다.
  */
 const toDetailTargetUser = (
   user: ReportSanctionTargetUserRow
@@ -663,6 +669,7 @@ const toDetailTargetUser = (
   status: user.userStatus?.status ?? UserStatus.ACTIVE,
   suspendedAt: user.userStatus?.suspendedAt ?? null,
   suspendedUntil: user.userStatus?.suspendedUntil ?? null,
+  reportCount: user.reportCount,
 });
 
 const toDetailTargetUserFromResult = (

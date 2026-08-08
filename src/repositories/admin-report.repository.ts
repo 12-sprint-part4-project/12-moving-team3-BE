@@ -405,7 +405,10 @@ export const findReportTargetCommentsByIds = async (
 // --- 신고 상세 조회 ---
 // 목록 배치 조회와 달리 soft-delete 행도 가져와 Service가 exists/isDeleted를 구분하게 한다.
 
-/** 상세용 사용자 요약 — 탈퇴 판단을 위해 deletedAt을 포함한다 */
+/**
+ * 상세용 사용자 요약 — 탈퇴 판단용 deletedAt·신고자 이미지용 profileImageKey를 포함한다.
+ * 전화번호는 선택하지 않는다.
+ */
 const detailUserSummarySelect = {
   id: true,
   name: true,
@@ -413,6 +416,7 @@ const detailUserSummarySelect = {
   email: true,
   userType: true,
   deletedAt: true,
+  profileImageKey: true,
 } satisfies Prisma.UserSelect;
 
 /** 신고 상세 select — reporter 탈퇴 정보·처리 admin을 FK로 함께 조회한다 */

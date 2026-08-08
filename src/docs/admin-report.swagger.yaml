@@ -462,6 +462,9 @@ paths:
         신고 기본 정보, 신고자, 처리 관리자, 대상 상태(targetInfo), 신고된 콘텐츠(content)를 포함합니다.
         처리 Action용으로 targetUser·reportedContent·availableActions를 추가로 제공합니다.
         targetInfo는 항상 객체로 내려가며 exists/isDeleted로 미존재·삭제 상태를 구분합니다.
+        reporter에는 profileImageKey가 포함되며, 이미지가 없으면 null입니다.
+        targetUser에는 계정 상태(ACTIVE/SUSPENDED)·정지 시각·전체 신고 누적 횟수(reportCount)가 포함됩니다.
+        UserStatusInfo가 없으면 status는 ACTIVE, suspendedAt·suspendedUntil은 null로 정규화합니다.
         USER 대상이면 targetInfo.user에 profileImageKey·profile(customer/mover)이 포함될 수 있습니다.
         (부적절한 프로필 신고 상세 검토용. 전화번호는 포함하지 않습니다.)
         대상이 없거나 콘텐츠를 조회할 수 없으면 content·reportedContent는 null입니다.
@@ -558,6 +561,7 @@ paths:
                           - userType
                           - isDeleted
                           - deletedAt
+                          - profileImageKey
                         properties:
                           id:
                             type: string
@@ -578,6 +582,11 @@ paths:
                             type: string
                             format: date-time
                             nullable: true
+                          profileImageKey:
+                            type: string
+                            nullable: true
+                            description: 신고자 프로필 이미지 키. 없으면 null
+                            example: profiles/user-550e8400.jpg
                       targetInfo:
                         type: object
                         required: [type, id, exists, isDeleted, user]
@@ -751,9 +760,19 @@ paths:
                             additionalProperties: true
                       targetUser:
                         nullable: true
+                        description: |
+                          제재 대상 사용자. 없으면 null.
+                          UserStatusInfo가 없으면 status=ACTIVE, suspendedAt/suspendedUntil=null.
+                          reportCount는 USER 직접 신고와 작성 콘텐츠(REVIEW/ARTICLE/COMMENT/MESSAGE) 신고의 누적 횟수입니다.
                         type: object
                         required:
-                          [id, name, nickname, status, suspendedAt, suspendedUntil]
+                          - id
+                          - name
+                          - nickname
+                          - status
+                          - suspendedAt
+                          - suspendedUntil
+                          - reportCount
                         properties:
                           id:
                             type: string
@@ -765,14 +784,22 @@ paths:
                           status:
                             type: string
                             enum: [ACTIVE, SUSPENDED]
+                            description: 계정 상태 enum. 표시용 “정지됨” 문자열은 사용하지 않습니다.
                           suspendedAt:
                             type: string
                             format: date-time
                             nullable: true
+                            description: 정지 시작 시각. ACTIVE이거나 상태 정보가 없으면 null
                           suspendedUntil:
                             type: string
                             format: date-time
                             nullable: true
+                            description: 정지 종료 시각. ACTIVE이거나 상태 정보가 없으면 null
+                          reportCount:
+                            type: integer
+                            minimum: 0
+                            description: 해당 회원이 받은 전체 신고 누적 횟수
+                            example: 3
                       reportedContent:
                         nullable: true
                         description: |
@@ -843,6 +870,7 @@ paths:
                     userType: CUSTOMER
                     isDeleted: false
                     deletedAt: null
+                    profileImageKey: profiles/user-550e8400.jpg
                   targetInfo:
                     type: REVIEW
                     id: '12'
@@ -872,6 +900,7 @@ paths:
                     status: ACTIVE
                     suspendedAt: null
                     suspendedUntil: null
+                    reportCount: 3
                   reportedContent:
                     type: REVIEW
                     id: '12'

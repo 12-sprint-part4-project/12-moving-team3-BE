@@ -109,13 +109,16 @@ export interface AdminReportAdminDto {
 
 /**
  * 신고자 상세.
- * 목록 요약(AdminReportReporterDto)에 탈퇴 상태를 더한다.
+ * 목록 요약(AdminReportReporterDto)에 탈퇴 상태·프로필 이미지를 더한다.
  * 탈퇴 계정 신고도 관리자가 맥락을 볼 수 있어야 해서 deletedAt을 노출한다.
+ * 전화번호는 포함하지 않는다.
  */
 export interface AdminReportDetailReporterDto extends AdminReportReporterDto {
   /** deletedAt 유무로 탈퇴 여부를 프론트가 바로 분기할 수 있게 한다 */
   isDeleted: boolean;
   deletedAt: Date | null;
+  /** User.profileImageKey. 없으면 null — 회원 상세·targetInfo.user와 동일한 key 응답 */
+  profileImageKey: string | null;
 }
 
 /**
@@ -230,6 +233,7 @@ export interface AdminReportDetailContentDto {
 /**
  * 신고 처리용 대상 사용자 요약.
  * UserStatusInfo가 없으면 Service에서 ACTIVE·null로 정규화한다.
+ * reportCount는 Repository 전체 신고 누적값이며, “정지됨” 같은 표시 문자열은 두지 않는다.
  */
 export interface AdminReportDetailTargetUserDto {
   id: string;
@@ -238,6 +242,8 @@ export interface AdminReportDetailTargetUserDto {
   status: UserStatus;
   suspendedAt: Date | null;
   suspendedUntil: Date | null;
+  /** 해당 회원이 직접·작성 콘텐츠를 통해 받은 신고 누적 횟수 */
+  reportCount: number;
 }
 
 /** 신고 상세에서 선택 가능한 Action 플래그 */
