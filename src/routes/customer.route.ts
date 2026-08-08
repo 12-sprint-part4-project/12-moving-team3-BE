@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as customerProfileController from '../controllers/customer-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
 import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
+import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
 import {
@@ -38,6 +39,7 @@ router.get(
   '/quotes',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   quoteController.getCustomerPendingQuotes
 );
 
@@ -46,6 +48,7 @@ router.get(
   '/past-quotes',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     query: pastQuotesQuerySchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -58,6 +61,7 @@ router.get(
   '/quotes/:quoteId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: quoteIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
@@ -70,6 +74,7 @@ router.patch(
   '/quotes/:quoteId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: quoteIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
