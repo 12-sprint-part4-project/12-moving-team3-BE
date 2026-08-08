@@ -399,6 +399,12 @@ export interface CustomerQuoteRow {
   moverId: string | null;
 }
 
+/** 지정 견적 요청 행(채팅 roomKey용 designatedMoverId) */
+export interface DesignatedMoverRef {
+  id: number;
+  moverId: string;
+}
+
 /** 대기 중 견적 요청 + 견적 목록 */
 export interface CustomerPendingEstimateRequestRow {
   id: number;
@@ -408,6 +414,7 @@ export interface CustomerPendingEstimateRequestRow {
   moveDate: Date | null;
   departureAddress: string | null;
   arrivalAddress: string | null;
+  designatedMovers: DesignatedMoverRef[];
   quotes: CustomerQuoteRow[];
 }
 
@@ -423,6 +430,7 @@ export interface CustomerPastEstimateRequestRow {
   departureDetailAddress: string | null;
   arrivalAddress: string | null;
   arrivalDetailAddress: string | null;
+  designatedMovers: DesignatedMoverRef[];
   quotes: CustomerQuoteRow[];
 }
 
@@ -554,6 +562,16 @@ export const findMoverCardsByIds = async (
   return result;
 };
 
+/** 고객 견적 요청에 붙는 지정 행 select (채팅용 designatedMoverId) */
+const designatedMoversForChatSelect = {
+  designatedMovers: {
+    select: {
+      id: true,
+      moverId: true,
+    },
+  },
+} as const;
+
 /**
  * 고객의 대기 중(SUBMITTED) 견적 요청과 PENDING 견적 목록 조회
  */
@@ -574,6 +592,7 @@ export const findPendingEstimateRequestWithQuotes = async (
       moveDate: true,
       departureAddress: true,
       arrivalAddress: true,
+      ...designatedMoversForChatSelect,
       quotes: {
         where: {
           deletedAt: null,
@@ -617,6 +636,7 @@ export const findCustomerPastEstimateRequests = async (
         departureDetailAddress: true,
         arrivalAddress: true,
         arrivalDetailAddress: true,
+        ...designatedMoversForChatSelect,
         quotes: {
           where: {
             deletedAt: null,
@@ -664,6 +684,7 @@ export const findCustomerPastEstimateRequests = async (
       departureDetailAddress: true,
       arrivalAddress: true,
       arrivalDetailAddress: true,
+      ...designatedMoversForChatSelect,
       quotes: {
         where: {
           deletedAt: null,

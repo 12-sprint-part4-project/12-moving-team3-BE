@@ -18,6 +18,8 @@ export interface QuoteDetailDto {
   customer: { name: string };
   moveType: MoveType | null;
   isDesignated: boolean;
+  /** EstimateDesignatedMover.id — 지정 채팅방 생성용. 비지정이면 null */
+  designatedMoverId: number | null;
   requestedAt: Date | null;
   moveDate: Date | null;
   fromAddress: string | null;
@@ -31,6 +33,8 @@ export interface RejectedQuoteListItemDto {
   customer: { name: string };
   moveType: MoveType | null;
   isDesignated: boolean;
+  /** EstimateDesignatedMover.id — 지정 채팅방 생성용. 비지정이면 null */
+  designatedMoverId: number | null;
   moveDate: Date | null;
   fromRegionLabel: string | null;
   toRegionLabel: string | null;
@@ -45,6 +49,8 @@ export interface SentQuoteListItemDto {
   moveType: MoveType | null;
   isConfirmed: boolean;
   isDesignated: boolean;
+  /** EstimateDesignatedMover.id — 지정 채팅방 생성용. 비지정이면 null */
+  designatedMoverId: number | null;
   moveDate: Date | null;
   fromRegionLabel: string | null;
   toRegionLabel: string | null;
@@ -89,6 +95,8 @@ export interface CustomerQuoteItemDto {
   price: number | null;
   status: QuoteStatus;
   isDesignated: boolean;
+  /** EstimateDesignatedMover.id — 지정 채팅방 생성용. 비지정이면 null */
+  designatedMoverId: number | null;
   mover: CustomerQuoteMoverDto;
 }
 
@@ -139,6 +147,8 @@ export interface CustomerQuoteDetailDto {
   comment: string | null;
   status: QuoteStatus;
   isDesignated: boolean;
+  /** EstimateDesignatedMover.id — 지정 채팅방 생성용. 비지정이면 null */
+  designatedMoverId: number | null;
   estimateRequestStatus: EstimateRequestStatus;
   serviceType: MoveType | null;
   moveDate: Date | null;

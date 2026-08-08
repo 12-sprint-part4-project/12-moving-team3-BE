@@ -5,7 +5,7 @@ paths:
       summary: 지정 견적 요청 생성
       description: |
         제출(SUBMITTED)된 본인 견적요청에 특정 기사님을 지정합니다.
-        이미 지정된 기사님이면 409(DESIGNATED_ALREADY_EXISTS)를 반환합니다.
+        이미 지정된 기사님이면 기존 지정 행(`id` 포함)을 그대로 반환합니다(멱등).
         해당 기사님이 이미 대기(PENDING)·확정(CONFIRMED) 견적을 보낸 경우
         409(QUOTE_ALREADY_RECEIVED_FROM_MOVER)를 반환합니다.
       security:
@@ -31,7 +31,7 @@ paths:
               moverId: 11111111-1111-1111-1111-111111111111
       responses:
         '201':
-          description: 지정 견적 생성 성공
+          description: 지정 견적 생성 성공 (또는 이미 지정된 경우 기존 행 반환)
           content:
             application/json:
               schema:
@@ -70,7 +70,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: |
-            - DESIGNATED_ALREADY_EXISTS: 이미 지정된 기사
             - QUOTE_ALREADY_RECEIVED_FROM_MOVER: 이미 해당 기사 견적(대기/확정)을 받음
             - ESTIMATE_REQUEST_NOT_SUBMITTED: SUBMITTED 상태 아님
           content:
