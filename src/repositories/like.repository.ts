@@ -1,3 +1,4 @@
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 
 /** 좋아요 존재 여부 확인 */
@@ -10,7 +11,7 @@ export const findLike = async (postId: number, userId: string) => {
 
 /** 좋아요 생성 + likeCount 증가 (트랜잭션). post 미존재 시 null. */
 export const createLike = async (postId: number, userId: string) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const postResult = await tx.post.updateMany({
       where: { id: postId, deletedAt: null },
       data: { likeCount: { increment: 1 } },
@@ -29,7 +30,7 @@ export const createLike = async (postId: number, userId: string) => {
 
 /** 좋아요 삭제 + likeCount 감소 (트랜잭션). 삭제된 row가 없으면 deleted: false. */
 export const deleteLike = async (postId: number, userId: string) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const deleteResult = await tx.postLike.deleteMany({
       where: { postId, userId },
     });

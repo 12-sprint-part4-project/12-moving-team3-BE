@@ -1,6 +1,6 @@
 import type { DeviceType } from '@prisma/client';
 import { JsonWebTokenError } from 'jsonwebtoken';
-import { prisma } from '../lib/prisma';
+import { runAuditedTransaction } from '../lib/audit-context';
 import * as adminAuthRepository from '../repositories/admin-auth.repository';
 import { AppError } from '../utils/app.error';
 import {
@@ -191,7 +191,7 @@ export const refreshAdminToken = async (
   const { expiresAt, maxAgeMs } = getAdminRefreshTokenExpiry(nextRefreshToken);
   const nextTokenHash = hashAdminRefreshToken(nextRefreshToken);
 
-  await prisma.$transaction(async (tx) => {
+  await runAuditedTransaction(async (tx) => {
     // 검증된 레코드만 삭제해 동일 관리자의 다른 세션 토큰은 유지한다.
     const { count } = await adminAuthRepository.deleteAdminRefreshTokenById(
       refreshTokenRecord.id,
