@@ -1,4 +1,5 @@
 import {
+  HistoryAction,
   Prisma,
   UserReportStatus,
   UserStatus,
@@ -69,9 +70,13 @@ import type {
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { AppError } from '../utils/app.error';
 import { createDateRange } from '../utils/admin-date-range.util';
+import { withHistory } from './history.service';
 
 /** 관리자 신고 정지 기간 — 회원 수동 정지와 동일하게 7일 고정 */
 const ADMIN_REPORT_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** History.tableName — UserReport @@map("user_reports")와 동일하게 맞춘다 */
+const USER_REPORT_TABLE_NAME = 'user_reports';
 
 /** 처리·반려 interactive transaction — 잠금 대기·전체 실행 상한 */
 const ADMIN_REPORT_DECISION_TX_OPTIONS = {
@@ -1032,8 +1037,22 @@ const executeDeleteReportedContent = async (
 };
 
 /**
+ * 신고 처리 History용 최소 스냅샷.
+ * 상태 변경 감사에 필요한 id/status/adminId만 남기고 전체 row는 넣지 않는다.
+ */
+const toReportDecisionHistoryJson = (row: {
+  id: number;
+  status: UserReportStatus;
+  adminId: number | null;
+}): Prisma.InputJsonValue => ({
+  id: row.id,
+  status: row.status,
+  adminId: row.adminId,
+});
+
+/**
  * 관리자 신고 처리.
- * 신고 잠금 → Action 검증·실행 → RESOLVED를 한 트랜잭션으로 묶는다.
+ * 신고 잠금 → Action 검증·실행 → RESOLVED → History를 한 트랜잭션으로 묶는다.
  * adminId는 인증 정보에서 전달받으며 요청 body에 두지 않는다.
  */
 export const resolveAdminReport = async ({
@@ -1044,13 +1063,14 @@ export const resolveAdminReport = async ({
   // 정지·삭제·상태 변경에 동일 시각을 쓴다.
   const processedAt = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  return withHistory(async (tx) => {
     const report = await lockAdminReportForStatusChange(reportId, tx);
 
     if (!report) {
       throw new AppError('ADMIN_REPORT_NOT_FOUND');
     }
 
+    // 이미 처리된 신고는 여기서 실패하므로 History 생성 단계에 도달하지 않는다.
     if (report.status !== UserReportStatus.PENDING) {
       throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
     }
@@ -1093,12 +1113,24 @@ export const resolveAdminReport = async ({
     }
 
     return {
-      reportId: statusUpdate.report.id,
-      status: statusUpdate.report.status,
-      adminId: statusUpdate.report.adminId,
-      actions,
-      processedAt,
-      contentAlreadyDeleted,
+      result: {
+        reportId: statusUpdate.report.id,
+        status: statusUpdate.report.status,
+        adminId: statusUpdate.report.adminId,
+        actions,
+        processedAt,
+        contentAlreadyDeleted,
+      },
+      // 관리자 Action이므로 actor는 adminUserId, 대상 행은 tableRowId로 식별한다.
+      history: {
+        userId: null,
+        adminUserId: adminId,
+        tableName: USER_REPORT_TABLE_NAME,
+        tableRowId: String(statusUpdate.report.id),
+        operationType: HistoryAction.UPDATE,
+        beforeData: toReportDecisionHistoryJson(report),
+        afterData: toReportDecisionHistoryJson(statusUpdate.report),
+      },
     };
   }, ADMIN_REPORT_DECISION_TX_OPTIONS);
 };

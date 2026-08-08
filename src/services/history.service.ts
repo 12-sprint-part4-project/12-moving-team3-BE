@@ -28,6 +28,13 @@ export type WithHistoryResult<T> = {
   history: CreateHistoryInput;
 };
 
+/** interactive transaction 옵션 — 호출부 잠금/타임아웃 정책을 유지하기 위해 전달 가능 */
+export type WithHistoryTransactionOptions = {
+  maxWait?: number;
+  timeout?: number;
+  isolationLevel?: Prisma.TransactionIsolationLevel;
+};
+
 /**
  * 도메인 변경과 History 저장을 하나의 Prisma interactive transaction으로 묶는다.
  *
@@ -42,7 +49,8 @@ export type WithHistoryResult<T> = {
  * 호출부가 반드시 전달받은 tx로 Repository를 호출해야 원자성이 보장된다.
  */
 export const withHistory = async <T>(
-  work: (tx: Prisma.TransactionClient) => Promise<WithHistoryResult<T>>
+  work: (tx: Prisma.TransactionClient) => Promise<WithHistoryResult<T>>,
+  options?: WithHistoryTransactionOptions
 ): Promise<T> => {
   return prisma.$transaction(async (tx) => {
     const { result, history } = await work(tx);
@@ -51,5 +59,5 @@ export const withHistory = async <T>(
     await createHistory(history, tx);
 
     return result;
-  });
+  }, options);
 };
