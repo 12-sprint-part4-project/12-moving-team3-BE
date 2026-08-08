@@ -1086,6 +1086,7 @@ paths:
                           userType: MOVER
                           isDeleted: false
                           deletedAt: null
+                          profileImageKey: profiles/mover-550e8400.jpg
                       content:
                         type: REVIEW
                         id: '12'

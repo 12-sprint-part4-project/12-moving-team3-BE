@@ -38,6 +38,7 @@ import {
   findReportDetailTargetUserById,
   findReportReportedContent,
   findReportedUserProfile,
+  findReportDetailSanctionTargetUser,
   findReportSanctionTargetUser,
   findReportTargetArticlesByIds,
   findReportTargetCommentsByIds,
@@ -53,10 +54,11 @@ import {
   type AdminReportDetailRow,
   type AdminReportListRow,
   type AdminReportTargetIdsByKeyword,
+  type FindReportDetailSanctionTargetUserResult,
   type FindReportReportedContentResult,
   type FindReportedUserProfileResult,
   type FindReportSanctionTargetUserResult,
-  type ReportSanctionTargetUserRow,
+  type ReportDetailSanctionTargetUserRow,
 } from '../repositories/admin-report.repository';
 import { lockAdminMemberForStatusChange } from '../repositories/admin-member.repository';
 import { upsertSuspendedUserStatus } from '../repositories/user-status.repository';
@@ -660,10 +662,10 @@ const loadReportDetailTarget = async (
 /**
  * 제재 대상 사용자 행 → 상세 DTO.
  * userStatus가 없으면 회원 목록과 같이 ACTIVE·null로 정규화한다.
- * reportCount는 Repository 값을 그대로 쓰며 Service에서 재집계하지 않는다.
+ * reportCount는 상세 전용 Repository 값을 그대로 쓰며 Service에서 재집계하지 않는다.
  */
 const toDetailTargetUser = (
-  user: ReportSanctionTargetUserRow
+  user: ReportDetailSanctionTargetUserRow
 ): AdminReportDetailTargetUserDto => ({
   id: user.id,
   name: user.name,
@@ -676,7 +678,7 @@ const toDetailTargetUser = (
 });
 
 const toDetailTargetUserFromResult = (
-  result: FindReportSanctionTargetUserResult
+  result: FindReportDetailSanctionTargetUserResult
 ): AdminReportDetailTargetUserDto | null => {
   if (result.kind !== 'found') {
     return null;
@@ -867,22 +869,17 @@ export const getAdminReportDetail = async (
   }
 
   // 기존 상세 조립과 Action용 조회를 병렬로 수행한다.
-  // (완전 중복 제거 리팩터는 하지 않고, 응답 계약만 확장한다.)
+  // 상세 targetUser만 reportCount를 붙이고, 처리 경로의 findReportSanctionTargetUser는 집계하지 않는다.
   const [detailBundle, sanctionUserResult, reportedLoad] = await Promise.all([
     loadReportDetailTarget(report.target, report.targetId),
-    findReportSanctionTargetUser(report.target, report.targetId),
+    findReportDetailSanctionTargetUser(report.target, report.targetId),
     loadReportedContentForDetail(report.target, report.targetId),
   ]);
 
   // 저장된 targetId 형식 이상은 요청 400이 아니라 서버 데이터 오류로 본다.
-  const reportedInvalidTargetId =
-    reportedLoad.source === 'user_profile'
-      ? reportedLoad.result.kind === 'invalid_target_id'
-      : reportedLoad.result.kind === 'invalid_target_id';
-
   if (
     sanctionUserResult.kind === 'invalid_target_id' ||
-    reportedInvalidTargetId
+    reportedLoad.result.kind === 'invalid_target_id'
   ) {
     throw new AppError('INTERNAL_SERVER_ERROR');
   }
