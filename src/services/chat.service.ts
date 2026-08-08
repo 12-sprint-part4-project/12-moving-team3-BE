@@ -1,6 +1,5 @@
 import type {
   ChatRoomType,
-  EstimateRequestStatus,
   MessageType,
   MoveType,
   QuoteStatus,
@@ -419,8 +418,6 @@ const createEstimateChatRoom = async (
     estimateRequestId = estimateRequestId ?? quote.estimateRequestId;
   }
 
-  let estimateRequestStatus: EstimateRequestStatus | undefined;
-
   if (estimateRequestId !== undefined) {
     const estimateRequest =
       await chatRepository.findEstimateRequestById(estimateRequestId);
@@ -435,8 +432,6 @@ const createEstimateChatRoom = async (
     ) {
       throw new AppError('FORBIDDEN');
     }
-
-    estimateRequestStatus = estimateRequest.status;
   }
 
   if (body.roomType === 'DESIGNATED' && designatedMoverId === undefined) {
@@ -494,17 +489,34 @@ const createEstimateChatRoom = async (
     };
   }
 
-  // 닫힌 견적(EXPIRED/CANCELED/COMPLETED)은 신규 방만 차단 — 기존 방 재사용(200)은 허용
-  if (!isMessagingAllowedByEstimateStatus(estimateRequestStatus)) {
-    throw new AppError('MESSAGING_NOT_ALLOWED');
-  }
+  // 신규 방만 — 상태 FOR UPDATE 재확인과 생성을 같은 트랜잭션에서 처리 (기존 방 재사용은 위에서 반환)
+  const createdRoom = await prisma.$transaction(async (tx) => {
+    if (estimateRequestId !== undefined) {
+      const lockedRequest =
+        await chatRepository.findEstimateRequestByIdForUpdate(
+          estimateRequestId,
+          tx
+        );
 
-  const createdRoom = await chatRepository.createChatRoom({
-    estimateRequestId,
-    quoteId,
-    designatedMoverId,
-    roomType: body.roomType,
-    participantIds,
+      if (!lockedRequest) {
+        throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+      }
+
+      if (!isMessagingAllowedByEstimateStatus(lockedRequest.status)) {
+        throw new AppError('MESSAGING_NOT_ALLOWED');
+      }
+    }
+
+    return chatRepository.createChatRoom(
+      {
+        estimateRequestId,
+        quoteId,
+        designatedMoverId,
+        roomType: body.roomType,
+        participantIds,
+      },
+      tx
+    );
   });
 
   // 신규 생성(201)만 — 기존 방 재사용(200)에서는 발송하지 않음
