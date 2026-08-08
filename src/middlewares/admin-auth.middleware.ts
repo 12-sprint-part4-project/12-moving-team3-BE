@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import { JsonWebTokenError } from 'jsonwebtoken';
+import { auditContextStorage } from '../lib/request-context';
 import { AppError } from '../utils/app.error';
 import { verifyAdminAccessToken } from '../utils/admin-jwt.util';
 
@@ -24,6 +25,12 @@ export const requireAdminAuth: RequestHandler = (req, res, next) => {
     res.locals.admin = {
       adminId: payload.sub,
     } satisfies AuthenticatedAdmin;
+
+    // History actor용 — res.locals와 동일한 adminId를 요청 컨텍스트에 심는다.
+    const store = auditContextStorage.getStore();
+    if (store) {
+      store.adminId = payload.sub;
+    }
 
     next();
   } catch (error) {

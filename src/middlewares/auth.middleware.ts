@@ -1,5 +1,6 @@
 import { UserStatus } from '@prisma/client';
 import type { RequestHandler, Response } from 'express';
+import { auditContextStorage } from '../lib/request-context';
 import * as authRepository from '../repositories/auth.repository';
 import type { ApiUserType } from '../schemas/auth.schema';
 import { AppError } from '../utils/app.error';
@@ -9,6 +10,14 @@ export interface AuthenticatedUser {
   userId: string;
   userType: ApiUserType;
 }
+
+/** Audit Context에 userId를 심는다. 스토어가 없으면(미들웨어 미적용) 무시한다. */
+const setAuditUserId = (userId: string): void => {
+  const store = auditContextStorage.getStore();
+  if (store) {
+    store.userId = userId;
+  }
+};
 
 const authenticateAccessToken = (req: Parameters<RequestHandler>[0]): AuthenticatedUser => {
   const header = req.get('authorization');
@@ -33,6 +42,7 @@ const authenticateAccessToken = (req: Parameters<RequestHandler>[0]): Authentica
 export const requireAuthAllowSuspended: RequestHandler = (req, res, next) => {
   try {
     res.locals.user = authenticateAccessToken(req);
+    setAuditUserId(res.locals.user.userId);
     next();
   } catch (error) {
     if (error instanceof AppError) {
@@ -55,6 +65,7 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
     }
 
     res.locals.user = user;
+    setAuditUserId(user.userId);
     next();
   } catch (error) {
     if (error instanceof AppError) {
@@ -116,6 +127,7 @@ export const optionalAuth: RequestHandler = (req, res, next) => {
       userId: payload.sub,
       userType: payload.userType,
     } satisfies AuthenticatedUser;
+    setAuditUserId(payload.sub);
   } catch {
     // 선택적 인증: 만료·잘못된 토큰은 비로그인으로 취급
   }
