@@ -140,6 +140,21 @@ interface LeaveChatRoomResult {
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
 
+/**
+ * 채팅 응답용 quoteStatus.
+ * COMMUNITY는 견적과 무관하므로 항상 null.
+ */
+const toQuoteStatus = (
+  roomType: ChatRoomType,
+  quote: { status: QuoteStatus } | null | undefined
+): QuoteStatus | null => {
+  if (roomType === 'COMMUNITY') {
+    return null;
+  }
+
+  return quote?.status ?? null;
+};
+
 /** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
 const selectPartnerParticipant = <
   T extends { participantId: string; leftAt: Date | null },
@@ -587,7 +602,7 @@ export const getChatRoomList = async (
         return {
           roomId: room.id,
           roomType: room.roomType,
-          quoteStatus: room.quote?.status ?? null,
+          quoteStatus: toQuoteStatus(room.roomType, room.quote),
           partner: {
             id: partner.id,
             userType: partner.userType,
@@ -700,7 +715,7 @@ export const getChatRoomDetail = async (
         }
       : null,
     quoteId: room.quoteId,
-    quoteStatus: room.quote?.status ?? null,
+    quoteStatus: toQuoteStatus(room.roomType, room.quote),
     isMessagingAllowed: isMessagingAllowedByEstimateStatus(
       room.estimateRequest?.status
     ),

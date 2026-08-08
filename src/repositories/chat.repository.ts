@@ -290,6 +290,7 @@ export const findRoomDetailById = async (roomId: number) => {
       quoteId: true,
       updatedAt: true,
       quote: {
+        where: { deletedAt: null },
         select: {
           status: true,
         },
@@ -417,6 +418,7 @@ export const findActiveRoomsByUserId = async (userId: string) => {
       id: true,
       roomType: true,
       quote: {
+        where: { deletedAt: null },
         select: {
           status: true,
         },
