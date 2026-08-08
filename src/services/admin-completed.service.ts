@@ -33,7 +33,12 @@ export const getCompletedStatistics = async ({
   };
 
   const quoteWhere: Prisma.QuoteWhereInput = {
-    ...(dateRange && { estimateRequest: { moveDate: dateRange } }),
+    estimateRequest: {
+      status: { in: [EstimateRequestStatus.COMPLETED] },
+      ...(dateRange && {
+        moveDate: dateRange,
+      }),
+    },
     status: { in: [QuoteStatus.CONFIRMED] },
   };
 
