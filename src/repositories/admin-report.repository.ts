@@ -2,6 +2,7 @@ import { Prisma, UserReportStatus, UserReportTarget } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReportListQuery } from '../schemas/admin-report.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
+import { countAdminMemberReports } from './admin-member.repository';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -618,9 +619,21 @@ const reportSanctionTargetUserSelect = {
   },
 } satisfies Prisma.UserSelect;
 
-export type ReportSanctionTargetUserRow = Prisma.UserGetPayload<{
+type ReportSanctionTargetUserSelectRow = Prisma.UserGetPayload<{
   select: typeof reportSanctionTargetUserSelect;
 }>;
+
+/**
+ * 제재 대상 사용자 + 회원 상세와 동일한 reportCount.
+ * reportCount는 User select로 가져올 수 없어(폴리모픽 targetId) 조회 후 붙인다.
+ */
+export type ReportSanctionTargetUserRow = ReportSanctionTargetUserSelectRow & {
+  /**
+   * 해당 회원이 직접(USER) 또는 작성 콘텐츠를 통해 받은 신고 누적 건수.
+   * 회원 관리 상세의 reportCount와 필드명·집계 기준이 같다.
+   */
+  reportCount: number;
+};
 
 /**
  * 제재 대상 조회 결과.
@@ -639,16 +652,30 @@ const isUserTargetUuid = (targetId: string): boolean =>
     targetId
   );
 
-const toFoundSanctionUser = (
-  user: ReportSanctionTargetUserRow | null | undefined
-): FindReportSanctionTargetUserResult =>
-  user ? { kind: 'found', user } : { kind: 'not_found' };
+/**
+ * 대상 사용자가 있을 때만 회원 관리 신고 횟수 집계를 붙여 found로 만든다.
+ * 새 집계 쿼리를 만들지 않고 countAdminMemberReports를 재사용한다.
+ */
+const toFoundSanctionUser = async (
+  user: ReportSanctionTargetUserSelectRow | null | undefined,
+  db: DbClient
+): Promise<FindReportSanctionTargetUserResult> => {
+  if (!user) {
+    return { kind: 'not_found' };
+  }
+
+  // targetId가 폴리모픽이라 User._count로 가져올 수 없어, 사용자 확인 후 동일 집계를 호출한다.
+  const reportCount = await countAdminMemberReports(user.id, db);
+
+  return { kind: 'found', user: { ...user, reportCount } };
+};
 
 /**
  * 신고 target/targetId로 정지 대상 사용자를 조회한다.
  * 콘텐츠 대상은 관계(include)로 작성자·상태를 한 번에 가져온다.
  * 콘텐츠 soft-delete 여부와 무관하게 작성자를 찾아야 제재가 가능하므로 deletedAt 필터는 두지 않는다.
  * MESSAGE는 soft-delete 컬럼이 없고, 이 메서드는 메시지도 삭제하지 않는다.
+ * 대상 사용자가 있으면 회원 상세와 같은 reportCount를 함께 반환한다.
  */
 export const findReportSanctionTargetUser = async (
   target: UserReportTarget,
@@ -665,7 +692,7 @@ export const findReportSanctionTargetUser = async (
       select: reportSanctionTargetUserSelect,
     });
 
-    return toFoundSanctionUser(user);
+    return toFoundSanctionUser(user, db);
   }
 
   // MESSAGE/REVIEW/ARTICLE/COMMENT의 targetId는 Int PK 문자열이다.
@@ -683,7 +710,7 @@ export const findReportSanctionTargetUser = async (
         },
       });
 
-      return toFoundSanctionUser(message?.sender);
+      return toFoundSanctionUser(message?.sender, db);
     }
     case UserReportTarget.REVIEW: {
       const review = await db.review.findUnique({
@@ -693,7 +720,7 @@ export const findReportSanctionTargetUser = async (
         },
       });
 
-      return toFoundSanctionUser(review?.user);
+      return toFoundSanctionUser(review?.user, db);
     }
     case UserReportTarget.ARTICLE: {
       // UserReportTarget.ARTICLE → Post 모델
@@ -704,7 +731,7 @@ export const findReportSanctionTargetUser = async (
         },
       });
 
-      return toFoundSanctionUser(article?.user);
+      return toFoundSanctionUser(article?.user, db);
     }
     case UserReportTarget.COMMENT: {
       const comment = await db.comment.findUnique({
@@ -714,7 +741,7 @@ export const findReportSanctionTargetUser = async (
         },
       });
 
-      return toFoundSanctionUser(comment?.user);
+      return toFoundSanctionUser(comment?.user, db);
     }
     default:
       return { kind: 'not_found' };

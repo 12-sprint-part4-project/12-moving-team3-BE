@@ -1,9 +1,27 @@
-import { Prisma, QuoteStatus, UserReportTarget, UserStatus } from '@prisma/client';
+import { Prisma, QuoteStatus, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
+
+/**
+ * user_reports.target_id(VarChar) → 콘텐츠 Int PK 안전 변환.
+ * 잘못된 숫자 문자열에서 ::integer cast 오류가 나지 않도록
+ * 정규식 통과 후에만 안쪽 CASE에서 bigint/integer cast를 수행한다.
+ * (같은 WHEN의 AND는 평가 순서가 보장되지 않으므로 중첩 CASE를 쓴다)
+ */
+const safeReportContentIdSql = Prisma.sql`
+  CASE
+    WHEN ur.target_id ~ '^[1-9][0-9]{0,9}$'
+    THEN CASE
+      WHEN ur.target_id::bigint <= 2147483647
+      THEN ur.target_id::integer
+      ELSE NULL
+    END
+    ELSE NULL
+  END
+`;
 
 /** History before/after에 남길 UserStatusInfo 스냅샷 필드 */
 const adminMemberStatusSelect = {
@@ -250,17 +268,66 @@ export const upsertAdminMemberStatus = async (
   });
 };
 
-/** 해당 회원(target=USER)을 대상으로 한 신고 건수 */
+/**
+ * 해당 회원이 직접 또는 작성 콘텐츠를 통해 받은 신고 누적 건수.
+ * reporterId(신고한 횟수)가 아니라 신고받은 횟수이며, 상태 필터 없이 전체 이력을 센다.
+ * USER 직접 신고 + REVIEW/ARTICLE/COMMENT/MESSAGE 작성자 신고를 한 번의 COUNT로 집계한다.
+ * soft-delete된 사용자·콘텐츠의 신고도 포함하며, CHAT_ROOM은 enum에서 제거되어 제외한다.
+ * DbClient를 받아 트랜잭션·신고 상세 조회와 같은 클라이언트를 쓸 수 있게 한다.
+ */
 export const countAdminMemberReports = async (
-  memberId: string
+  memberId: string,
+  db: DbClient = prisma
 ): Promise<number> => {
-  // UserReport.targetId는 폴리모픽이라 User 관계(_count)로 집계할 수 없다.
-  return prisma.userReport.count({
-    where: {
-      target: UserReportTarget.USER,
-      targetId: memberId,
-    },
-  });
+  // targetId가 폴리모픽이라 Prisma _count/관계 집계로 표현할 수 없다.
+  // memberId는 파라미터 바인딩만 사용하고 SQL 문자열에 이어붙이지 않는다.
+  const rows = await db.$queryRaw<Array<{ count: number }>>`
+    SELECT COUNT(*)::int AS count
+    FROM user_reports ur
+    WHERE
+      (
+        ur.target = 'USER'::"UserReportTarget"
+        AND ur.target_id = ${memberId}
+      )
+      OR (
+        ur.target = 'REVIEW'::"UserReportTarget"
+        AND EXISTS (
+          SELECT 1
+          FROM reviews r
+          WHERE r.id = (${safeReportContentIdSql})
+            AND r.user_id = ${memberId}::uuid
+        )
+      )
+      OR (
+        ur.target = 'ARTICLE'::"UserReportTarget"
+        AND EXISTS (
+          SELECT 1
+          FROM posts p
+          WHERE p.id = (${safeReportContentIdSql})
+            AND p.user_id = ${memberId}::uuid
+        )
+      )
+      OR (
+        ur.target = 'COMMENT'::"UserReportTarget"
+        AND EXISTS (
+          SELECT 1
+          FROM comments c
+          WHERE c.id = (${safeReportContentIdSql})
+            AND c.user_id = ${memberId}::uuid
+        )
+      )
+      OR (
+        ur.target = 'MESSAGE'::"UserReportTarget"
+        AND EXISTS (
+          SELECT 1
+          FROM chat_messages m
+          WHERE m.id = (${safeReportContentIdSql})
+            AND m.sender_id = ${memberId}::uuid
+        )
+      )
+  `;
+
+  return rows[0]?.count ?? 0;
 };
 
 /** 기사의 CONFIRMED 견적(완료 건) 수 */
