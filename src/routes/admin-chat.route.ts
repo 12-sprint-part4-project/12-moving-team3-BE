@@ -6,7 +6,7 @@ import { adminChatListQuerySchema } from '../schemas/admin-chat.schema';
 
 const router = Router();
 
-// 관리자 채팅방 목록 조회 (Swagger: 이후 추가)
+// 관리자 채팅방 목록 조회 (Swagger: src/docs/admin-chat.swagger.yaml)
 router.get(
   '/',
   requireAdminAuth,
