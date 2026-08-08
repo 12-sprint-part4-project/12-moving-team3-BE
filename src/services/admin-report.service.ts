@@ -1,4 +1,5 @@
 import {
+  HistoryAction,
   Prisma,
   UserReportStatus,
   UserStatus,
@@ -27,7 +28,10 @@ import type {
   AdminReportResolveResultDto,
   AdminReportTargetInfoDto,
 } from '../dtos/admin-report.dto';
-import { runAuditedTransaction } from '../lib/audit-context';
+import {
+  runAuditedTransaction,
+  runWithManualAudit,
+} from '../lib/audit-context';
 import {
   findAdminReportById,
   findAdminReportsWithCount,
@@ -53,14 +57,21 @@ import {
   updateAdminReportDecisionStatus,
   type AdminReportDetailRow,
   type AdminReportListRow,
+  type AdminReportLockRow,
   type AdminReportTargetIdsByKeyword,
   type FindReportDetailSanctionTargetUserResult,
   type FindReportReportedContentResult,
   type FindReportedUserProfileResult,
   type FindReportSanctionTargetUserResult,
   type ReportDetailSanctionTargetUserRow,
+  type SoftDeletableReportTarget,
 } from '../repositories/admin-report.repository';
-import { lockAdminMemberForStatusChange } from '../repositories/admin-member.repository';
+import {
+  findAdminMemberStatus,
+  lockAdminMemberForStatusChange,
+  type AdminMemberStatusRow,
+} from '../repositories/admin-member.repository';
+import { createHistory } from '../repositories/history.repository';
 import { upsertSuspendedUserStatus } from '../repositories/user-status.repository';
 import type {
   AdminReportListQuery,
@@ -72,6 +83,13 @@ import { createDateRange } from '../utils/admin-date-range.util';
 
 /** 관리자 신고 정지 기간 — 회원 수동 정지와 동일하게 7일 고정 */
 const ADMIN_REPORT_SUSPEND_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** History.tableName — Prisma @@map 과 동일하게 맞춘다 */
+const USER_REPORT_TABLE_NAME = 'user_reports';
+const USER_STATUS_TABLE_NAME = 'user_statuses';
+const REVIEW_TABLE_NAME = 'reviews';
+const POST_TABLE_NAME = 'posts';
+const COMMENT_TABLE_NAME = 'comments';
 
 /** 처리·반려 interactive transaction — 잠금 대기·전체 실행 상한 */
 const ADMIN_REPORT_DECISION_TX_OPTIONS = {
@@ -956,13 +974,71 @@ const assertActionsAllowedForTarget = (
 };
 
 /**
- * SUSPEND_TARGET_USER — 대상 사용자 조회·잠금 후 7일 정지.
+ * History Json 컬럼용 상태 스냅샷 — admin-member 수동 History와 형식을 맞춘다.
+ * Prisma Json은 Date/plain null을 그대로 받지 않으므로 ISO 문자열·DbNull로 정규화한다.
+ */
+const toStatusHistoryJson = (
+  row: AdminMemberStatusRow | null
+): Prisma.InputJsonValue | typeof Prisma.DbNull => {
+  if (!row) {
+    return Prisma.DbNull;
+  }
+
+  return {
+    userId: row.userId,
+    status: row.status,
+    suspendedAt: row.suspendedAt?.toISOString() ?? null,
+    suspendedUntil: row.suspendedUntil?.toISOString() ?? null,
+  };
+};
+
+/** user_reports 최소 스냅샷 — 잠금 행 / UPDATE 결과 기준으로 before·after를 구성한다 */
+const toUserReportHistoryJson = (row: {
+  id: number;
+  status: UserReportStatus;
+  adminId: number | null;
+}): Prisma.InputJsonValue => ({
+  id: row.id,
+  status: row.status,
+  adminId: row.adminId,
+});
+
+/** soft delete History — Trigger와 같이 deleted_at null→not null 을 DELETE로 남긴다 */
+const toContentDeleteHistoryJson = (row: {
+  id: number;
+  deletedAt: string | null;
+}): Prisma.InputJsonValue => ({
+  id: row.id,
+  deletedAt: row.deletedAt,
+});
+
+const contentTableNameByTarget = (
+  target: SoftDeletableReportTarget
+): string => {
+  switch (target) {
+    case 'REVIEW':
+      return REVIEW_TABLE_NAME;
+    case 'ARTICLE':
+      return POST_TABLE_NAME;
+    case 'COMMENT':
+      return COMMENT_TABLE_NAME;
+    default: {
+      const _exhaustive: never = target;
+      return _exhaustive;
+    }
+  }
+};
+
+/**
+ * SUSPEND_TARGET_USER — 대상 사용자 조회·잠금 후 7일 정지 + user_statuses History.
  * 기존 종료일이 더 미래면 upsertSuspendedUserStatus가 기간을 보존한다.
+ * afterData는 RETURNING 결과를 그대로 써 임의 now+7d를 넣지 않는다.
  */
 const executeSuspendTargetUser = async (
   target: UserReportTarget,
   targetId: string,
   processedAt: Date,
+  adminId: number,
   tx: Prisma.TransactionClient
 ) => {
   const userResult = await findReportSanctionTargetUser(target, targetId, tx);
@@ -986,7 +1062,9 @@ const executeSuspendTargetUser = async (
     throw new AppError('ADMIN_REPORT_TARGET_USER_NOT_FOUND');
   }
 
-  await upsertSuspendedUserStatus(
+  // row 없으면 beforeData null → CREATE, 있으면 UPDATE (admin-member와 동일)
+  const beforeData = await findAdminMemberStatus(userResult.user.id, tx);
+  const afterData = await upsertSuspendedUserStatus(
     {
       userId: userResult.user.id,
       suspendedAt: processedAt,
@@ -996,16 +1074,31 @@ const executeSuspendTargetUser = async (
     },
     tx
   );
+
+  await createHistory(
+    {
+      userId: null,
+      adminUserId: adminId,
+      tableName: USER_STATUS_TABLE_NAME,
+      tableRowId: userResult.user.id,
+      operationType:
+        beforeData === null ? HistoryAction.CREATE : HistoryAction.UPDATE,
+      beforeData: toStatusHistoryJson(beforeData),
+      afterData: toStatusHistoryJson(afterData),
+    },
+    tx
+  );
 };
 
 /**
- * DELETE_REPORTED_CONTENT — Repository soft delete 결과를 Service 오류로 매핑한다.
- * already_deleted는 성공으로 보고 신고 처리를 계속한다.
+ * DELETE_REPORTED_CONTENT — soft delete + 실제 변경 행만 DELETE History.
+ * already_deleted는 성공으로 보고 신고 처리를 계속하되 History는 만들지 않는다.
  */
 const executeDeleteReportedContent = async (
   target: UserReportTarget,
   targetId: string,
   processedAt: Date,
+  adminId: number,
   tx: Prisma.TransactionClient
 ): Promise<boolean> => {
   const deleteResult = await softDeleteReportReportedContent(
@@ -1016,9 +1109,60 @@ const executeDeleteReportedContent = async (
   );
 
   switch (deleteResult.kind) {
-    case 'deleted':
+    case 'deleted': {
+      const tableName = contentTableNameByTarget(deleteResult.target);
+
+      // 실제 soft delete된 각 행(COMMENT면 부모+직계 대댓글)마다 History를 남긴다.
+      for (const content of deleteResult.deletedContents) {
+        await createHistory(
+          {
+            userId: null,
+            adminUserId: adminId,
+            tableName,
+            tableRowId: String(content.id),
+            operationType: HistoryAction.DELETE,
+            beforeData: toContentDeleteHistoryJson({
+              id: content.id,
+              deletedAt: null,
+            }),
+            afterData: toContentDeleteHistoryJson({
+              id: content.id,
+              deletedAt: content.deletedAt.toISOString(),
+            }),
+          },
+          tx
+        );
+      }
+
+      // COMMENT 삭제 시 posts.commentCount UPDATE도 Trigger skip되므로 Service가 남긴다.
+      if (deleteResult.postCommentCountChange) {
+        const { postId, beforeCommentCount, afterCommentCount } =
+          deleteResult.postCommentCountChange;
+
+        await createHistory(
+          {
+            userId: null,
+            adminUserId: adminId,
+            tableName: POST_TABLE_NAME,
+            tableRowId: String(postId),
+            operationType: HistoryAction.UPDATE,
+            beforeData: {
+              id: postId,
+              commentCount: beforeCommentCount,
+            },
+            afterData: {
+              id: postId,
+              commentCount: afterCommentCount,
+            },
+          },
+          tx
+        );
+      }
+
       return false;
+    }
     case 'already_deleted':
+      // DB 변경이 없으므로 삭제 History를 만들지 않는다.
       return true;
     case 'not_found':
       throw new AppError('ADMIN_REPORT_CONTENT_NOT_FOUND');
@@ -1031,9 +1175,39 @@ const executeDeleteReportedContent = async (
   }
 };
 
+/** PENDING → RESOLVED 변경에 대한 user_reports UPDATE History */
+const createUserReportResolvedHistory = async (
+  beforeReport: AdminReportLockRow,
+  after: { id: number; status: UserReportStatus; adminId: number },
+  adminId: number,
+  tx: Prisma.TransactionClient
+) => {
+  await createHistory(
+    {
+      userId: null,
+      adminUserId: adminId,
+      tableName: USER_REPORT_TABLE_NAME,
+      tableRowId: String(beforeReport.id),
+      operationType: HistoryAction.UPDATE,
+      beforeData: toUserReportHistoryJson({
+        id: beforeReport.id,
+        status: beforeReport.status,
+        adminId: beforeReport.adminId,
+      }),
+      afterData: toUserReportHistoryJson({
+        id: after.id,
+        status: after.status,
+        adminId: after.adminId,
+      }),
+    },
+    tx
+  );
+};
+
 /**
  * 관리자 신고 처리.
- * 신고 잠금 → Action 검증·실행 → RESOLVED를 한 트랜잭션으로 묶는다.
+ * 신고 잠금 → Action 검증·실행 → RESOLVED → Service History를 한 트랜잭션으로 묶는다.
+ * runWithManualAudit로 Trigger histories INSERT를 skip하고 createHistory만 남긴다.
  * adminId는 인증 정보에서 전달받으며 요청 body에 두지 않는다.
  */
 export const resolveAdminReport = async ({
@@ -1044,63 +1218,75 @@ export const resolveAdminReport = async ({
   // 정지·삭제·상태 변경에 동일 시각을 쓴다.
   const processedAt = new Date();
 
-  return runAuditedTransaction(async (tx) => {
-    const report = await lockAdminReportForStatusChange(reportId, tx);
+  return runWithManualAudit(() =>
+    runAuditedTransaction(async (tx) => {
+      const report = await lockAdminReportForStatusChange(reportId, tx);
 
-    if (!report) {
-      throw new AppError('ADMIN_REPORT_NOT_FOUND');
-    }
+      if (!report) {
+        throw new AppError('ADMIN_REPORT_NOT_FOUND');
+      }
 
-    if (report.status !== UserReportStatus.PENDING) {
-      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
-    }
+      if (report.status !== UserReportStatus.PENDING) {
+        throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+      }
 
-    assertActionsAllowedForTarget(report.target, actions);
+      assertActionsAllowedForTarget(report.target, actions);
 
-    const shouldSuspend = actions.includes('SUSPEND_TARGET_USER');
-    const shouldDelete = actions.includes('DELETE_REPORTED_CONTENT');
+      const shouldSuspend = actions.includes('SUSPEND_TARGET_USER');
+      const shouldDelete = actions.includes('DELETE_REPORTED_CONTENT');
 
-    if (shouldSuspend) {
-      await executeSuspendTargetUser(
-        report.target,
-        report.targetId,
-        processedAt,
+      if (shouldSuspend) {
+        await executeSuspendTargetUser(
+          report.target,
+          report.targetId,
+          processedAt,
+          adminId,
+          tx
+        );
+      }
+
+      let contentAlreadyDeleted: boolean | null = null;
+
+      if (shouldDelete) {
+        contentAlreadyDeleted = await executeDeleteReportedContent(
+          report.target,
+          report.targetId,
+          processedAt,
+          adminId,
+          tx
+        );
+      }
+
+      const statusUpdate = await updateAdminReportDecisionStatus(
+        reportId,
+        adminId,
+        UserReportStatus.RESOLVED,
         tx
       );
-    }
 
-    let contentAlreadyDeleted: boolean | null = null;
+      // 같은 트랜잭션에서 PENDING을 확인했으므로 실패는 경합·이상 상태로 본다.
+      if (statusUpdate.kind === 'not_updated') {
+        throw new AppError('ADMIN_REPORT_CONFLICT');
+      }
 
-    if (shouldDelete) {
-      contentAlreadyDeleted = await executeDeleteReportedContent(
-        report.target,
-        report.targetId,
-        processedAt,
+      // 잠금 시점 before + UPDATE 결과 after로 신고 상태 History를 남긴다.
+      await createUserReportResolvedHistory(
+        report,
+        statusUpdate.report,
+        adminId,
         tx
       );
-    }
 
-    const statusUpdate = await updateAdminReportDecisionStatus(
-      reportId,
-      adminId,
-      UserReportStatus.RESOLVED,
-      tx
-    );
-
-    // 같은 트랜잭션에서 PENDING을 확인했으므로 실패는 경합·이상 상태로 본다.
-    if (statusUpdate.kind === 'not_updated') {
-      throw new AppError('ADMIN_REPORT_CONFLICT');
-    }
-
-    return {
-      reportId: statusUpdate.report.id,
-      status: statusUpdate.report.status,
-      adminId: statusUpdate.report.adminId,
-      actions,
-      processedAt,
-      contentAlreadyDeleted,
-    };
-  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
+      return {
+        reportId: statusUpdate.report.id,
+        status: statusUpdate.report.status,
+        adminId: statusUpdate.report.adminId,
+        actions,
+        processedAt,
+        contentAlreadyDeleted,
+      };
+    }, ADMIN_REPORT_DECISION_TX_OPTIONS)
+  );
 };
 
 export type RejectAdminReportInput = {
@@ -1110,7 +1296,8 @@ export type RejectAdminReportInput = {
 
 /**
  * 관리자 신고 반려.
- * 신고 잠금 후 PENDING → REJECTED만 수행한다.
+ * 신고 잠금 후 PENDING → REJECTED → user_reports History를 한 트랜잭션으로 묶는다.
+ * runWithManualAudit로 Trigger histories INSERT를 skip하고 createHistory만 남긴다.
  * 사용자·콘텐츠 제재는 하지 않으며, 대상 존재 여부와 무관하게 반려할 수 있다.
  */
 export const rejectAdminReport = async ({
@@ -1119,34 +1306,58 @@ export const rejectAdminReport = async ({
 }: RejectAdminReportInput): Promise<AdminReportRejectResultDto> => {
   const processedAt = new Date();
 
-  return runAuditedTransaction(async (tx) => {
-    // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
-    const report = await lockAdminReportForStatusChange(reportId, tx);
+  return runWithManualAudit(() =>
+    runAuditedTransaction(async (tx) => {
+      // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
+      const report = await lockAdminReportForStatusChange(reportId, tx);
 
-    if (!report) {
-      throw new AppError('ADMIN_REPORT_NOT_FOUND');
-    }
+      if (!report) {
+        throw new AppError('ADMIN_REPORT_NOT_FOUND');
+      }
 
-    if (report.status !== UserReportStatus.PENDING) {
-      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
-    }
+      if (report.status !== UserReportStatus.PENDING) {
+        throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+      }
 
-    const statusUpdate = await updateAdminReportDecisionStatus(
-      reportId,
-      adminId,
-      UserReportStatus.REJECTED,
-      tx
-    );
+      const statusUpdate = await updateAdminReportDecisionStatus(
+        reportId,
+        adminId,
+        UserReportStatus.REJECTED,
+        tx
+      );
 
-    if (statusUpdate.kind === 'not_updated') {
-      throw new AppError('ADMIN_REPORT_CONFLICT');
-    }
+      if (statusUpdate.kind === 'not_updated') {
+        throw new AppError('ADMIN_REPORT_CONFLICT');
+      }
 
-    return {
-      reportId: statusUpdate.report.id,
-      status: statusUpdate.report.status,
-      adminId: statusUpdate.report.adminId,
-      processedAt,
-    };
-  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
+      // RESOLVED와 동일한 { id, status, adminId } 스냅샷 — 잠금 before + UPDATE after
+      await createHistory(
+        {
+          userId: null,
+          adminUserId: adminId,
+          tableName: USER_REPORT_TABLE_NAME,
+          tableRowId: String(report.id),
+          operationType: HistoryAction.UPDATE,
+          beforeData: toUserReportHistoryJson({
+            id: report.id,
+            status: report.status,
+            adminId: report.adminId,
+          }),
+          afterData: toUserReportHistoryJson({
+            id: statusUpdate.report.id,
+            status: statusUpdate.report.status,
+            adminId: statusUpdate.report.adminId,
+          }),
+        },
+        tx
+      );
+
+      return {
+        reportId: statusUpdate.report.id,
+        status: statusUpdate.report.status,
+        adminId: statusUpdate.report.adminId,
+        processedAt,
+      };
+    }, ADMIN_REPORT_DECISION_TX_OPTIONS)
+  );
 };
