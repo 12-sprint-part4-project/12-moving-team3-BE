@@ -2,6 +2,7 @@ import {
   Prisma,
   type ChatRoom,
   type ChatRoomType,
+  type EstimateRequestStatus,
   type MessageType,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
@@ -123,14 +124,45 @@ export const findFurnitureSharePostById = async (postId: number) => {
 };
 
 /** 견적 요청을 ID로 조회한다. */
-export const findEstimateRequestById = async (estimateRequestId: number) => {
-  return prisma.estimateRequest.findUnique({
+export const findEstimateRequestById = async (
+  estimateRequestId: number,
+  dbClient: ChatDbClient = prisma
+) => {
+  return dbClient.estimateRequest.findUnique({
     where: { id: estimateRequestId },
     select: {
       id: true,
       userId: true,
+      status: true,
     },
   });
+};
+
+/**
+ * 견적 요청 행을 FOR UPDATE로 잠근 뒤 조회한다.
+ * 채팅방 신규 생성 직전 상태 재확인용 (트랜잭션 필수).
+ */
+export const findEstimateRequestByIdForUpdate = async (
+  estimateRequestId: number,
+  tx: ChatTransactionClient
+) => {
+  const rows = await tx.$queryRaw<
+    Array<{
+      id: number;
+      userId: string;
+      status: EstimateRequestStatus;
+    }>
+  >`
+    SELECT
+      id,
+      user_id AS "userId",
+      status
+    FROM estimate_requests
+    WHERE id = ${estimateRequestId}
+    FOR UPDATE
+  `;
+
+  return rows[0] ?? null;
 };
 
 /** 지정 견적 요청(EstimateDesignatedMover)을 ID로 조회한다. */
@@ -706,9 +738,10 @@ export const findMessagesByRoomCursor = async (
 
 /** 채팅방과 참여자를 함께 생성한다. (견적·커뮤니티 공통) */
 export const createChatRoom = async (
-  data: CreateChatRoomData
+  data: CreateChatRoomData,
+  dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord> => {
-  return prisma.chatRoom.create({
+  return dbClient.chatRoom.create({
     data: {
       roomType: data.roomType,
       ...(data.estimateRequestId !== undefined && {

@@ -357,7 +357,7 @@ export const ERROR_CODES = {
   },
   MESSAGING_NOT_ALLOWED: {
     status: 403,
-    message: '이 채팅방에서는 메시지를 보낼 수 없습니다.',
+    message: '종료된 견적에서는 채팅을 이용할 수 없습니다.',
   },
   ALREADY_LEFT: {
     status: 409,
