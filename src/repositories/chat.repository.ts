@@ -14,6 +14,7 @@ interface CreateChatRoomData {
   estimateRequestId?: number;
   quoteId?: number;
   designatedMoverId?: number;
+  communityPostId?: number;
   roomType: ChatRoomType;
   participantIds: string[];
 }
@@ -89,6 +90,38 @@ export const findMoverById = async (moverId: string) => {
   });
 };
 
+/** 삭제되지 않은 유저를 ID로 조회한다. (userType 무관 — COMMUNITY용) */
+export const findActiveUserById = async (userId: string) => {
+  return prisma.user.findFirst({
+    where: {
+      id: userId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+    },
+  });
+};
+
+/**
+ * 가구나눔 게시글을 ID로 조회한다.
+ * 삭제되지 않았고 category가 FURNITURE_SHARE인 글만 반환한다.
+ */
+export const findFurnitureSharePostById = async (postId: number) => {
+  return prisma.post.findFirst({
+    where: {
+      id: postId,
+      deletedAt: null,
+      category: 'FURNITURE_SHARE',
+    },
+    select: {
+      id: true,
+      userId: true,
+      isCompleted: true,
+    },
+  });
+};
+
 /** 견적 요청을 ID로 조회한다. */
 export const findEstimateRequestById = async (estimateRequestId: number) => {
   return prisma.estimateRequest.findUnique({
@@ -146,6 +179,28 @@ export const findRoomByQuoteId = async (
 };
 
 /**
+ * 활성 참여자(leftAt IS NULL)가 participantIds와 정확히 일치하는 방을 고른다.
+ */
+const pickRoomWithExactActiveParticipants = <
+  T extends { participants: { participantId: string }[] },
+>(
+  rooms: T[],
+  participantIds: string[]
+): T | null => {
+  return (
+    rooms.find((room) => {
+      const activeIds = room.participants.map(
+        (participant) => participant.participantId
+      );
+      return (
+        activeIds.length === participantIds.length &&
+        participantIds.every((id) => activeIds.includes(id))
+      );
+    }) ?? null
+  );
+};
+
+/**
  * 견적 요청 + roomType + 활성 참여자 조합으로 기존 채팅방을 조회한다.
  * 활성 참여자(leftAt IS NULL)가 participantIds와 정확히 일치하는 방만 반환한다.
  */
@@ -175,17 +230,43 @@ export const findRoomByEstimateAndParticipants = async (params: {
     },
   });
 
-  return (
-    rooms.find((room) => {
-      const activeIds = room.participants.map(
-        (participant) => participant.participantId
-      );
-      return (
-        activeIds.length === params.participantIds.length &&
-        params.participantIds.every((id) => activeIds.includes(id))
-      );
-    }) ?? null
-  );
+  return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
+};
+
+interface FindRoomByCommunityPostAndParticipantsParams {
+  communityPostId: number;
+  participantIds: string[];
+}
+
+/**
+ * 가구나눔 게시글 + COMMUNITY + 활성 참여자 조합으로 기존 채팅방을 조회한다.
+ * 동일 게시글이라도 참여자 쌍이 다르면 별도 방이다.
+ */
+export const findRoomByCommunityPostAndParticipants = async (
+  params: FindRoomByCommunityPostAndParticipantsParams
+): Promise<ChatRoomRecord | null> => {
+  const rooms = await prisma.chatRoom.findMany({
+    where: {
+      communityPostId: params.communityPostId,
+      roomType: 'COMMUNITY',
+      AND: params.participantIds.map((participantId) => ({
+        participants: {
+          some: {
+            participantId,
+            leftAt: null,
+          },
+        },
+      })),
+    },
+    include: {
+      participants: {
+        where: { leftAt: null },
+        select: { participantId: true },
+      },
+    },
+  });
+
+  return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
 };
 
 /** 기존 채팅방에 quoteId를 연결하고 updatedAt을 갱신한다. */
@@ -610,7 +691,7 @@ export const findMessagesByRoomCursor = async (
   return { messages, hasNext };
 };
 
-/** 채팅방과 참여자(고객·기사)를 함께 생성한다. */
+/** 채팅방과 참여자를 함께 생성한다. (견적·커뮤니티 공통) */
 export const createChatRoom = async (
   data: CreateChatRoomData
 ): Promise<ChatRoomRecord> => {
@@ -625,6 +706,9 @@ export const createChatRoom = async (
       }),
       ...(data.designatedMoverId !== undefined && {
         designatedMover: { connect: { id: data.designatedMoverId } },
+      }),
+      ...(data.communityPostId !== undefined && {
+        communityPost: { connect: { id: data.communityPostId } },
       }),
       participants: {
         create: data.participantIds.map((participantId) => ({
