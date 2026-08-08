@@ -10,7 +10,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "admin:create": "ts-node scripts/create-admin.ts",
-    "verify:audit-log": "ts-node -r dotenv/config scripts/verify-audit-log.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 5432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'"
