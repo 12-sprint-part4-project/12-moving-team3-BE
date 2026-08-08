@@ -1,6 +1,6 @@
 import { UserReportStatus } from '@prisma/client';
 import { z } from 'zod';
-import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target';
+import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target.constants';
 import { listQuerySchema } from './admin-list-query.schema';
 
 /**

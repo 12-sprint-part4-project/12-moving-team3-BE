@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target';
+import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target.constants';
 
 /** 공개 신고 생성 — Prisma enum 전체가 아니라 지원 대상만 허용한다. */
 const userReportTargetSchema = z.enum(SUPPORTED_REPORT_TARGETS);

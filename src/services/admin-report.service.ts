@@ -8,7 +8,7 @@ import {
 import {
   isSupportedReportTarget,
   type SupportedReportTarget,
-} from '../constants/report-target';
+} from '../constants/report-target.constants';
 import type {
   AdminReportAvailableActionsDto,
   AdminReportDetailContentDto,

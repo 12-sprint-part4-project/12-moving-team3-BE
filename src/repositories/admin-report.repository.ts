@@ -56,13 +56,13 @@ export type AdminReportListRow = Prisma.UserReportGetPayload<{
 }>;
 
 /** 검색어로 찾은 대상 사용자·콘텐츠의 targetId 후보 (UserReport.targetId와 맞춰 string) */
-export type AdminReportTargetIdsByKeyword = {
+export interface AdminReportTargetIdsByKeyword {
   userIds: string[];
   reviewIds: string[];
   messageIds: string[];
   articleIds: string[];
   commentIds: string[];
-};
+}
 
 type AdminReportListWhereParams = Pick<
   AdminReportListQuery,

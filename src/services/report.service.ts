@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { isSupportedReportTarget } from '../constants/report-target';
+import { isSupportedReportTarget } from '../constants/report-target.constants';
 import type { ReportCreateBody } from '../schemas/report.schema';
 import * as reportRepository from '../repositories/report.repository';
 import { AppError } from '../utils/app.error';

@@ -9,7 +9,7 @@ import type {
   UserStatus,
   UserType,
 } from '@prisma/client';
-import type { SupportedReportTarget } from '../constants/report-target';
+import type { SupportedReportTarget } from '../constants/report-target.constants';
 import type { AdminReportProcessAction } from '../schemas/admin-report.schema';
 import type { PaginationDto } from './admin-member.dto';
 
