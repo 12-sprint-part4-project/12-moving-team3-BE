@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 
 export type ReviewTransactionClient = Prisma.TransactionClient;
@@ -355,7 +356,7 @@ const reviewRepository = {
   runInTransaction: async <T>(
     handler: (tx: ReviewTransactionClient) => Promise<T>
   ): Promise<T> => {
-    return prisma.$transaction(async (tx) => handler(tx));
+    return runAuditedTransaction(async (tx) => handler(tx));
   },
 };
 

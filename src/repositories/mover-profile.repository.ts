@@ -1,4 +1,5 @@
 import { MoveType, Region } from '@prisma/client';
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 
 export const findMoverProfileByUserId = async (userId: string) => {
@@ -61,7 +62,7 @@ export interface SaveMoverProfileInput {
 }
 
 export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     await tx.moverProfile.update({
       where: { userId: input.userId },
       data: {
@@ -127,7 +128,7 @@ export interface UpdateMoverBasicInfoInput {
 }
 
 export const updateMoverBasicInfo = async (input: UpdateMoverBasicInfoInput) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const hasUserUpdate =
       input.name !== undefined || input.phoneNumber !== undefined;
 

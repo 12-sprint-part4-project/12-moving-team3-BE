@@ -1,3 +1,4 @@
+import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import type { Prisma } from '@prisma/client';
 
@@ -113,7 +114,7 @@ export const createComment = async (
   content: string,
   parentId?: number
 ) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     if (parentId != null) {
       const parent = await tx.comment.findFirst({
         where: { id: parentId, postId, deletedAt: null },
@@ -146,7 +147,7 @@ export const createComment = async (
  * 댓글 삭제 시 해당 댓글의 대댓글도 함께 soft delete
  */
 export const softDeleteComment = async (commentId: number, postId: number) => {
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const deleteResult = await tx.comment.updateMany({
       where: {
         postId,

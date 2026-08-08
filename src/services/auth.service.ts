@@ -1,6 +1,6 @@
 import { UserStatus, UserType, type DeviceType } from '@prisma/client';
 import { JsonWebTokenError } from 'jsonwebtoken';
-import { prisma } from '../lib/prisma';
+import { runAuditedTransaction } from '../lib/audit-context';
 import * as authRepository from '../repositories/auth.repository';
 import type {
   ApiUserType,
@@ -113,7 +113,7 @@ const issueAuthSession = async (
   const refreshToken = createRefreshToken(user.id);
   const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
-  await prisma.$transaction(async (tx) => {
+  await runAuditedTransaction(async (tx) => {
     await authRepository.deleteRefreshTokensByUserId(user.id, tx);
     await authRepository.createRefreshTokenRecord(
       {
@@ -196,7 +196,7 @@ const createKakaoUser = async (
   );
   const name = nickname;
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await runAuditedTransaction(async (tx) => {
     const user = await authRepository.createUserWithKakaoAuth(
       {
         name,
@@ -282,7 +282,7 @@ const linkKakaoToExistingUser = async (
   const refreshToken = createRefreshToken(user.id);
   const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
-  await prisma.$transaction(async (tx) => {
+  await runAuditedTransaction(async (tx) => {
     if (!linkedKakao) {
       await authRepository.linkKakaoAuthToUser(existing.id, kakaoUser.id, tx);
     }
@@ -349,7 +349,7 @@ export const login = async (
   const refreshToken = createRefreshToken(user.id);
   const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
 
-  await prisma.$transaction(async (tx) => {
+  await runAuditedTransaction(async (tx) => {
     // 사용자당 한 개 정책 — 기존 Refresh Token을 교체한다
     await authRepository.deleteRefreshTokensByUserId(user.id, tx);
 
@@ -405,7 +405,7 @@ export const signup = async (
   const passwordHash = await hashAuthPassword(input.password);
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await runAuditedTransaction(async (tx) => {
       const user = await authRepository.createUserWithLocalAuth(
         {
           name: input.name,
@@ -556,7 +556,7 @@ export const refreshAuthToken = async (
 
   const tokenHash = hashAuthRefreshToken(refreshToken);
 
-  return prisma.$transaction(async (tx) => {
+  return runAuditedTransaction(async (tx) => {
     const record = await authRepository.findRefreshTokenByHash(tokenHash, tx);
 
     if (

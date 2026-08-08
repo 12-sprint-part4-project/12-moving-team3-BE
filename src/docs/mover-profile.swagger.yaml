@@ -277,7 +277,9 @@ paths:
                   example: 8
                 shortDescription:
                   type: string
-                  description: 한 줄 소개 (최대 10자)
+                  minLength: 1
+                  maxLength: 20
+                  description: 한 줄 소개 (1~20자)
                   example: 꼼꼼한이사
                 description:
                   type: string

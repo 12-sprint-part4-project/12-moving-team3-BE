@@ -4,7 +4,10 @@ import type {
   AdminMemberListResultDto,
   AdminMemberStatusResultDto,
 } from '../dtos/admin-member.dto';
-import { prisma } from '../lib/prisma';
+import {
+  runAuditedTransaction,
+  runWithManualAudit,
+} from '../lib/audit-context';
 import {
   countAdminMemberReports,
   countConfirmedQuotesByMoverId,
@@ -157,44 +160,48 @@ const toStatusHistoryJson = (
 /**
  * 존재 확인·상태 변경·History를 한 트랜잭션으로 처리한다.
  * 에러 코드 결정은 Service 책임이며, Repository는 조회/잠금/저장만 수행한다.
+ * runWithManualAudit로 트리거를 끄고 Service createHistory만 남겨 중복을 막는다.
  */
 const changeAdminMemberStatus = async (
   memberId: string,
   adminId: number,
   data: AdminMemberStatusUpdate
 ): Promise<AdminMemberStatusResultDto> => {
-  const statusInfo = await prisma.$transaction(async (tx) => {
-    // soft delete와 상태 변경 race를 막기 위해 회원 row를 먼저 잠근다.
-    const member = await lockAdminMemberForStatusChange(memberId, tx);
+  // skip_audit=true → user_statuses 트리거 미기록, 아래 createHistory만 유효
+  const statusInfo = await runWithManualAudit(() =>
+    runAuditedTransaction(async (tx) => {
+      // soft delete와 상태 변경 race를 막기 위해 회원 row를 먼저 잠근다.
+      const member = await lockAdminMemberForStatusChange(memberId, tx);
 
-    if (!member) {
-      throw new AppError('ADMIN_MEMBER_NOT_FOUND');
-    }
+      if (!member) {
+        throw new AppError('ADMIN_MEMBER_NOT_FOUND');
+      }
 
-    // row가 없으면 beforeData를 null로 남겨 "최초 상태 생성" 이력을 구분한다.
-    const beforeData = await findAdminMemberStatus(memberId, tx);
-    const afterData = await upsertAdminMemberStatus(memberId, data, tx);
+      // row가 없으면 beforeData를 null로 남겨 "최초 상태 생성" 이력을 구분한다.
+      const beforeData = await findAdminMemberStatus(memberId, tx);
+      const afterData = await upsertAdminMemberStatus(memberId, data, tx);
 
-    // 최초 row 생성은 CREATE, 기존 row 갱신은 UPDATE로 남겨 감사 의미를 맞춘다.
-    const operationType =
-      beforeData === null ? HistoryAction.CREATE : HistoryAction.UPDATE;
+      // 최초 row 생성은 CREATE, 기존 row 갱신은 UPDATE로 남겨 감사 의미를 맞춘다.
+      const operationType =
+        beforeData === null ? HistoryAction.CREATE : HistoryAction.UPDATE;
 
-    // 관리자 작업이므로 actor는 adminUserId에 두고, 대상 회원은 tableRowId로 식별한다.
-    await createHistory(
-      {
-        userId: null,
-        adminUserId: adminId,
-        tableName: USER_STATUS_TABLE_NAME,
-        tableRowId: memberId,
-        operationType,
-        beforeData: toStatusHistoryJson(beforeData),
-        afterData: toStatusHistoryJson(afterData),
-      },
-      tx
-    );
+      // 관리자 작업이므로 actor는 adminUserId에 두고, 대상 회원은 tableRowId로 식별한다.
+      await createHistory(
+        {
+          userId: null,
+          adminUserId: adminId,
+          tableName: USER_STATUS_TABLE_NAME,
+          tableRowId: memberId,
+          operationType,
+          beforeData: toStatusHistoryJson(beforeData),
+          afterData: toStatusHistoryJson(afterData),
+        },
+        tx
+      );
 
-    return afterData;
-  });
+      return afterData;
+    })
+  );
 
   return toAdminMemberStatusResult(statusInfo);
 };
