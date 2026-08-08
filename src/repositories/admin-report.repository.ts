@@ -886,9 +886,7 @@ export const findReportReportedContent = async (
         select: reportedReviewContentSelect,
       });
 
-      return content
-        ? { kind: 'review', content }
-        : { kind: 'not_found' };
+      return content ? { kind: 'review', content } : { kind: 'not_found' };
     }
     case UserReportTarget.ARTICLE: {
       const content = await db.post.findUnique({
@@ -896,9 +894,7 @@ export const findReportReportedContent = async (
         select: reportedArticleContentSelect,
       });
 
-      return content
-        ? { kind: 'article', content }
-        : { kind: 'not_found' };
+      return content ? { kind: 'article', content } : { kind: 'not_found' };
     }
     case UserReportTarget.COMMENT: {
       const content = await db.comment.findUnique({
@@ -906,9 +902,7 @@ export const findReportReportedContent = async (
         select: reportedCommentContentSelect,
       });
 
-      return content
-        ? { kind: 'comment', content }
-        : { kind: 'not_found' };
+      return content ? { kind: 'comment', content } : { kind: 'not_found' };
     }
     case UserReportTarget.MESSAGE: {
       const content = await db.chatMessage.findUnique({
@@ -916,9 +910,7 @@ export const findReportReportedContent = async (
         select: reportedMessageContentSelect,
       });
 
-      return content
-        ? { kind: 'message', content }
-        : { kind: 'not_found' };
+      return content ? { kind: 'message', content } : { kind: 'not_found' };
     }
     default:
       return { kind: 'not_found' };
@@ -1022,15 +1014,34 @@ export type SoftDeletableReportTarget =
   | typeof UserReportTarget.ARTICLE
   | typeof UserReportTarget.COMMENT;
 
+/** soft delete가 실제로 적용된 콘텐츠 행 — Service History DELETE용 */
+export type SoftDeletedContentRow = {
+  id: number;
+  deletedAt: Date;
+};
+
+/**
+ * COMMENT 삭제 시 posts.commentCount 실제 변경분.
+ * post가 이미 soft delete면 updateMany가 0건이라 null이 된다.
+ */
+export type SoftDeletePostCommentCountChange = {
+  postId: number;
+  beforeCommentCount: number;
+  afterCommentCount: number;
+};
+
 /**
  * 신고 콘텐츠 soft delete 결과.
  * HTTP는 Service가 결정하고, 이미 삭제됨/미존재/형식 오류를 Repository에서 구분한다.
+ * deleted 시 deletedContents로 실제 변경 행을 넘겨 Trigger skip 구간의 Service History에 쓴다.
  */
 export type SoftDeleteReportReportedContentResult =
   | {
       kind: 'deleted';
       target: SoftDeletableReportTarget;
       id: number;
+      deletedContents: SoftDeletedContentRow[];
+      postCommentCountChange: SoftDeletePostCommentCountChange | null;
     }
   | {
       kind: 'already_deleted';
@@ -1074,6 +1085,8 @@ const softDeleteReviewContent = async (
       kind: 'deleted',
       target: UserReportTarget.REVIEW,
       id,
+      deletedContents: [{ id, deletedAt }],
+      postCommentCountChange: null,
     };
   }
 
@@ -1082,11 +1095,7 @@ const softDeleteReviewContent = async (
     select: { id: true, deletedAt: true },
   });
 
-  return resolveSoftDeleteMiss(
-    UserReportTarget.REVIEW,
-    id,
-    review?.deletedAt
-  );
+  return resolveSoftDeleteMiss(UserReportTarget.REVIEW, id, review?.deletedAt);
 };
 
 const softDeleteArticleContent = async (
@@ -1104,6 +1113,8 @@ const softDeleteArticleContent = async (
       kind: 'deleted',
       target: UserReportTarget.ARTICLE,
       id,
+      deletedContents: [{ id, deletedAt }],
+      postCommentCountChange: null,
     };
   }
 
@@ -1148,6 +1159,12 @@ const softDeleteCommentContent = async (
     };
   }
 
+  // commentCount History before — 게시글이 이미 삭제됐으면 이후 updateMany도 0건이다.
+  const postBefore = await db.post.findUnique({
+    where: { id: comment.postId },
+    select: { commentCount: true, deletedAt: true },
+  });
+
   const deleteResult = await db.comment.updateMany({
     where: {
       postId: comment.postId,
@@ -1166,15 +1183,42 @@ const softDeleteCommentContent = async (
     };
   }
 
-  await db.post.updateMany({
+  const postUpdateResult = await db.post.updateMany({
     where: { id: comment.postId, deletedAt: null },
     data: { commentCount: { decrement: deleteResult.count } },
   });
+
+  // 이번 처리에서 soft delete된 부모·직계 대댓글 — Service가 행 단위 DELETE History를 남긴다.
+  const deletedContents = await db.comment.findMany({
+    where: {
+      postId: comment.postId,
+      deletedAt,
+      OR: [{ id: comment.id }, { parentId: comment.id }],
+    },
+    select: { id: true, deletedAt: true },
+  });
+
+  const postCommentCountChange =
+    postUpdateResult.count === 1 &&
+    postBefore !== null &&
+    postBefore.deletedAt === null
+      ? {
+          postId: comment.postId,
+          beforeCommentCount: postBefore.commentCount,
+          afterCommentCount: postBefore.commentCount - deleteResult.count,
+        }
+      : null;
 
   return {
     kind: 'deleted',
     target: UserReportTarget.COMMENT,
     id: comment.id,
+    // where deletedAt = 처리 시각이라 null이 없어야 하지만, 타입상 null이면 이번 처리 시각으로 채운다.
+    deletedContents: deletedContents.map((row) => ({
+      id: row.id,
+      deletedAt: row.deletedAt ?? deletedAt,
+    })),
+    postCommentCountChange,
   };
 };
 
@@ -1190,10 +1234,7 @@ export const softDeleteReportReportedContent = async (
   deletedAt: Date,
   db: DbClient = prisma
 ): Promise<SoftDeleteReportReportedContentResult> => {
-  if (
-    target === UserReportTarget.USER ||
-    target === UserReportTarget.MESSAGE
-  ) {
+  if (target === UserReportTarget.USER || target === UserReportTarget.MESSAGE) {
     return { kind: 'unsupported_target' };
   }
 
@@ -1230,8 +1271,7 @@ export type AdminReportLockRow = {
  * 호출자가 PENDING 등 임의 상태로 바꾸지 못하게 타입으로 제한한다.
  */
 export type AdminReportDecisionStatus =
-  | typeof UserReportStatus.RESOLVED
-  | typeof UserReportStatus.REJECTED;
+  typeof UserReportStatus.RESOLVED | typeof UserReportStatus.REJECTED;
 
 export type UpdateAdminReportDecisionStatusResult =
   | {
