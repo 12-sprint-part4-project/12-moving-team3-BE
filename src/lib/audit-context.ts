@@ -6,11 +6,11 @@ import {
   getAuditContext,
 } from './request-context';
 
-type TransactionOptions = {
+interface TransactionOptions {
   maxWait?: number;
   timeout?: number;
   isolationLevel?: Prisma.TransactionIsolationLevel;
-};
+}
 
 /**
  * 쓰기 interactive 트랜잭션 — 시작 시 감사 세션 변수를 한 번 심고,
