@@ -4,6 +4,7 @@ import {
   requireAuth,
   requireAuthAllowSuspended,
 } from '../middlewares/auth.middleware';
+import { requireCompletedProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   chatRoomIdParamsSchema,
@@ -236,6 +237,7 @@ router.get(
 router.get(
   '/rooms/:roomId/messages',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     query: getChatMessagesQuerySchema,
@@ -367,6 +369,7 @@ router.get(
 router.post(
   '/rooms/:roomId/messages',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     body: sendChatMessageBodySchema,
@@ -443,6 +446,7 @@ router.post(
 router.post(
   '/rooms/:roomId/read',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     body: markChatRoomAsReadBodySchema,
@@ -512,6 +516,7 @@ router.post(
 router.post(
   '/rooms/:roomId/leave',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
@@ -625,6 +630,7 @@ router.post(
 router.get(
   '/rooms/:roomId',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: chatRoomIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
@@ -756,6 +762,7 @@ router.get(
 router.post(
   '/rooms',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     body: createChatRoomBodySchema,
     errorCode: 'INVALID_REQUEST',

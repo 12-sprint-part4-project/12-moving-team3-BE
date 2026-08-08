@@ -4,6 +4,7 @@ import * as favoritesController from '../controllers/favorites.controller';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { favoriteMoverIdParamSchema } from '../schemas/favorites.schema';
 import { allowUserTypes, requireAuth } from '../middlewares/auth.middleware';
+import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
 
 const router = Router();
 
@@ -12,6 +13,7 @@ router.post(
   '/:moverId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: favoriteMoverIdParamSchema,
     errorCode: 'INVALID_QUERY_PARAM',
@@ -24,6 +26,7 @@ router.delete(
   '/:moverId',
   requireAuth,
   allowUserTypes('CUSTOMER'),
+  requireCompletedCustomerProfile,
   validateRequest({
     params: favoriteMoverIdParamSchema,
     errorCode: 'INVALID_QUERY_PARAM',

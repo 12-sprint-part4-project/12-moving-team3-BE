@@ -3,6 +3,7 @@ import * as commentController from '../controllers/comment.controller';
 import * as likeController from '../controllers/like.controller';
 import * as postController from '../controllers/post.controller';
 import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
+import { requireCompletedProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   commentIdParamsSchema,
@@ -419,6 +420,7 @@ router.get(
 router.post(
   '/',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({ body: createPostBodySchema, errorCode: 'INVALID_REQUEST' }),
   postController.createPost
 );
@@ -490,6 +492,7 @@ router.post(
 router.patch(
   '/:postId',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: postIdParamsSchema,
     body: updatePostBodySchema,
@@ -531,6 +534,7 @@ router.patch(
 router.delete(
   '/:postId',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   postController.deletePost
 );
@@ -599,6 +603,7 @@ router.delete(
 router.post(
   '/:postId/likes',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   likeController.createLike
 );
@@ -606,6 +611,7 @@ router.post(
 router.delete(
   '/:postId/likes',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
   likeController.deleteLike
 );
@@ -821,6 +827,7 @@ router.get(
 router.post(
   '/:postId/comments',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: postIdParamsSchema,
     body: createCommentBodySchema,
@@ -890,6 +897,7 @@ router.post(
 router.post(
   '/:postId/comments/:commentId/replies',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: commentIdParamsSchema,
     body: createCommentBodySchema,
@@ -939,6 +947,7 @@ router.post(
 router.delete(
   '/:postId/comments/:commentId',
   requireAuth,
+  requireCompletedProfile,
   validateRequest({
     params: commentIdParamsSchema,
     errorCode: 'INVALID_REQUEST',
