@@ -292,6 +292,7 @@ model ChatRoom {
   estimateRequestId Int?                     @map("estimate_request_id")
   quoteId           Int?                     @map("quote_id")
   designatedMoverId Int?                     @map("designated_mover_id")
+  communityPostId   Int?                     @map("community_post_id")
   roomType          ChatRoomType             @map("room_type")
   lastMessageAt     DateTime?                @map("last_message_at")
   createdAt         DateTime                 @default(now()) @map("created_at")
@@ -302,7 +303,9 @@ model ChatRoom {
   designatedMover   EstimateDesignatedMover? @relation(fields: [designatedMoverId], references: [id])
   estimateRequest   EstimateRequest?         @relation(fields: [estimateRequestId], references: [id])
   quote             Quote?                   @relation(fields: [quoteId], references: [id])
+  communityPost     Post?                    @relation(fields: [communityPostId], references: [id])
 
+  @@index([communityPostId])
   @@map("chat_rooms")
 }
 
@@ -438,6 +441,7 @@ model Post {
   comments     Comment[]
   images       PostImage[]
   likes        PostLike[]
+  chatRooms    ChatRoom[]
   user         User          @relation(fields: [userId], references: [id])
 
   @@index([deletedAt, category, createdAt, id])
