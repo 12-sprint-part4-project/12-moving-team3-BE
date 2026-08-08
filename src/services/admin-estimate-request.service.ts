@@ -13,6 +13,7 @@ import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
 import { EstimateRequestStatus, Prisma } from '@prisma/client';
 import { AppError } from '../utils/app.error';
+import { collectMissingFields } from '../utils/admin-missing-fields.util';
 import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
 export const getEstimateRequestStatistics = async ({
@@ -107,27 +108,30 @@ export const getEstimateRequestList = async (
     getEstimateRequestCount(where),
   ]);
 
+  // 필수값 누락 시 500 대신 null + missingFields로 내려 관리자가 원인을 확인할 수 있게 한다.
   const data = estimateRequests.map((item) => {
-    if (
-      item.moveType == null ||
-      item.departureAddress == null ||
-      item.arrivalAddress == null ||
-      item.submittedAt == null
-    ) {
-      throw new AppError('INTERNAL_SERVER_ERROR');
-    }
+    const moveType = item.moveType;
+    const departureAddress = item.departureAddress;
+    const arrivalAddress = item.arrivalAddress;
+    const submittedAt = item.submittedAt;
 
     return {
       id: item.id,
       userName: item.user.name,
       phoneNumber: item.user.phoneNumber,
-      moveType: item.moveType,
-      departureAddress: item.departureAddress,
-      arrivalAddress: item.arrivalAddress,
-      submittedAt: item.submittedAt,
+      moveType,
+      departureAddress,
+      arrivalAddress,
+      submittedAt,
       status: item.status,
       estimateCount: item._count.quotes,
       mover: item.confirmedQuote?.mover?.name ?? null,
+      missingFields: collectMissingFields({
+        moveType,
+        departureAddress,
+        arrivalAddress,
+        submittedAt,
+      }),
     };
   });
 
@@ -187,48 +191,48 @@ export const getEstimateRequestDetail = async (
     throw new AppError('ADMIN_ESTIMATE_REQUEST_NOT_FOUND');
   }
 
-  if (
-    estimateRequest.moveType == null ||
-    estimateRequest.departureAddress == null ||
-    estimateRequest.departureDetailAddress == null ||
-    estimateRequest.departureZipCode == null ||
-    estimateRequest.arrivalAddress == null ||
-    estimateRequest.arrivalZipCode == null ||
-    estimateRequest.arrivalDetailAddress == null ||
-    estimateRequest.submittedAt == null
-  ) {
-    throw new AppError('INTERNAL_SERVER_ERROR');
-  }
+  const moveType = estimateRequest.moveType;
+  const departureAddress = estimateRequest.departureAddress;
+  const departureDetailAddress = estimateRequest.departureDetailAddress;
+  const departureZipCode = estimateRequest.departureZipCode;
+  const arrivalAddress = estimateRequest.arrivalAddress;
+  const arrivalZipCode = estimateRequest.arrivalZipCode;
+  const arrivalDetailAddress = estimateRequest.arrivalDetailAddress;
+  const submittedAt = estimateRequest.submittedAt;
 
-  const quotes = estimateRequest.quotes.map((quote) => {
-    if (quote.mover == null) {
-      throw new AppError('INTERNAL_SERVER_ERROR');
-    }
-
-    return {
-      id: quote.id,
-      moverName: quote.mover.name,
-      price: quote.price ?? null,
-      status: quote.status,
-      createdAt: quote.createdAt,
-    };
-  });
+  const quotes = estimateRequest.quotes.map((quote) => ({
+    id: quote.id,
+    moverName: quote.mover?.name ?? null,
+    price: quote.price ?? null,
+    status: quote.status,
+    createdAt: quote.createdAt,
+  }));
 
   return {
     data: {
       id: estimateRequest.id,
       userName: estimateRequest.user.name,
-      moveType: estimateRequest.moveType,
-      departureAddress: estimateRequest.departureAddress,
-      departureDetailAddress: estimateRequest.departureDetailAddress,
-      departureZipCode: estimateRequest.departureZipCode,
-      arrivalAddress: estimateRequest.arrivalAddress,
-      arrivalZipCode: estimateRequest.arrivalZipCode,
-      arrivalDetailAddress: estimateRequest.arrivalDetailAddress,
-      submittedAt: estimateRequest.submittedAt,
+      moveType,
+      departureAddress,
+      departureDetailAddress,
+      departureZipCode,
+      arrivalAddress,
+      arrivalZipCode,
+      arrivalDetailAddress,
+      submittedAt,
       status: estimateRequest.status,
       estimateCount: quotes.length,
       quotes,
+      missingFields: collectMissingFields({
+        moveType,
+        departureAddress,
+        departureDetailAddress,
+        departureZipCode,
+        arrivalAddress,
+        arrivalZipCode,
+        arrivalDetailAddress,
+        submittedAt,
+      }),
     },
   };
 };
