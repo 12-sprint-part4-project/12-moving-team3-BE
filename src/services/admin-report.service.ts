@@ -1296,7 +1296,8 @@ export type RejectAdminReportInput = {
 
 /**
  * 관리자 신고 반려.
- * 신고 잠금 후 PENDING → REJECTED만 수행한다.
+ * 신고 잠금 후 PENDING → REJECTED → user_reports History를 한 트랜잭션으로 묶는다.
+ * runWithManualAudit로 Trigger histories INSERT를 skip하고 createHistory만 남긴다.
  * 사용자·콘텐츠 제재는 하지 않으며, 대상 존재 여부와 무관하게 반려할 수 있다.
  */
 export const rejectAdminReport = async ({
@@ -1305,34 +1306,58 @@ export const rejectAdminReport = async ({
 }: RejectAdminReportInput): Promise<AdminReportRejectResultDto> => {
   const processedAt = new Date();
 
-  return runAuditedTransaction(async (tx) => {
-    // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
-    const report = await lockAdminReportForStatusChange(reportId, tx);
+  return runWithManualAudit(() =>
+    runAuditedTransaction(async (tx) => {
+      // resolve와 동일한 잠금 순서로 동시 처리·반려를 직렬화한다.
+      const report = await lockAdminReportForStatusChange(reportId, tx);
 
-    if (!report) {
-      throw new AppError('ADMIN_REPORT_NOT_FOUND');
-    }
+      if (!report) {
+        throw new AppError('ADMIN_REPORT_NOT_FOUND');
+      }
 
-    if (report.status !== UserReportStatus.PENDING) {
-      throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
-    }
+      if (report.status !== UserReportStatus.PENDING) {
+        throw new AppError('ADMIN_REPORT_ALREADY_PROCESSED');
+      }
 
-    const statusUpdate = await updateAdminReportDecisionStatus(
-      reportId,
-      adminId,
-      UserReportStatus.REJECTED,
-      tx
-    );
+      const statusUpdate = await updateAdminReportDecisionStatus(
+        reportId,
+        adminId,
+        UserReportStatus.REJECTED,
+        tx
+      );
 
-    if (statusUpdate.kind === 'not_updated') {
-      throw new AppError('ADMIN_REPORT_CONFLICT');
-    }
+      if (statusUpdate.kind === 'not_updated') {
+        throw new AppError('ADMIN_REPORT_CONFLICT');
+      }
 
-    return {
-      reportId: statusUpdate.report.id,
-      status: statusUpdate.report.status,
-      adminId: statusUpdate.report.adminId,
-      processedAt,
-    };
-  }, ADMIN_REPORT_DECISION_TX_OPTIONS);
+      // RESOLVED와 동일한 { id, status, adminId } 스냅샷 — 잠금 before + UPDATE after
+      await createHistory(
+        {
+          userId: null,
+          adminUserId: adminId,
+          tableName: USER_REPORT_TABLE_NAME,
+          tableRowId: String(report.id),
+          operationType: HistoryAction.UPDATE,
+          beforeData: toUserReportHistoryJson({
+            id: report.id,
+            status: report.status,
+            adminId: report.adminId,
+          }),
+          afterData: toUserReportHistoryJson({
+            id: statusUpdate.report.id,
+            status: statusUpdate.report.status,
+            adminId: statusUpdate.report.adminId,
+          }),
+        },
+        tx
+      );
+
+      return {
+        reportId: statusUpdate.report.id,
+        status: statusUpdate.report.status,
+        adminId: statusUpdate.report.adminId,
+        processedAt,
+      };
+    }, ADMIN_REPORT_DECISION_TX_OPTIONS)
+  );
 };
