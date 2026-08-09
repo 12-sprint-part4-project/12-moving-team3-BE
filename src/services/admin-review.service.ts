@@ -24,6 +24,15 @@ import { createDateRange } from '../utils/admin-date-range.util';
 /** History.tableName — Review @@map("reviews")와 동일 */
 const REVIEW_TABLE_NAME = 'reviews';
 
+/** toAdminReviewUserSummary 입력 — 목록 select의 user/mover 최소 필드 */
+interface AdminReviewUserSummarySource {
+  id: string;
+  name: string;
+  nickname: string;
+  email: string;
+  userType: UserType;
+}
+
 export const getReviewStatistics = async ({
   startDate,
   endDate,
@@ -48,13 +57,9 @@ export const getReviewStatistics = async ({
 };
 
 /** User select row → 작성자·기사 요약 DTO */
-const toAdminReviewUserSummary = (user: {
-  id: string;
-  name: string;
-  nickname: string;
-  email: string;
-  userType: UserType;
-}): AdminReviewUserSummaryDto => ({
+const toAdminReviewUserSummary = (
+  user: AdminReviewUserSummarySource
+): AdminReviewUserSummaryDto => ({
   id: user.id,
   name: user.name,
   nickname: user.nickname,
