@@ -1,10 +1,17 @@
 import { Prisma } from '@prisma/client';
-import { createDateRange } from '../utils/admin-date-range.util';
-import { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
+import type {
+  AdminReviewListItemDto,
+  AdminReviewListResultDto,
+} from '../dtos/admin-review.dto';
 import {
+  findAdminReviewsWithCount,
   getAverageReviewScore,
   getReviewCount,
+  type AdminReviewListRow,
 } from '../repositories/admin-review.repository';
+import type { AdminReviewListQuery } from '../schemas/admin-review.schema';
+import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
+import { createDateRange } from '../utils/admin-date-range.util';
 
 export const getReviewStatistics = async ({
   startDate,
@@ -26,5 +33,35 @@ export const getReviewStatistics = async ({
     totalReviewCount,
     averageReviewScore,
     deletedReviewCount,
+  };
+};
+
+/** Repository row → 목록 아이템 DTO */
+const toAdminReviewListItem = (
+  row: AdminReviewListRow
+): AdminReviewListItemDto => ({
+  id: row.id,
+  userId: row.userId,
+  quoteId: row.quoteId,
+  rating: row.rating,
+  content: row.content,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+});
+
+/** 관리자 리뷰 목록 조회 */
+export const getAdminReviewList = async (
+  params: AdminReviewListQuery
+): Promise<AdminReviewListResultDto> => {
+  const { items, totalCount } = await findAdminReviewsWithCount(params);
+
+  return {
+    items: items.map(toAdminReviewListItem),
+    pagination: {
+      page: params.page,
+      pageSize: params.pageSize,
+      totalCount,
+      totalPages: Math.ceil(totalCount / params.pageSize),
+    },
   };
 };
