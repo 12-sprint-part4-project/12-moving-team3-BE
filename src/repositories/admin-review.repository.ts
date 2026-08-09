@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReviewListQuery } from '../schemas/admin-review.schema';
+import { createDateRange } from '../utils/admin-date-range.util';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -40,6 +41,7 @@ const adminReviewListSelect = {
   content: true,
   createdAt: true,
   updatedAt: true,
+  deletedAt: true,
   user: {
     select: adminReviewUserSelect,
   },
@@ -66,17 +68,28 @@ const buildUserSearchOr = (search: string): Prisma.UserWhereInput['OR'] => [
 
 /**
  * 목록/카운트 공통 where.
- * soft delete된 리뷰는 항상 제외한다.
+ * deletionStatus 미전달 시 deletedAt 조건을 두지 않아 전체를 조회한다.
+ * 작성일 기간은 통계와 동일한 createDateRange를 쓴다.
  */
 const buildAdminReviewListWhere = (
-  params: Pick<AdminReviewListQuery, 'search' | 'rating'>
+  params: Pick<
+    AdminReviewListQuery,
+    'search' | 'rating' | 'deletionStatus' | 'startDate' | 'endDate'
+  >
 ): Prisma.ReviewWhereInput => {
+  const dateRange = createDateRange(params.startDate, params.endDate);
   const where: Prisma.ReviewWhereInput = {
-    deletedAt: null,
+    ...(dateRange && { createdAt: dateRange }),
   };
 
   if (params.rating !== undefined) {
     where.rating = params.rating;
+  }
+
+  if (params.deletionStatus === 'ACTIVE') {
+    where.deletedAt = null;
+  } else if (params.deletionStatus === 'DELETED') {
+    where.deletedAt = { not: null };
   }
 
   // search가 있을 때만 OR를 붙인다 — 빈 문자열은 스키마에서 제거된다.

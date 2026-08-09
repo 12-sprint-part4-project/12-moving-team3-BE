@@ -73,6 +73,7 @@ const toAdminReviewListItem = (
   content: row.content,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
+  deletedAt: row.deletedAt,
   author: toAdminReviewUserSummary(row.user),
   // Quote.moverId가 null이면 Prisma가 mover를 null로 준다.
   mover: row.quote.mover ? toAdminReviewUserSummary(row.quote.mover) : null,

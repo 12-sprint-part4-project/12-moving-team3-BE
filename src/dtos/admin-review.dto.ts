@@ -25,6 +25,8 @@ export interface AdminReviewListItemDto {
   content: string;
   createdAt: Date;
   updatedAt: Date | null;
+  /** soft delete 시각. 미삭제이면 null */
+  deletedAt: Date | null;
   /** 리뷰 작성자 (Review.user) */
   author: AdminReviewUserSummaryDto;
   /** 견적 기사 (Review.quote.mover). moverId가 없으면 null */
