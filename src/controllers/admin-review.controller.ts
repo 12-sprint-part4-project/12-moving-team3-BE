@@ -4,6 +4,7 @@ import type {
   AdminReviewParams,
 } from '../schemas/admin-review.schema';
 import * as adminReviewService from '../services/admin-review.service';
+import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
 import { getValidated } from '../utils/validated.util';
 
 export const getReviewStatistics = async (
@@ -50,8 +51,9 @@ export const deleteAdminReview = async (
 ) => {
   try {
     const { reviewId } = getValidated<AdminReviewParams>(res, 'params');
+    const { adminId } = getAuthenticatedAdmin(res);
 
-    await adminReviewService.deleteAdminReview(reviewId);
+    await adminReviewService.deleteAdminReview(reviewId, adminId);
 
     res.status(204).send();
   } catch (error) {

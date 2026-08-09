@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import type { AdminReviewListQuery } from '../schemas/admin-review.schema';
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 export const getReviewCount = async (where: Prisma.ReviewWhereInput) => {
   return prisma.review.count({ where });
 };
@@ -127,12 +129,14 @@ export type SoftDeleteAdminReviewResult =
  * 관리자 리뷰 soft delete.
  * 물리 삭제하지 않고 deletedAt만 갱신한다.
  * id + deletedAt IS NULL 조건부 갱신으로 동시 삭제 시 한 요청만 성공하게 한다.
+ * History와 원자성을 맞추려면 호출부가 tx를 넘긴다.
  */
 export const softDeleteAdminReview = async (
   reviewId: number,
-  deletedAt: Date = new Date()
+  deletedAt: Date = new Date(),
+  db: DbClient = prisma
 ): Promise<SoftDeleteAdminReviewResult> => {
-  const updateResult = await prisma.review.updateMany({
+  const updateResult = await db.review.updateMany({
     where: { id: reviewId, deletedAt: null },
     data: { deletedAt },
   });
@@ -141,7 +145,7 @@ export const softDeleteAdminReview = async (
     return { kind: 'deleted', id: reviewId, deletedAt };
   }
 
-  const review = await prisma.review.findUnique({
+  const review = await db.review.findUnique({
     where: { id: reviewId },
     select: { id: true, deletedAt: true },
   });
