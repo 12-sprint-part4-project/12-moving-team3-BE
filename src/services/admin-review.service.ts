@@ -8,10 +8,12 @@ import {
   findAdminReviewsWithCount,
   getAverageReviewScore,
   getReviewCount,
+  softDeleteAdminReview,
   type AdminReviewListRow,
 } from '../repositories/admin-review.repository';
 import type { AdminReviewListQuery } from '../schemas/admin-review.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
+import { AppError } from '../utils/app.error';
 import { createDateRange } from '../utils/admin-date-range.util';
 
 export const getReviewStatistics = async ({
@@ -83,4 +85,25 @@ export const getAdminReviewList = async (
       totalPages: Math.ceil(totalCount / params.pageSize),
     },
   };
+};
+
+/**
+ * 관리자 리뷰 soft delete.
+ * Repository 결과 kind를 HTTP 오류로 매핑한다 — 미존재와 중복 삭제를 구분한다.
+ */
+export const deleteAdminReview = async (reviewId: number): Promise<void> => {
+  const result = await softDeleteAdminReview(reviewId);
+
+  switch (result.kind) {
+    case 'deleted':
+      return;
+    case 'already_deleted':
+      throw new AppError('ADMIN_REVIEW_ALREADY_DELETED');
+    case 'not_found':
+      throw new AppError('ADMIN_REVIEW_NOT_FOUND');
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
+  }
 };

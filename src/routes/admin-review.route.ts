@@ -2,7 +2,10 @@ import { Router } from 'express';
 import * as adminReviewController from '../controllers/admin-review.controller';
 import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
-import { adminReviewListQuerySchema } from '../schemas/admin-review.schema';
+import {
+  adminReviewListQuerySchema,
+  adminReviewParamsSchema,
+} from '../schemas/admin-review.schema';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 
 const router = Router();
@@ -27,6 +30,17 @@ router.get(
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminReviewController.getReviewStatistics
+);
+
+// 리뷰 soft delete — `/:reviewId`가 statistics 등으로 잡히지 않게 통계 라우트 뒤에 둔다
+router.delete(
+  '/:reviewId',
+  requireAdminAuth,
+  validateRequest({
+    params: adminReviewParamsSchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminReviewController.deleteAdminReview
 );
 
 export default router;

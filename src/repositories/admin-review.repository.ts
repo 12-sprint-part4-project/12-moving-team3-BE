@@ -112,3 +112,44 @@ export const findAdminReviewsWithCount = async (
 
   return { items, totalCount };
 };
+
+/**
+ * 관리자 리뷰 soft delete 결과.
+ * updateMany(count=0)만으로는 미존재/이미 삭제를 구분할 수 없어 실패 시 한 번 더 조회한다.
+ * (신고 콘텐츠 soft delete와 동일한 구분 방식)
+ */
+export type SoftDeleteAdminReviewResult =
+  | { kind: 'deleted'; id: number; deletedAt: Date }
+  | { kind: 'already_deleted'; id: number }
+  | { kind: 'not_found' };
+
+/**
+ * 관리자 리뷰 soft delete.
+ * 물리 삭제하지 않고 deletedAt만 갱신한다.
+ * id + deletedAt IS NULL 조건부 갱신으로 동시 삭제 시 한 요청만 성공하게 한다.
+ */
+export const softDeleteAdminReview = async (
+  reviewId: number,
+  deletedAt: Date = new Date()
+): Promise<SoftDeleteAdminReviewResult> => {
+  const updateResult = await prisma.review.updateMany({
+    where: { id: reviewId, deletedAt: null },
+    data: { deletedAt },
+  });
+
+  if (updateResult.count === 1) {
+    return { kind: 'deleted', id: reviewId, deletedAt };
+  }
+
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { id: true, deletedAt: true },
+  });
+
+  if (!review) {
+    return { kind: 'not_found' };
+  }
+
+  // 행은 있으나 조건부 갱신이 실패한 경우 — 이미 soft delete된 것으로 본다.
+  return { kind: 'already_deleted', id: review.id };
+};

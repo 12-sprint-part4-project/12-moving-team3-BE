@@ -1,5 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { AdminReviewListQuery } from '../schemas/admin-review.schema';
+import type {
+  AdminReviewListQuery,
+  AdminReviewParams,
+} from '../schemas/admin-review.schema';
 import * as adminReviewService from '../services/admin-review.service';
 import { getValidated } from '../utils/validated.util';
 
@@ -34,6 +37,23 @@ export const getAdminReviewList = async (
     const data = await adminReviewService.getAdminReviewList(query);
 
     res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** 관리자 리뷰 soft delete — 성공 시 본문 없이 204 (일반 리뷰 DELETE와 동일) */
+export const deleteAdminReview = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { reviewId } = getValidated<AdminReviewParams>(res, 'params');
+
+    await adminReviewService.deleteAdminReview(reviewId);
+
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

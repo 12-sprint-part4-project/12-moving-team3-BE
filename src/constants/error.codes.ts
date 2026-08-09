@@ -325,6 +325,14 @@ export const ERROR_CODES = {
     status: 409,
     message: '다른 관리자가 동시에 처리 중이거나 상태가 변경되었습니다.',
   },
+  ADMIN_REVIEW_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 리뷰입니다.',
+  },
+  ADMIN_REVIEW_ALREADY_DELETED: {
+    status: 409,
+    message: '이미 삭제된 리뷰입니다.',
+  },
 
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
   ADMIN_INVALID_LOGIN_BODY: {
