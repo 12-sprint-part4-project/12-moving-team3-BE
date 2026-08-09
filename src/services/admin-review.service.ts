@@ -1,7 +1,8 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type UserType } from '@prisma/client';
 import type {
   AdminReviewListItemDto,
   AdminReviewListResultDto,
+  AdminReviewUserSummaryDto,
 } from '../dtos/admin-review.dto';
 import {
   findAdminReviewsWithCount,
@@ -36,6 +37,21 @@ export const getReviewStatistics = async ({
   };
 };
 
+/** User select row → 작성자·기사 요약 DTO */
+const toAdminReviewUserSummary = (user: {
+  id: string;
+  name: string;
+  nickname: string;
+  email: string;
+  userType: UserType;
+}): AdminReviewUserSummaryDto => ({
+  id: user.id,
+  name: user.name,
+  nickname: user.nickname,
+  email: user.email,
+  userType: user.userType,
+});
+
 /** Repository row → 목록 아이템 DTO */
 const toAdminReviewListItem = (
   row: AdminReviewListRow
@@ -47,6 +63,9 @@ const toAdminReviewListItem = (
   content: row.content,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
+  author: toAdminReviewUserSummary(row.user),
+  // Quote.moverId가 null이면 Prisma가 mover를 null로 준다.
+  mover: row.quote.mover ? toAdminReviewUserSummary(row.quote.mover) : null,
 });
 
 /** 관리자 리뷰 목록 조회 */

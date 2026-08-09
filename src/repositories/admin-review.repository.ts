@@ -17,7 +17,19 @@ export const getAverageReviewScore = async (where: Prisma.ReviewWhereInput) => {
   return result._avg.rating ?? 0;
 };
 
-/** 관리자 리뷰 목록 select — Review 모델 필드만 (작성자·기사 확장은 이후 TODO) */
+/** 작성자·기사 공통 User select — 목록 식별용 최소 필드 */
+const adminReviewUserSelect = {
+  id: true,
+  name: true,
+  nickname: true,
+  email: true,
+  userType: true,
+} satisfies Prisma.UserSelect;
+
+/**
+ * 관리자 리뷰 목록 select.
+ * Review 필드 + 작성자(user) + 기사(quote.mover). quote.mover는 schema상 nullable.
+ */
 const adminReviewListSelect = {
   id: true,
   userId: true,
@@ -26,6 +38,16 @@ const adminReviewListSelect = {
   content: true,
   createdAt: true,
   updatedAt: true,
+  user: {
+    select: adminReviewUserSelect,
+  },
+  quote: {
+    select: {
+      mover: {
+        select: adminReviewUserSelect,
+      },
+    },
+  },
 } satisfies Prisma.ReviewSelect;
 
 export type AdminReviewListRow = Prisma.ReviewGetPayload<{
