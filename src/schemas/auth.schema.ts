@@ -37,6 +37,11 @@ const API_USER_TYPES: readonly ApiUserType[] = ['CUSTOMER', 'MOVER'];
 // INVALID_NEW_PASSWORD와 동일한 정책(8~20자, 영문·숫자·특수문자)을 재사용
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
 
+/** RFC 5321 practical limits (일반 유저 로컬 가입/로그인에만 적용) */
+const EMAIL_MAX_LENGTH = 254;
+const EMAIL_LOCAL_PART_MAX_LENGTH = 64;
+const EMAIL_DOMAIN_LABEL_MAX_LENGTH = 63;
+
 const isBlank = (value: unknown): boolean => {
   if (value === undefined || value === null) {
     return true;
@@ -54,6 +59,52 @@ const isApiUserType = (value: string): value is ApiUserType => {
 };
 
 const LOGIN_REQUIRED_FIELDS = ['userType', 'email', 'password'] as const;
+
+/**
+ * 일반 유저 이메일을 형식·길이 규칙에 맞게 검증한 뒤 정규화한다.
+ * 전체 254자, local-part 64자, 도메인 label 63자.
+ */
+const parseUserEmail = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  const trimmedEmail = value.trim();
+  const emailResult = z.email().safeParse(trimmedEmail);
+
+  if (!emailResult.success) {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  const normalizedEmail = emailResult.data.toLowerCase();
+
+  if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  const atIndex = normalizedEmail.lastIndexOf('@');
+  if (atIndex <= 0 || atIndex === normalizedEmail.length - 1) {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  const localPart = normalizedEmail.slice(0, atIndex);
+  const domain = normalizedEmail.slice(atIndex + 1);
+
+  if (localPart.length > EMAIL_LOCAL_PART_MAX_LENGTH) {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  const labels = domain.split('.');
+  if (
+    labels.some(
+      (label) => label.length === 0 || label.length > EMAIL_DOMAIN_LABEL_MAX_LENGTH
+    )
+  ) {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  return normalizedEmail;
+};
 
 /**
  * 카카오 로그인 요청 body를 검증한다.
@@ -100,13 +151,7 @@ export const parseLoginBody = (body: unknown): LoginBody => {
     throw new AppError('INVALID_USER_TYPE');
   }
 
-  const emailResult = z.email().safeParse(data.email);
-
-  if (!emailResult.success) {
-    throw new AppError('INVALID_EMAIL_FORMAT');
-  }
-
-  const normalizedEmail = emailResult.data.trim().toLowerCase();
+  const normalizedEmail = parseUserEmail(data.email);
 
   if (typeof data.password !== 'string') {
     throw new AppError('LOGIN_REQUIRED_FIELD_MISSING');
@@ -149,13 +194,7 @@ export const parseSignupBody = (body: unknown): SignupBody => {
     throw new AppError('REQUIRED_FIELD_MISSING');
   }
 
-  const emailResult = z.email().safeParse(data.email);
-
-  if (!emailResult.success) {
-    throw new AppError('INVALID_EMAIL_FORMAT');
-  }
-
-  const normalizedEmail = emailResult.data.trim().toLowerCase();
+  const normalizedEmail = parseUserEmail(data.email);
 
   if (
     typeof data.password !== 'string' ||
