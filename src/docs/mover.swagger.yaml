@@ -415,7 +415,12 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: 고객 이름 부분 일치 검색
+          description: |
+            고객 이름 또는 출발지·도착지 시·구 라벨 검색.
+            주소는 화면과 같은 시·구 단위(앞 1~2토큰)만 매칭하며,
+            도로명·번지 등 상세 주소로는 검색되지 않습니다.
+            시/도 표기는 alias로 확장됩니다 (예: 경기 ↔ 경기도).
+            (예: 서울, 강서구, 서울 강서구, 경기 고양시)
           schema:
             type: string
         - name: moveType
