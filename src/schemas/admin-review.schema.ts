@@ -14,15 +14,13 @@ export const adminReviewDeletionStatusSchema = z.enum(['ACTIVE', 'DELETED']);
 /**
  * 관리자 리뷰 목록 조회 Query.
  * rating은 리뷰 등록 Body와 동일하게 1~5 정수만 허용한다.
- * deletionStatus 미전달 시 ACTIVE로 기본 적용해 soft delete 리뷰가 기본 목록에 섞이지 않게 한다.
+ * deletionStatus 미전달 시 활성·soft delete 리뷰를 모두 조회한다.
  * 작성일 기간은 statistics와 동일한 startDate/endDate 검증 정책을 재사용한다.
  */
 export const adminReviewListQuerySchema = listQuerySchema
   .extend({
     rating: z.coerce.number().int().min(1).max(5).optional(),
-    deletionStatus: adminReviewDeletionStatusSchema
-      .optional()
-      .default('ACTIVE'),
+    deletionStatus: adminReviewDeletionStatusSchema.optional(),
   })
   .and(adminStatisticsFilterSchema);
 
