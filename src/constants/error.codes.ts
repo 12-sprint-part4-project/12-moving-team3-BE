@@ -397,6 +397,10 @@ export const ERROR_CODES = {
     status: 400,
     message: '게시글 내용을 입력해 주세요.',
   },
+  POST_ALREADY_COMPLETED: {
+    status: 409,
+    message: '이미 나눔 완료 처리된 게시글입니다.',
+  },
   POST_IMAGE_LIMIT_EXCEEDED: {
     status: 400,
     message: '이미지는 최대 5장까지 업로드할 수 있습니다.',
