@@ -1,6 +1,7 @@
 import {
   EstimateRequestStatus,
   Region,
+  type ChatRoomType,
   type MoveType,
   type NotificationOutboxJobType,
   type NotificationType,
@@ -101,6 +102,8 @@ export interface NotifyChatRoomOpenedToCounterpartsParams {
   creatorId: string;
   participantIds: string[];
   chatRoomId: number;
+  /** COMMUNITY → nickname, GENERAL/DESIGNATED → name */
+  roomType: ChatRoomType;
 }
 
 const toPayloadRecord = (value: Prisma.JsonValue): NotificationPayload => {
@@ -876,7 +879,7 @@ export const notifyPostRemovedByReportByUserReportId = async (
   });
 };
 
-/** 채팅방 최초 생성 → 상대 참여자 (이름 — 이사 견적 채팅) */
+/** 채팅방 최초 생성 → 상대 참여자 (표시명은 roomType에 따라 name/nickname) */
 export const notifyChatRoomOpened = async (
   params: NotifyChatRoomOpenedParams
 ): Promise<NotificationListItem> => {
@@ -891,16 +894,35 @@ export const notifyChatRoomOpened = async (
 };
 
 /**
+ * 채팅방 오픈 알림에 넣을 개설자 표시명.
+ * COMMUNITY=닉네임(없으면 name), 이사 채팅=이름. 둘 다 없으면 '상대방'.
+ */
+const resolveChatRoomOpenedCounterpartName = async (
+  creatorId: string,
+  roomType: ChatRoomType
+): Promise<string> => {
+  const user =
+    await notificationRepository.findUserNameAndNicknameById(creatorId);
+
+  if (roomType === 'COMMUNITY') {
+    return user?.nickname || user?.name || '상대방';
+  }
+
+  return user?.name || '상대방';
+};
+
+/**
  * 채팅방 신규 생성(201) 직후 — 개설자를 제외한 참여자에게 1회.
  * 기존 방 재사용(200) 경로에서는 호출하지 않는다.
  */
 export const notifyChatRoomOpenedToCounterparts = async (
   params: NotifyChatRoomOpenedToCounterpartsParams
 ): Promise<void> => {
-  // creator 이름이 없으면 템플릿('{counterpartName}님과의…')이 깨지지 않도록 알림용 fallback
-  const counterpartName =
-    (await notificationRepository.findUserNameById(params.creatorId)) ??
-    '상대방';
+  // roomType에 맞는 표시명 — 템플릿('{counterpartName}님과의…')이 비지 않도록 fallback 포함
+  const counterpartName = await resolveChatRoomOpenedCounterpartName(
+    params.creatorId,
+    params.roomType
+  );
 
   const receivers = params.participantIds.filter(
     (id) => id !== params.creatorId

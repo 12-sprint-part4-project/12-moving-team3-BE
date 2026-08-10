@@ -431,6 +431,7 @@ const createCommunityChatRoom = async (
       creatorId: authUser.userId,
       participantIds,
       chatRoomId: txResult.room.id,
+      roomType: 'COMMUNITY',
     });
   } catch (error) {
     console.error(
@@ -625,6 +626,7 @@ const createEstimateChatRoom = async (
       creatorId: authUser.userId,
       participantIds,
       chatRoomId: txResult.room.id,
+      roomType: body.roomType,
     });
   } catch (error) {
     console.error(

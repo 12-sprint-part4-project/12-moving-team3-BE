@@ -462,6 +462,22 @@ export const findUserNameById = async (
 };
 
 /**
+ * 채팅방 오픈 알림용 name+nickname 한 번에 조회.
+ * COMMUNITY는 nickname→name fallback, 이사는 name만 쓰므로 한 쿼리로 분기한다.
+ */
+export const findUserNameAndNicknameById = async (
+  userId: string,
+  db: DbClient = prisma
+): Promise<{ name: string | null; nickname: string | null } | null> => {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { name: true, nickname: true },
+  });
+
+  return user ?? null;
+};
+
+/**
  * COMPLETED 인데 REVIEW_REQUESTED 가 아직 없는 견적요청.
  * 자정 cron·부팅 catch-up 에서 미발송분만 보낸다.
  * take 로 1회 배치 상한 — 남은 건은 다음 실행에서 id 오름차순으로 이어서 처리.
