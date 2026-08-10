@@ -65,13 +65,18 @@ const LOGIN_REQUIRED_FIELDS = ['userType', 'email', 'password'] as const;
  * 전체 254자, local-part 64자, 도메인 label 63자.
  */
 const parseUserEmail = (value: unknown): string => {
-  const emailResult = z.email().safeParse(value);
+  if (typeof value !== 'string') {
+    throw new AppError('INVALID_EMAIL_FORMAT');
+  }
+
+  const trimmedEmail = value.trim();
+  const emailResult = z.email().safeParse(trimmedEmail);
 
   if (!emailResult.success) {
     throw new AppError('INVALID_EMAIL_FORMAT');
   }
 
-  const normalizedEmail = emailResult.data.trim().toLowerCase();
+  const normalizedEmail = emailResult.data.toLowerCase();
 
   if (normalizedEmail.length > EMAIL_MAX_LENGTH) {
     throw new AppError('INVALID_EMAIL_FORMAT');
