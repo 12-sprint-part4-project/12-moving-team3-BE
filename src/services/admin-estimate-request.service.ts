@@ -16,6 +16,18 @@ import { AppError } from '../utils/app.error';
 import { collectMissingFields } from '../utils/admin-missing-fields.util';
 import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
+interface QuoteMover {
+  name: string;
+}
+
+interface QuoteResponseSource {
+  id: number;
+  mover: QuoteMover | null;
+  price: number | null;
+  status: QuoteStatus;
+  createdAt: Date;
+}
+
 export const getEstimateRequestStatistics = async ({
   startDate,
   endDate,
@@ -201,13 +213,7 @@ export const getEstimateRequestDetail = async (
   const arrivalDetailAddress = estimateRequest.arrivalDetailAddress;
   const submittedAt = estimateRequest.submittedAt;
 
-  const toQuoteResponse = (quote: {
-    id: number;
-    mover: { name: string } | null;
-    price: number | null;
-    status: QuoteStatus;
-    createdAt: Date;
-  }) => ({
+  const toQuoteResponse = (quote: QuoteResponseSource) => ({
     id: quote.id,
     moverName: quote.mover?.name ?? null,
     price: quote.price ?? null,
