@@ -8,6 +8,7 @@ import {
   type Prisma,
 } from '@prisma/client';
 import {
+  QUOTE_CONFIRMED_FOR_MOVER,
   renderNotificationContent,
   toMoveTypeLabel,
 } from '../constants/notification.templates';
@@ -27,6 +28,8 @@ export interface CreateNotificationInput {
   receiverId: string;
   type: NotificationType;
   payload: NotificationPayload;
+  /** type 기본 템플릿 대신 사용 (역할별 문구 분기 등) */
+  templateOverride?: string;
   quoteId?: number | null;
   estimateRequestId?: number | null;
   commentId?: number | null;
@@ -141,7 +144,11 @@ const toListItem = (row: NotificationRow): NotificationListItem => ({
 export const createNotification = async (
   input: CreateNotificationInput
 ): Promise<NotificationListItem> => {
-  const content = renderNotificationContent(input.type, input.payload);
+  const content = renderNotificationContent(
+    input.type,
+    input.payload,
+    input.templateOverride
+  );
   const db = input.tx;
 
   const created = await notificationRepository.create(
@@ -550,19 +557,37 @@ export const notifyQuoteOfferArrivedByQuoteId = async (
   });
 };
 
-/** 견적 확정 → 고객/기사 (피그마: `{moverName} 기사님의 견적이 확정되었어요`) */
+/** 견적 확정 → 고객/기사. type은 동일(QUOTE_CONFIRMED), 문구만 수신자별 */
 export const notifyQuoteConfirmed = async (params: {
   receiverId: string;
-  moverName: string;
+  /** customer: moverName / mover: customerName */
+  role: 'customer' | 'mover';
+  moverName?: string;
+  customerName?: string;
   quoteId: number;
   estimateRequestId: number;
   tx?: DbClient;
 }): Promise<NotificationListItem> => {
+  // 고객 수신: 기존 템플릿 유지. 기사 수신: 고객명 문구로 override
+  if (params.role === 'mover') {
+    return createNotification({
+      receiverId: params.receiverId,
+      type: 'QUOTE_CONFIRMED',
+      payload: {
+        customerName: params.customerName ?? '고객',
+      },
+      templateOverride: QUOTE_CONFIRMED_FOR_MOVER,
+      quoteId: params.quoteId,
+      estimateRequestId: params.estimateRequestId,
+      tx: params.tx,
+    });
+  }
+
   return createNotification({
     receiverId: params.receiverId,
     type: 'QUOTE_CONFIRMED',
     payload: {
-      moverName: params.moverName,
+      moverName: params.moverName ?? '기사',
     },
     quoteId: params.quoteId,
     estimateRequestId: params.estimateRequestId,
@@ -572,7 +597,8 @@ export const notifyQuoteConfirmed = async (params: {
 
 /**
  * quoteId만으로 견적 확정 알림 발송 — 고객·확정 기사 각 1건.
- * 동일 문구(QUOTE_CONFIRMED). 기사 id가 없으면 고객만 발송.
+ * 고객=`{moverName} 기사님의…` 유지 / 기사=`{customerName} 고객님의…`.
+ * 기사 id가 없으면 고객만 발송.
  */
 export const notifyQuoteConfirmedByQuoteId = async (
   quoteId: number
@@ -584,23 +610,33 @@ export const notifyQuoteConfirmedByQuoteId = async (
     return;
   }
 
-  const moverName = ctx.moverName ?? '기사';
   const base = {
-    moverName,
     quoteId: ctx.quoteId,
     estimateRequestId: ctx.estimateRequestId,
   };
 
-  const receivers = [ctx.customerId];
+  const tasks: Promise<NotificationListItem>[] = [
+    notifyQuoteConfirmed({
+      ...base,
+      receiverId: ctx.customerId,
+      role: 'customer',
+      moverName: ctx.moverName ?? '기사',
+    }),
+  ];
+
+  // 자기 자신에게 이중 발송 방지 (이론상 고객≠기사)
   if (ctx.moverId && ctx.moverId !== ctx.customerId) {
-    receivers.push(ctx.moverId);
+    tasks.push(
+      notifyQuoteConfirmed({
+        ...base,
+        receiverId: ctx.moverId,
+        role: 'mover',
+        customerName: ctx.customerName ?? '고객',
+      })
+    );
   }
 
-  await Promise.all(
-    receivers.map((receiverId) =>
-      notifyQuoteConfirmed({ ...base, receiverId })
-    )
-  );
+  await Promise.all(tasks);
 };
 
 /** 지정 견적 반려 → 고객 */

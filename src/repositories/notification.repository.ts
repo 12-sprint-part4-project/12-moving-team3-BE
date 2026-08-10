@@ -135,8 +135,7 @@ export const claimOutboxJob = async (
   options: ClaimOutboxJobOptions = {},
   db: DbClient = prisma
 ): Promise<NotificationOutbox | null> => {
-  const maxAttempts =
-    options.maxAttempts ?? NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
+  const maxAttempts = options.maxAttempts ?? NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
   const staleBefore =
     options.staleBefore ?? new Date(Date.now() - 5 * 60 * 1000);
   const excludeIds = options.excludeIds ?? [];
@@ -320,9 +319,7 @@ export const findMoverIdsForNewRequestChunk = async (
       service: { has: params.moveType },
       serviceRegions: { some: { region: { in: params.regions } } },
       user: { deletedAt: null, userType: 'MOVER' },
-      ...(params.cursorUserId
-        ? { userId: { gt: params.cursorUserId } }
-        : {}),
+      ...(params.cursorUserId ? { userId: { gt: params.cursorUserId } } : {}),
     },
     select: { userId: true },
     orderBy: { userId: 'asc' },
@@ -633,6 +630,8 @@ export interface QuoteNotificationContext {
   quoteId: number;
   estimateRequestId: number;
   customerId: string;
+  /** 고객 User.name — 기사 수신 QUOTE_CONFIRMED 문구용 */
+  customerName: string | null;
   moverId: string | null;
   moverName: string | null;
   moveType: MoveType | null;
@@ -656,6 +655,12 @@ export const findQuoteNotificationContext = async (
         select: {
           userId: true,
           moveType: true,
+          // 기사 수신 확정 알림용 고객 실명
+          user: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
       mover: {
@@ -674,6 +679,7 @@ export const findQuoteNotificationContext = async (
     quoteId: quote.id,
     estimateRequestId: quote.estimateRequestId,
     customerId: quote.estimateRequest.userId,
+    customerName: quote.estimateRequest.user?.name ?? null,
     moverId: quote.moverId,
     moverName: quote.mover?.name ?? null,
     moveType: quote.estimateRequest.moveType,
@@ -692,18 +698,18 @@ export const findConfirmedMovesOnDate = async (
 ) => {
   return db.estimateRequest.findMany({
     where: {
-      status: 'CONFIRMED',
-      moveDate,
+      status: 'CONFIRMED', // 확정된 이사 요청
+      moveDate, // 이사 날짜
     },
     select: {
-      id: true,
-      userId: true,
-      departureAddress: true,
-      arrivalAddress: true,
+      id: true, // 이사 요청 ID
+      userId: true, // 고객 ID
+      departureAddress: true, // 출발지
+      arrivalAddress: true, // 도착지
       confirmedQuote: {
         select: {
-          id: true,
-          moverId: true,
+          id: true, // 견적 ID
+          moverId: true, // 기사 ID
         },
       },
     },
