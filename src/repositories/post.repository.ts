@@ -470,10 +470,10 @@ export const findReferencedPostImageKeys = async (
   return rows.map((row) => row.imageKey);
 };
 
-/** 가구 나눔 완료 — isCompleted = true. 대상 없으면 0 반환 */
+/** 가구 나눔 완료 — isCompleted = true. 미완료(null/false)만 갱신, 대상 없으면 0 반환 */
 export const completePost = async (postId: number) => {
   const result = await prisma.post.updateMany({
-    where: { id: postId, deletedAt: null },
+    where: { id: postId, deletedAt: null, isCompleted: { not: true } },
     data: { isCompleted: true },
   });
 
