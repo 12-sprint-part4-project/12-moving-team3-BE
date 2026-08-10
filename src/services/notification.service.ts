@@ -12,6 +12,7 @@ import {
   renderNotificationContent,
   toMoveTypeLabel,
 } from '../constants/notification.templates';
+import { runAuditedTransaction } from '../lib/audit-context';
 import * as notificationRepository from '../repositories/notification.repository';
 import type { NotificationRow } from '../repositories/notification.repository';
 import { AppError } from '../utils/app.error';
@@ -380,17 +381,16 @@ const processNewQuoteRequestFanout = async (
       return;
     }
 
-    const inserted =
-      await notificationRepository.createManyFanoutNotifications(
-        moverIds.map((receiverId) => ({
-          receiverId,
-          type: 'NEW_QUOTE_REQUEST_ARRIVED' as const,
-          content,
-          payload,
-          estimateRequestId: request.id,
-          sourceId,
-        }))
-      );
+    const inserted = await notificationRepository.createManyFanoutNotifications(
+      moverIds.map((receiverId) => ({
+        receiverId,
+        type: 'NEW_QUOTE_REQUEST_ARRIVED' as const,
+        content,
+        payload,
+        estimateRequestId: request.id,
+        sourceId,
+      }))
+    );
 
     // 신규 삽입이 있을 때만 refresh — FE는 후속 핸들러로 목록 재조회
     if (inserted > 0) {
@@ -599,6 +599,7 @@ export const notifyQuoteConfirmed = async (params: {
  * quoteId만으로 견적 확정 알림 발송 — 고객·확정 기사 각 1건.
  * 고객=`{moverName} 기사님의…` 유지 / 기사=`{customerName} 고객님의…`.
  * 기사 id가 없으면 고객만 발송.
+ * 두 건은 공용 tx로 원자 저장하고, 커밋 후에만 SSE 푸시한다.
  */
 export const notifyQuoteConfirmedByQuoteId = async (
   quoteId: number
@@ -615,28 +616,41 @@ export const notifyQuoteConfirmedByQuoteId = async (
     estimateRequestId: ctx.estimateRequestId,
   };
 
-  const tasks: Promise<NotificationListItem>[] = [
-    notifyQuoteConfirmed({
+  // interactive tx 안에서는 병렬 쿼리 금지 — 순차 저장 후 커밋
+  const created = await runAuditedTransaction(async (tx) => {
+    const items: Array<{
+      receiverId: string; // 수신자 ID
+      item: NotificationListItem; // 알림 아이템
+    }> = [];
+
+    const customerItem = await notifyQuoteConfirmed({
       ...base,
       receiverId: ctx.customerId,
       role: 'customer',
       moverName: ctx.moverName ?? '기사',
-    }),
-  ];
+      tx,
+    });
+    items.push({ receiverId: ctx.customerId, item: customerItem }); // 고객 알림 아이템
 
-  // 자기 자신에게 이중 발송 방지 (이론상 고객≠기사)
-  if (ctx.moverId && ctx.moverId !== ctx.customerId) {
-    tasks.push(
-      notifyQuoteConfirmed({
+    // 자기 자신에게 이중 발송 방지 (이론상 고객≠기사)
+    if (ctx.moverId && ctx.moverId !== ctx.customerId) {
+      const moverItem = await notifyQuoteConfirmed({
         ...base,
         receiverId: ctx.moverId,
         role: 'mover',
         customerName: ctx.customerName ?? '고객',
-      })
-    );
-  }
+        tx,
+      });
+      items.push({ receiverId: ctx.moverId, item: moverItem }); // 기사 알림 아이템
+    }
 
-  await Promise.all(tasks);
+    return items;
+  });
+
+  // 커밋 이후에만 실시간 푸시 (tx 중 createNotification은 SSE 스킵)
+  await Promise.all(
+    created.map(({ receiverId, item }) => publishAfterCreate(receiverId, item))
+  );
 };
 
 /** 지정 견적 반려 → 고객 */
@@ -689,12 +703,11 @@ export const createMoveDayReminderIfAbsent = async (params: {
   estimateRequestId: number;
   payload: NotificationPayload;
 }): Promise<NotificationListItem | null> => {
-  const exists =
-    await notificationRepository.existsByReceiverTypeAndEstimate(
-      params.receiverId,
-      params.type,
-      params.estimateRequestId
-    );
+  const exists = await notificationRepository.existsByReceiverTypeAndEstimate(
+    params.receiverId,
+    params.type,
+    params.estimateRequestId
+  );
 
   if (exists) {
     return null;
@@ -712,12 +725,11 @@ export const createMoveDayReminderIfAbsent = async (params: {
 export const notifyReviewRequested = async (
   params: NotifyReviewRequestedParams
 ): Promise<NotificationListItem | null> => {
-  const exists =
-    await notificationRepository.existsByReceiverTypeAndEstimate(
-      params.customerId,
-      'REVIEW_REQUESTED',
-      params.estimateRequestId
-    );
+  const exists = await notificationRepository.existsByReceiverTypeAndEstimate(
+    params.customerId,
+    'REVIEW_REQUESTED',
+    params.estimateRequestId
+  );
 
   if (exists) {
     return null;
@@ -779,9 +791,7 @@ export const notifyReviewWrittenByReviewId = async (
   reviewId: number
 ): Promise<NotificationListItem | null> => {
   const ctx =
-    await notificationRepository.findReviewWrittenNotificationContext(
-      reviewId
-    );
+    await notificationRepository.findReviewWrittenNotificationContext(reviewId);
 
   if (!ctx) {
     return null;
