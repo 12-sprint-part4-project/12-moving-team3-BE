@@ -134,7 +134,7 @@ paths:
                         estimateCount:
                           type: integer
                           minimum: 0
-                          description: 해당 견적 요청에 등록된 견적 수
+                          description: 삭제되지 않은 견적 수 (soft delete 제외)
                           example: 3
                         mover:
                           type: string
@@ -327,14 +327,16 @@ paths:
       tags: [Admin Estimate Requests]
       summary: 관리자 견적 요청 상세 조회
       description: |
-        견적 요청 ID로 상세 정보와 연결된 견적(quotes) 목록을 조회합니다.
+        견적 요청 ID로 상세 정보와 연결된 견적 목록을 조회합니다.
         SUBMITTED, CONFIRMED, EXPIRED, CANCELED 상태만 조회할 수 있습니다.
         DRAFT 또는 COMPLETED 상태이거나 존재하지 않는 ID면 404를 반환합니다.
-        출발지·도착지 주소 상세(우편번호, 상세주소)와 요청에 등록된 견적 목록을 함께 반환합니다.
-        quotes는 생성일 최신순(createdAt desc, id desc)으로 정렬됩니다.
+        출발지·도착지 주소 상세(우편번호, 상세주소)와 견적 목록을 함께 반환합니다.
+        견적은 soft delete 여부에 따라 activeQuotes·deletedQuotes로 분리되며,
+        각각 생성일 최신순(createdAt desc, id desc)으로 정렬됩니다.
+        삭제된 견적 UI 표시는 deletedQuotes 배열 소속으로 판별하며, deletedAt은 응답에 포함하지 않습니다.
         반려(REJECTED) 견적은 price가 null일 수 있습니다.
         필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
-        missingFields에 누락 필드명을 담아 반환합니다. quotes의 mover가 없으면 moverName은 null입니다.
+        missingFields에 누락 필드명을 담아 반환합니다. mover가 없으면 moverName은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -370,8 +372,10 @@ paths:
                       - arrivalDetailAddress
                       - submittedAt
                       - status
-                      - estimateCount
-                      - quotes
+                      - activeQuotesCount
+                      - deletedQuotesCount
+                      - activeQuotes
+                      - deletedQuotes
                       - missingFields
                     properties:
                       id:
@@ -419,14 +423,55 @@ paths:
                         enum: [SUBMITTED, CONFIRMED, EXPIRED, CANCELED]
                         description: DRAFT·COMPLETED는 상세 조회 대상이 아님
                         example: SUBMITTED
-                      estimateCount:
+                      activeQuotesCount:
                         type: integer
                         minimum: 0
-                        description: 해당 견적 요청에 등록된 견적 수
+                        description: 삭제되지 않은 견적 수
                         example: 2
-                      quotes:
+                      deletedQuotesCount:
+                        type: integer
+                        minimum: 0
+                        description: soft delete된 견적 수
+                        example: 1
+                      activeQuotes:
                         type: array
-                        description: 연결된 견적 목록 (생성일 최신순)
+                        description: 삭제되지 않은 견적 목록 (생성일 최신순)
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - moverName
+                            - price
+                            - status
+                            - createdAt
+                          properties:
+                            id:
+                              type: integer
+                              example: 11
+                            moverName:
+                              type: string
+                              nullable: true
+                              description: 기사 정보가 없으면 null
+                              example: 안전이사
+                            price:
+                              type: integer
+                              nullable: true
+                              description: 견적 금액. 반려 견적 등에서는 null일 수 있음
+                              example: 180000
+                            status:
+                              type: string
+                              enum: [PENDING, CONFIRMED, REJECTED]
+                              description: 견적 업무 상태. 활성 목록에서는 이 값으로 UI 상태를 표시
+                              example: PENDING
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: '2026-07-16T14:00:00.000Z'
+                      deletedQuotes:
+                        type: array
+                        description: |
+                          soft delete된 견적 목록 (생성일 최신순).
+                          UI 표시 상태는 배열 소속으로 "삭제"로 판별하며, status는 참고용
                         items:
                           type: object
                           required:
@@ -452,6 +497,7 @@ paths:
                             status:
                               type: string
                               enum: [PENDING, CONFIRMED, REJECTED]
+                              description: 삭제 시점의 업무 상태. UI "삭제" 표시에는 사용하지 않음
                               example: PENDING
                             createdAt:
                               type: string
@@ -476,18 +522,25 @@ paths:
                   arrivalDetailAddress: A동 502호
                   submittedAt: '2026-07-15T09:30:00.000Z'
                   status: SUBMITTED
-                  estimateCount: 2
-                  quotes:
+                  activeQuotesCount: 2
+                  deletedQuotesCount: 1
+                  activeQuotes:
                     - id: 11
                       moverName: 안전이사
                       price: 180000
                       status: PENDING
                       createdAt: '2026-07-16T14:00:00.000Z'
-                    - id: 10
+                    - id: 12
                       moverName: 빠른이사
                       price: null
                       status: REJECTED
                       createdAt: '2026-07-16T11:00:00.000Z'
+                  deletedQuotes:
+                    - id: 10
+                      moverName: 든든이사
+                      price: 160000
+                      status: PENDING
+                      createdAt: '2026-07-16T10:00:00.000Z'
                   missingFields: []
         '400':
           description: Path Parameter(estimateRequestId) 유효성 검사 실패

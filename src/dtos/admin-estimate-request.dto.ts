@@ -42,12 +42,14 @@ export interface AdminCompletedListDto {
 export interface AdminEstimateRequestDetailResponse extends AdminEstimateRequestBaseResponse {
   submittedAt: Date | null;
   status: EstimateRequestStatus;
-  estimateCount: number;
   departureZipCode: string | null;
   departureDetailAddress: string | null;
   arrivalZipCode: string | null;
   arrivalDetailAddress: string | null;
-  quotes: AdminEstimateQuoteResponse[];
+  activeQuotesCount: number;
+  deletedQuotesCount: number;
+  activeQuotes: AdminEstimateQuoteResponse[];
+  deletedQuotes: AdminEstimateQuoteResponse[];
 }
 
 // 반려 된 견적은 가격이 없을 수 있음. mover가 없으면 moverName은 null
