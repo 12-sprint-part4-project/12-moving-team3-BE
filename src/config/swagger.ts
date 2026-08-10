@@ -76,7 +76,10 @@ const options: swaggerJSDoc.Options = {
             email: {
               type: 'string',
               format: 'email',
+              maxLength: 254,
               example: 'customer@example.com',
+              description:
+                '전체 최대 254자, @ 앞(local-part) 최대 64자, 도메인 label 최대 63자',
             },
             password: {
               type: 'string',
@@ -168,7 +171,10 @@ const options: swaggerJSDoc.Options = {
             email: {
               type: 'string',
               format: 'email',
+              maxLength: 254,
               example: 'customer@example.com',
+              description:
+                '전체 최대 254자, @ 앞(local-part) 최대 64자, 도메인 label 최대 63자',
             },
             password: {
               type: 'string',
