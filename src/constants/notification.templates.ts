@@ -27,7 +27,7 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
     '{moverName} 기사님의 {moveTypeLabel} 견적이 도착했어요',
   NEW_DESIGNATED_QUOTE_OFFER_ARRIVED:
     '{moverName} 기사님의 {moveTypeLabel} 지정 견적이 도착했어요',
-  // 강조: `확정` (고정 문구)
+  // 강조: `확정` (고정 문구). 고객 수신 기본 템플릿 — 기사 수신은 QUOTE_CONFIRMED_FOR_MOVER
   QUOTE_CONFIRMED: '{moverName} 기사님의 견적이 확정되었어요',
   DESIGNATED_QUOTE_REJECTED:
     '{moverName} 기사님이 지정 견적 요청을 반려했어요',
@@ -46,12 +46,17 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
   SANCTION_NOTIFIED: '계정에 제재가 적용되었습니다',
 };
 
-/** payload 키-값으로 템플릿의 {key} 를 치환 */
+/** 견적 확정 — 기사 수신용 (고객 수신은 NOTIFICATION_TEMPLATES.QUOTE_CONFIRMED 유지) */
+export const QUOTE_CONFIRMED_FOR_MOVER =
+  '{customerName} 고객님의 견적이 확정되었어요';
+
+/** payload 키-값으로 템플릿의 {key} 를 치환. templateOverride 시 type 기본 템플릿 대신 사용 */
 export const renderNotificationContent = (
   type: NotificationType,
-  payload: Record<string, string>
+  payload: Record<string, string>,
+  templateOverride?: string
 ): string => {
-  const template = NOTIFICATION_TEMPLATES[type];
+  const template = templateOverride ?? NOTIFICATION_TEMPLATES[type];
 
   return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
     return payload[key] ?? '';
