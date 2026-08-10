@@ -39,3 +39,4 @@ skills-lock.json
 .cursor/rules/github-pr.mdc
 .cursor/rules/prisma.mdc
 .cursor/rules/fullstack-issue-order.mdc
+.cursor/rules/coderabbit-lessons.mdc

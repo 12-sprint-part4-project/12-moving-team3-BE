@@ -235,21 +235,29 @@ const pickRoomWithExactActiveParticipants = <
 };
 
 /**
- * 견적 요청 + roomType + 활성 참여자 조합으로 기존 채팅방을 조회한다.
+ * 견적 요청 + roomType(들) + 활성 참여자 조합으로 기존 채팅방을 조회한다.
  * 활성 참여자(leftAt IS NULL)가 participantIds와 정확히 일치하는 방만 반환한다.
+ * GENERAL·DESIGNATED를 함께 검색하면 DESIGNATED를 우선한다.
  */
+export interface FindRoomByEstimateAndParticipantsParams {
+  estimateRequestId: number;
+  roomType?: ChatRoomType;
+  roomTypes?: ChatRoomType[];
+  participantIds: string[];
+}
+
 export const findRoomByEstimateAndParticipants = async (
-  params: {
-    estimateRequestId: number;
-    roomType: ChatRoomType;
-    participantIds: string[];
-  },
+  params: FindRoomByEstimateAndParticipantsParams,
   dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord | null> => {
+  const roomTypes =
+    params.roomTypes ??
+    (params.roomType !== undefined ? [params.roomType] : undefined);
+
   const rooms = await dbClient.chatRoom.findMany({
     where: {
       estimateRequestId: params.estimateRequestId,
-      roomType: params.roomType,
+      ...(roomTypes !== undefined ? { roomType: { in: roomTypes } } : {}),
       AND: params.participantIds.map((participantId) => ({
         participants: {
           some: {
@@ -267,7 +275,45 @@ export const findRoomByEstimateAndParticipants = async (
     },
   });
 
-  return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
+  const exactParticipants = rooms.filter((room) => {
+    const activeIds = room.participants.map((p) => p.participantId);
+    return (
+      activeIds.length === params.participantIds.length &&
+      params.participantIds.every((id) => activeIds.includes(id))
+    );
+  });
+
+  if (exactParticipants.length === 0) {
+    return null;
+  }
+
+  const searchesBothEstimateRoomTypes =
+    roomTypes !== undefined &&
+    roomTypes.includes('DESIGNATED') &&
+    roomTypes.includes('GENERAL');
+
+  // GENERAL|DESIGNATED 동시 검색 시 요청 roomType과 무관하게 DESIGNATED 우선
+  if (searchesBothEstimateRoomTypes) {
+    return (
+      exactParticipants.find((room) => room.roomType === 'DESIGNATED') ??
+      exactParticipants.find((room) => room.roomType === 'GENERAL') ??
+      exactParticipants[0]
+    );
+  }
+
+  // 단일 roomType 검색일 때만 요청 타입을 우선
+  if (params.roomType !== undefined) {
+    return (
+      exactParticipants.find((room) => room.roomType === params.roomType) ??
+      exactParticipants[0]
+    );
+  }
+
+  return (
+    exactParticipants.find((room) => room.roomType === 'DESIGNATED') ??
+    exactParticipants.find((room) => room.roomType === 'GENERAL') ??
+    exactParticipants[0]
+  );
 };
 
 interface FindRoomByCommunityPostAndParticipantsParams {
@@ -307,7 +353,10 @@ export const findRoomByCommunityPostAndParticipants = async (
   return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
 };
 
-/** 기존 채팅방에 quoteId를 연결하고 updatedAt을 갱신한다. */
+/**
+ * 기존 채팅방에 quoteId를 최초 연결한다.
+ * 호출 전에 quoteId가 null인지 확인할 것 (이미 연결된 값 교체 금지).
+ */
 export const updateRoomQuoteId = async (
   roomId: number,
   quoteId: number,
@@ -316,6 +365,31 @@ export const updateRoomQuoteId = async (
   return dbClient.chatRoom.update({
     where: { id: roomId },
     data: { quoteId },
+  });
+};
+
+/**
+ * GENERAL 방만 DESIGNATED로 승격하고 designatedMoverId·(선택) quoteId를 연결한다.
+ * 이미 DESIGNATED인 방에는 사용하지 않는다.
+ * quoteId는 미연결(null)일 때만 함께 넘긴다 — 기존 quoteId 교체 금지.
+ */
+export interface PromoteRoomToDesignatedParams {
+  roomId: number;
+  designatedMoverId: number;
+  quoteId?: number;
+}
+
+export const promoteRoomToDesignated = async (
+  params: PromoteRoomToDesignatedParams,
+  dbClient: ChatDbClient = prisma
+): Promise<ChatRoomRecord> => {
+  return dbClient.chatRoom.update({
+    where: { id: params.roomId },
+    data: {
+      roomType: 'DESIGNATED',
+      designatedMoverId: params.designatedMoverId,
+      ...(params.quoteId !== undefined ? { quoteId: params.quoteId } : {}),
+    },
   });
 };
 
@@ -617,6 +691,12 @@ export const findRoomForMessaging = async (
     select: {
       id: true,
       estimateRequest: {
+        select: {
+          status: true,
+        },
+      },
+      quote: {
+        where: { deletedAt: null },
         select: {
           status: true,
         },
