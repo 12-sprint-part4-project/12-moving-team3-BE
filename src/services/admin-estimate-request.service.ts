@@ -11,10 +11,22 @@ import {
 import { AdminEstimateRequestListQuery } from '../schemas/admin-estimate-request.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
-import { EstimateRequestStatus, Prisma } from '@prisma/client';
+import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import { AppError } from '../utils/app.error';
 import { collectMissingFields } from '../utils/admin-missing-fields.util';
 import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
+
+interface QuoteMover {
+  name: string;
+}
+
+interface QuoteResponseSource {
+  id: number;
+  mover: QuoteMover | null;
+  price: number | null;
+  status: QuoteStatus;
+  createdAt: Date;
+}
 
 export const getEstimateRequestStatistics = async ({
   startDate,
@@ -92,7 +104,7 @@ export const getEstimateRequestList = async (
     arrivalAddress: true,
     submittedAt: true,
     status: true,
-    _count: { select: { quotes: true } },
+    _count: { select: { quotes: { where: { deletedAt: null } } } },
     confirmedQuote: { select: { mover: { select: { name: true } } } },
   } satisfies Prisma.EstimateRequestSelect;
 
@@ -170,6 +182,7 @@ export const getEstimateRequestDetail = async (
         price: true,
         status: true,
         createdAt: true,
+        deletedAt: true,
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     },
@@ -200,13 +213,21 @@ export const getEstimateRequestDetail = async (
   const arrivalDetailAddress = estimateRequest.arrivalDetailAddress;
   const submittedAt = estimateRequest.submittedAt;
 
-  const quotes = estimateRequest.quotes.map((quote) => ({
+  const toQuoteResponse = (quote: QuoteResponseSource) => ({
     id: quote.id,
     moverName: quote.mover?.name ?? null,
     price: quote.price ?? null,
     status: quote.status,
     createdAt: quote.createdAt,
-  }));
+  });
+
+  const activeQuotes = estimateRequest.quotes
+    .filter((q) => q.deletedAt == null)
+    .map(toQuoteResponse);
+
+  const deletedQuotes = estimateRequest.quotes
+    .filter((q) => q.deletedAt != null)
+    .map(toQuoteResponse);
 
   return {
     data: {
@@ -221,8 +242,10 @@ export const getEstimateRequestDetail = async (
       arrivalDetailAddress,
       submittedAt,
       status: estimateRequest.status,
-      estimateCount: quotes.length,
-      quotes,
+      deletedQuotesCount: deletedQuotes.length,
+      activeQuotesCount: activeQuotes.length,
+      deletedQuotes,
+      activeQuotes,
       missingFields: collectMissingFields({
         moveType,
         departureAddress,
