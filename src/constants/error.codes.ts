@@ -293,6 +293,10 @@ export const ERROR_CODES = {
     status: 404,
     message: '존재하지 않는 견적 요청입니다.',
   },
+  ADMIN_CHAT_ROOM_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 채팅방입니다.',
+  },
   ADMIN_REPORT_NOT_FOUND: {
     status: 404,
     message: '존재하지 않는 신고입니다.',
@@ -320,6 +324,14 @@ export const ERROR_CODES = {
   ADMIN_REPORT_CONFLICT: {
     status: 409,
     message: '다른 관리자가 동시에 처리 중이거나 상태가 변경되었습니다.',
+  },
+  ADMIN_REVIEW_NOT_FOUND: {
+    status: 404,
+    message: '존재하지 않는 리뷰입니다.',
+  },
+  ADMIN_REVIEW_ALREADY_DELETED: {
+    status: 409,
+    message: '이미 삭제된 리뷰입니다.',
   },
 
   // 관리자 인증 전용 — 일반 유저/기사 인증 코드와 분리
@@ -353,7 +365,7 @@ export const ERROR_CODES = {
   },
   MESSAGING_NOT_ALLOWED: {
     status: 403,
-    message: '이 채팅방에서는 메시지를 보낼 수 없습니다.',
+    message: '종료된 견적에서는 채팅을 이용할 수 없습니다.',
   },
   ALREADY_LEFT: {
     status: 409,
@@ -384,6 +396,10 @@ export const ERROR_CODES = {
   POST_CONTENT_EMPTY: {
     status: 400,
     message: '게시글 내용을 입력해 주세요.',
+  },
+  POST_ALREADY_COMPLETED: {
+    status: 409,
+    message: '이미 나눔 완료 처리된 게시글입니다.',
   },
   POST_IMAGE_LIMIT_EXCEEDED: {
     status: 400,

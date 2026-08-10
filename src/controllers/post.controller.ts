@@ -102,6 +102,23 @@ export const updatePost = async (
   }
 };
 
+/** PATCH /api/posts/:postId/complete — 가구 나눔 완료 */
+export const completePost = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { userId } = getAuthenticatedUser(res);
+    const { postId } = getValidated<PostIdParams>(res, 'params');
+    const result = await postService.completePost(postId, userId);
+
+    res.status(200).json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /** DELETE /api/posts/:postId — 게시글 삭제 */
 export const deletePost = async (
   _req: Request,

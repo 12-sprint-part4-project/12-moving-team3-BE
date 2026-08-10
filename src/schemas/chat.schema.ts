@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CHAT_ATTACHMENT_MAX_COUNT } from '../constants/chat-attachment.constants';
+import { chatMessagesQuerySchema } from './chat-messages-query.schema';
 
 /** POST /api/chat/rooms — 견적(GENERAL·DESIGNATED) 채팅방 생성 body */
 const createEstimateChatRoomBodySchema = z.object({
@@ -39,11 +40,11 @@ export const chatRoomIdParamsSchema = z.object({
 
 export type ChatRoomIdParams = z.infer<typeof chatRoomIdParamsSchema>;
 
-/** GET /api/chat/rooms/:roomId/messages 쿼리 스키마 */
-export const getChatMessagesQuerySchema = z.object({
-  before: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(30),
-});
+/**
+ * GET /api/chat/rooms/:roomId/messages 쿼리 스키마.
+ * 공통 chatMessagesQuerySchema를 명시적으로 재사용한다.
+ */
+export const getChatMessagesQuerySchema = chatMessagesQuerySchema;
 
 export type GetChatMessagesQuery = z.infer<typeof getChatMessagesQuerySchema>;
 

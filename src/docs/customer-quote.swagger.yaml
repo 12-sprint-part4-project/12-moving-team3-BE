@@ -60,6 +60,11 @@ components:
         isDesignated:
           type: boolean
           example: true
+        designatedMoverId:
+          type: integer
+          nullable: true
+          description: EstimateDesignatedMover.id (지정 채팅방 생성용). 비지정이면 null
+          example: 5
         mover:
           $ref: '#/components/schemas/CustomerQuoteMover'
     CustomerPendingQuotesResponse:
@@ -212,6 +217,11 @@ components:
             isDesignated:
               type: boolean
               example: true
+            designatedMoverId:
+              type: integer
+              nullable: true
+              description: EstimateDesignatedMover.id (지정 채팅방 생성용). 비지정이면 null
+              example: 5
             estimateRequestStatus:
               type: string
               enum: [DRAFT, SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]

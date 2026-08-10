@@ -541,6 +541,58 @@ router.delete(
 
 /**
  * @swagger
+ * /api/posts/{postId}/complete:
+ *   patch:
+ *     tags: [Posts]
+ *     summary: 가구 나눔 완료 처리
+ *     description: |
+ *       가구 나눔(FURNITURE_SHARE) 게시글 작성자가 나눔 완료(isCompleted = true)로 표시합니다.
+ *       본인 글·FURNITURE_SHARE 카테고리·미완료 상태에서만 가능합니다.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *     responses:
+ *       200:
+ *         description: 나눔 완료 처리 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.patch(
+  '/:postId/complete',
+  requireAuth,
+  requireCompletedProfile,
+  validateRequest({ params: postIdParamsSchema, errorCode: 'INVALID_REQUEST' }),
+  postController.completePost
+);
+
+/**
+ * @swagger
  * /api/posts/{postId}/likes:
  *   post:
  *     tags: [Posts]

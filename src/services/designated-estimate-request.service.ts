@@ -104,6 +104,17 @@ export const createDesignatedEstimateRequest = async (
     throw new AppError('FORBIDDEN', '본인의 견적 요청만 지정할 수 있습니다.');
   }
 
+  // 멱등: 소유권 확인 직후 기존 지정 행이 있으면 상태와 무관하게 반환
+  const existing =
+    await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+      estimateRequestId,
+      moverId
+    );
+
+  if (existing) {
+    return toDto(existing);
+  }
+
   if (estimateRequest.status !== EstimateRequestStatus.SUBMITTED) {
     throw new AppError('ESTIMATE_REQUEST_NOT_SUBMITTED');
   }
@@ -112,16 +123,6 @@ export const createDesignatedEstimateRequest = async (
 
   if (!mover || mover.deletedAt || mover.userType !== 'MOVER') {
     throw new AppError('MOVER_NOT_FOUND');
-  }
-
-  const existing =
-    await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
-      estimateRequestId,
-      moverId
-    );
-
-  if (existing) {
-    throw new AppError('DESIGNATED_ALREADY_EXISTS');
   }
 
   const existingQuote = await quoteRepository.findExistingQuoteByStatuses(
@@ -221,7 +222,26 @@ export const createDesignatedEstimateRequest = async (
 
     return created;
   } catch (error) {
-    if (isUniqueConstraintError(error)) {
+    // 동시 요청·tx 내 재조회로 이미 존재하면 기존 행 반환 (알림 미발송)
+    if (
+      (error instanceof AppError &&
+        error.code === 'DESIGNATED_ALREADY_EXISTS') ||
+      isUniqueConstraintError(error)
+    ) {
+      const raced =
+        await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+          estimateRequestId,
+          moverId
+        );
+
+      if (raced) {
+        return toDto(raced);
+      }
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       throw new AppError('DESIGNATED_ALREADY_EXISTS');
     }
 

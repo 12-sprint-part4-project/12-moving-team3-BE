@@ -350,6 +350,48 @@ export const updatePost = async (
   }
 };
 
+/** 가구 나눔 게시글 나눔 완료 (작성자만, FURNITURE_SHARE) */
+export const completePost = async (postId: number, userId: string) => {
+  const post = await postRepository.findPostForComplete(postId);
+
+  if (!post) {
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  if (post.userId !== userId) {
+    throw new AppError('POST_FORBIDDEN');
+  }
+
+  if (post.category !== PostsCategory.FURNITURE_SHARE) {
+    throw new AppError(
+      'POST_FORBIDDEN',
+      '가구 나눔 게시글만 나눔 완료 처리할 수 있습니다.'
+    );
+  }
+
+  if (post.isCompleted === true) {
+    throw new AppError('POST_ALREADY_COMPLETED');
+  }
+
+  const updatedCount = await postRepository.completePost(postId);
+
+  if (updatedCount === 0) {
+    const latestPost = await postRepository.findPostForComplete(postId);
+
+    if (!latestPost) {
+      throw new AppError('POST_NOT_FOUND');
+    }
+
+    if (latestPost.isCompleted === true) {
+      throw new AppError('POST_ALREADY_COMPLETED');
+    }
+
+    throw new AppError('POST_NOT_FOUND');
+  }
+
+  return { id: postId };
+};
+
 /** 게시글 삭제 (soft delete) */
 export const deletePost = async (postId: number, userId: string) => {
   await assertPostOwner(postId, userId);

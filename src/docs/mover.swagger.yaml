@@ -47,6 +47,10 @@ components:
               example: 경기
         isDesignated:
           type: boolean
+        designatedMoverId:
+          type: integer
+          nullable: true
+          description: EstimateDesignatedMover.id (지정 채팅방 생성용). 비지정이면 null
         submittedAt:
           type: string
           format: date-time
@@ -231,6 +235,10 @@ components:
             isDesignated:
               type: boolean
               example: false
+            designatedMoverId:
+              type: integer
+              nullable: true
+              description: EstimateDesignatedMover.id (지정 채팅방 생성용). 비지정이면 null
             requestedAt:
               type: string
               format: date-time
@@ -271,6 +279,10 @@ components:
         isDesignated:
           type: boolean
           example: false
+        designatedMoverId:
+          type: integer
+          nullable: true
+          description: EstimateDesignatedMover.id (지정 채팅방 생성용). 비지정이면 null
         moveDate:
           type: string
           format: date
@@ -313,6 +325,10 @@ components:
         isDesignated:
           type: boolean
           example: false
+        designatedMoverId:
+          type: integer
+          nullable: true
+          description: EstimateDesignatedMover.id (지정 채팅방 생성용). 비지정이면 null
         moveDate:
           type: string
           format: date

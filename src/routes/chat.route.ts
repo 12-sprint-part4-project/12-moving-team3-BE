@@ -254,7 +254,7 @@ router.get(
  *     summary: 채팅 메시지 전송 (TEXT/IMAGE)
  *     description: |
  *       채팅방에 TEXT 또는 IMAGE 메시지를 전송합니다.
- *       활성 참여자만 발송 가능하며, 이사 완료 등으로 발송이 제한된 방에서는 거부됩니다.
+ *       활성 참여자만 발송 가능하며, 견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이면 `MESSAGING_NOT_ALLOWED`(403)로 거부됩니다.
  *       TEXT: 전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
  *       IMAGE: 사전 `GET /api/presigned-upload-url?prefix=chat-attachments`로 업로드한 s3Key를 최대 5개까지 첨부합니다.
  *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
@@ -604,6 +604,9 @@ router.post(
  *                       description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
  *                     isMessagingAllowed:
  *                       type: boolean
+ *                       description: |
+ *                         메시지 발송 가능 여부. 견적 요청이 EXPIRED/CANCELED/COMPLETED이면 false.
+ *                         COMMUNITY 등 estimate 미연결 방은 true.
  *                     partnerLastReadMessageId:
  *                       type: integer
  *                       nullable: true
@@ -647,6 +650,7 @@ router.get(
  *     description: |
  *       견적 채팅(`GENERAL`/`DESIGNATED`): 지정 요청 시점(`quoteId` 없음)과 견적 발송 시점(`quoteId` 있음) 모두에서 호출 가능합니다.
  *       이미 `designatedMoverId`로 방이 있으면 새 방을 만들지 않고 기존 방에 `quoteId`만 업데이트합니다.
+ *       견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이면 **신규 방 생성만** `MESSAGING_NOT_ALLOWED`(403)로 거부합니다. 기존 방 재사용(200)은 허용합니다.
  *       커뮤니티 채팅(`COMMUNITY`): 가구나눔 게시글 기준. 견적과 무관하며 고객·기사 모두 이용 가능합니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:

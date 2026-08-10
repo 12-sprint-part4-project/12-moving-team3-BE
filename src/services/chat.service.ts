@@ -489,12 +489,34 @@ const createEstimateChatRoom = async (
     };
   }
 
-  const createdRoom = await chatRepository.createChatRoom({
-    estimateRequestId,
-    quoteId,
-    designatedMoverId,
-    roomType: body.roomType,
-    participantIds,
+  // 신규 방만 — 상태 FOR UPDATE 재확인과 생성을 같은 트랜잭션에서 처리 (기존 방 재사용은 위에서 반환)
+  const createdRoom = await prisma.$transaction(async (tx) => {
+    if (estimateRequestId !== undefined) {
+      const lockedRequest =
+        await chatRepository.findEstimateRequestByIdForUpdate(
+          estimateRequestId,
+          tx
+        );
+
+      if (!lockedRequest) {
+        throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+      }
+
+      if (!isMessagingAllowedByEstimateStatus(lockedRequest.status)) {
+        throw new AppError('MESSAGING_NOT_ALLOWED');
+      }
+    }
+
+    return chatRepository.createChatRoom(
+      {
+        estimateRequestId,
+        quoteId,
+        designatedMoverId,
+        roomType: body.roomType,
+        participantIds,
+      },
+      tx
+    );
   });
 
   // 신규 생성(201)만 — 기존 방 재사용(200)에서는 발송하지 않음
