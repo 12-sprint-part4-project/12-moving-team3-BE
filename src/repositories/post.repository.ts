@@ -358,6 +358,22 @@ export const findPostOwner = async (postId: number) => {
   });
 };
 
+/** 가구 나눔 완료 처리용 게시글 조회 */
+export const findPostForComplete = async (postId: number) => {
+  return prisma.post.findFirst({
+    where: {
+      id: postId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      userId: true,
+      category: true,
+      isCompleted: true,
+    },
+  });
+};
+
 /** 게시글 생성 */
 export const createPost = async (userId: string, body: CreatePostBody) => {
   return prisma.post.create({
@@ -452,6 +468,16 @@ export const findReferencedPostImageKeys = async (
   });
 
   return rows.map((row) => row.imageKey);
+};
+
+/** 가구 나눔 완료 — isCompleted = true. 대상 없으면 0 반환 */
+export const completePost = async (postId: number) => {
+  const result = await prisma.post.updateMany({
+    where: { id: postId, deletedAt: null },
+    data: { isCompleted: true },
+  });
+
+  return result.count;
 };
 
 /** 게시글 조회수 +1. 대상 없으면 0 반환 */
