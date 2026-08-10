@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/app.ts",
     "build": "tsc",
+    "test": "npm run build && node --test dist/controllers/admin-auth.controller.test.js dist/schemas/admin-report.schema.test.js dist/services/admin-auth.service.test.js",
     "start": "node dist/app.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
