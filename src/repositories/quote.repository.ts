@@ -379,7 +379,7 @@ export async function findQuotesByMoverWithCount(
 /** 고객 견적에 포함되는 기사님 기본 정보 */
 export interface CustomerQuoteMoverRow {
   id: string;
-  nickname: string;
+  name: string;
   profileImageKey: string | null;
   shortDescription: string | null;
   career: number | null;
@@ -521,7 +521,7 @@ export const findMoverCardsByIds = async (
       where: { id: { in: uniqueMoverIds } },
       select: {
         id: true,
-        nickname: true,
+        name: true,
         profileImageKey: true,
         moverProfile: { select: { career: true, shortDescription: true } },
         favoritesAsMover: {
@@ -547,7 +547,7 @@ export const findMoverCardsByIds = async (
 
     result.set(mover.id, {
       id: mover.id,
-      nickname: mover.nickname,
+      name: mover.name,
       profileImageKey: mover.profileImageKey,
       shortDescription: mover.moverProfile?.shortDescription ?? null,
       career: mover.moverProfile?.career ?? null,

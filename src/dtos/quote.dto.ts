@@ -78,7 +78,7 @@ export interface QuoteListResultDto {
 /** 고객 응답용 기사님 카드 정보 */
 export interface CustomerQuoteMoverDto {
   moverId: string;
-  nickname: string;
+  name: string;
   profileImage: string | null;
   shortDescription: string | null;
   rating: number;

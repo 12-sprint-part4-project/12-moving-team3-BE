@@ -8,9 +8,10 @@ components:
           type: string
           format: uuid
           example: 550e8400-e29b-41d4-a716-446655440000
-        nickname:
+        name:
           type: string
-          example: 베스트무빙
+          example: 김코드
+          description: 기사님 이름 (User.name)
         profileImage:
           type: string
           nullable: true
@@ -307,7 +308,7 @@ paths:
                           isDesignated: true
                           mover:
                             moverId: 550e8400-e29b-41d4-a716-446655440000
-                            nickname: 베스트무빙
+                            name: 김코드
                             profileImage: https://cdn.example.com/profiles/mover.jpg
                             shortDescription: 꼼꼼한이사
                             rating: 4.8
@@ -412,7 +413,7 @@ paths:
                           isDesignated: false
                           mover:
                             moverId: 550e8400-e29b-41d4-a716-446655440000
-                            nickname: 베스트무빙
+                            name: 김코드
                             profileImage: https://cdn.example.com/profiles/mover.jpg
                             shortDescription: 꼼꼼한이사
                             rating: 4.8
@@ -518,7 +519,7 @@ paths:
                   toAddress: 서울시 서초구 서초대로 456
                   mover:
                     moverId: 550e8400-e29b-41d4-a716-446655440000
-                    nickname: 베스트무빙
+                    name: 김코드
                     profileImage: https://cdn.example.com/profiles/mover.jpg
                     shortDescription: 꼼꼼한이사
                     rating: 4.8
