@@ -736,12 +736,16 @@ export const findMessagesByRoomCursor = async (
   return { messages, hasNext };
 };
 
-/** 채팅방과 참여자를 함께 생성한다. (견적·커뮤니티 공통) */
+/**
+ * 채팅방과 참여자를 함께 생성한다. (견적·커뮤니티 공통)
+ * nested participants create는 adapter-pg 트랜잭션에서 room_id FK가 깨질 수 있어
+ * 방 생성 후 참여자 createMany로 분리한다. (#265)
+ */
 export const createChatRoom = async (
   data: CreateChatRoomData,
   dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord> => {
-  return dbClient.chatRoom.create({
+  const room = await dbClient.chatRoom.create({
     data: {
       roomType: data.roomType,
       ...(data.estimateRequestId !== undefined && {
@@ -756,13 +760,19 @@ export const createChatRoom = async (
       ...(data.communityPostId !== undefined && {
         communityPost: { connect: { id: data.communityPostId } },
       }),
-      participants: {
-        create: data.participantIds.map((participantId) => ({
-          user: { connect: { id: participantId } },
-        })),
-      },
     },
   });
+
+  if (data.participantIds.length > 0) {
+    await dbClient.chatRoomParticipant.createMany({
+      data: data.participantIds.map((participantId) => ({
+        roomId: room.id,
+        participantId,
+      })),
+    });
+  }
+
+  return room;
 };
 
 /**

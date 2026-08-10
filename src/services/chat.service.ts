@@ -11,7 +11,7 @@ import {
   isValidChatAttachmentKey,
 } from '../constants/chat-attachment.constants';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
-import { prisma } from '../lib/prisma';
+import { basePrisma, prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
 import type {
@@ -224,7 +224,9 @@ const resolveParticipantIds = async (params: {
 
 /**
  * 기존 채팅방 조회 우선순위:
- * 1) designatedMoverId 2) quoteId 3) estimateRequestId + 참여자
+ * 1) designatedMoverId
+ * 2) quoteId (없으면 estimateRequestId+참여자로 폴백 — 견적 연결 전 GENERAL 방 재사용)
+ * 3) estimateRequestId + 참여자
  */
 const findExistingRoom = async (params: {
   designatedMoverId?: number;
@@ -238,7 +240,10 @@ const findExistingRoom = async (params: {
   }
 
   if (params.quoteId !== undefined) {
-    return chatRepository.findRoomByQuoteId(params.quoteId);
+    const byQuote = await chatRepository.findRoomByQuoteId(params.quoteId);
+    if (byQuote) {
+      return byQuote;
+    }
   }
 
   if (params.estimateRequestId !== undefined) {
@@ -489,35 +494,39 @@ const createEstimateChatRoom = async (
     };
   }
 
-  // 신규 방만 — 상태 FOR UPDATE 재확인과 생성을 같은 트랜잭션에서 처리 (기존 방 재사용은 위에서 반환)
-  const createdRoom = await prisma.$transaction(async (tx) => {
-    if (estimateRequestId !== undefined) {
-      const lockedRequest =
-        await chatRepository.findEstimateRequestByIdForUpdate(
+  // 신규 방만 — FOR UPDATE 재확인과 생성을 같은 트랜잭션에서 처리.
+  // basePrisma: 감사 extension이 mutating을 별도 tx로 감싸 room_id FK/타임아웃이 깨지는 것을 방지 (#265)
+  const createdRoom = await basePrisma.$transaction(
+    async (tx) => {
+      if (estimateRequestId !== undefined) {
+        const lockedRequest =
+          await chatRepository.findEstimateRequestByIdForUpdate(
+            estimateRequestId,
+            tx
+          );
+
+        if (!lockedRequest) {
+          throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
+        }
+
+        if (!isMessagingAllowedByEstimateStatus(lockedRequest.status)) {
+          throw new AppError('MESSAGING_NOT_ALLOWED');
+        }
+      }
+
+      return chatRepository.createChatRoom(
+        {
           estimateRequestId,
-          tx
-        );
-
-      if (!lockedRequest) {
-        throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
-      }
-
-      if (!isMessagingAllowedByEstimateStatus(lockedRequest.status)) {
-        throw new AppError('MESSAGING_NOT_ALLOWED');
-      }
-    }
-
-    return chatRepository.createChatRoom(
-      {
-        estimateRequestId,
-        quoteId,
-        designatedMoverId,
-        roomType: body.roomType,
-        participantIds,
-      },
-      tx
-    );
-  });
+          quoteId,
+          designatedMoverId,
+          roomType: body.roomType,
+          participantIds,
+        },
+        tx
+      );
+    },
+    { timeout: 15_000 }
+  );
 
   // 신규 생성(201)만 — 기존 방 재사용(200)에서는 발송하지 않음
   try {
