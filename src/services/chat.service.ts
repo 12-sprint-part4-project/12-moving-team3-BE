@@ -11,9 +11,11 @@ import {
   isValidChatAttachmentKey,
 } from '../constants/chat-attachment.constants';
 import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
-import { basePrisma, prisma } from '../lib/prisma';
+import { runAuditedTransaction } from '../lib/audit-context';
+import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
+import type { ChatDbClient, ChatRoomRecord } from '../repositories/chat.repository';
 import type {
   CreateChatRoomBody,
   CreateCommunityChatRoomBody,
@@ -228,33 +230,101 @@ const resolveParticipantIds = async (params: {
  * 2) quoteId (없으면 estimateRequestId+참여자로 폴백 — 견적 연결 전 GENERAL 방 재사용)
  * 3) estimateRequestId + 참여자
  */
-const findExistingRoom = async (params: {
-  designatedMoverId?: number;
-  quoteId?: number;
-  estimateRequestId?: number;
-  roomType: ChatRoomType;
-  participantIds: string[];
-}) => {
+const findExistingRoom = async (
+  params: {
+    designatedMoverId?: number;
+    quoteId?: number;
+    estimateRequestId?: number;
+    roomType: ChatRoomType;
+    participantIds: string[];
+  },
+  dbClient?: ChatDbClient
+) => {
   if (params.designatedMoverId !== undefined) {
-    return chatRepository.findRoomByDesignatedMoverId(params.designatedMoverId);
+    return chatRepository.findRoomByDesignatedMoverId(
+      params.designatedMoverId,
+      dbClient
+    );
   }
 
   if (params.quoteId !== undefined) {
-    const byQuote = await chatRepository.findRoomByQuoteId(params.quoteId);
+    const byQuote = await chatRepository.findRoomByQuoteId(
+      params.quoteId,
+      dbClient
+    );
     if (byQuote) {
       return byQuote;
     }
   }
 
   if (params.estimateRequestId !== undefined) {
-    return chatRepository.findRoomByEstimateAndParticipants({
-      estimateRequestId: params.estimateRequestId,
-      roomType: params.roomType,
-      participantIds: params.participantIds,
-    });
+    return chatRepository.findRoomByEstimateAndParticipants(
+      {
+        estimateRequestId: params.estimateRequestId,
+        roomType: params.roomType,
+        participantIds: params.participantIds,
+      },
+      dbClient
+    );
   }
 
   return null;
+};
+
+/** 기존 방 재사용·quoteId 갱신 결과를 CreateChatRoomResult로 만든다. */
+const toExistingRoomResult = (
+  room: ChatRoomRecord,
+  quoteUpdated: boolean
+): CreateChatRoomResult => {
+  if (quoteUpdated) {
+    return {
+      status: 200,
+      data: {
+        roomId: room.id,
+        roomType: room.roomType,
+        quoteId: room.quoteId,
+        updatedAt: toIsoString(room.updatedAt),
+      },
+    };
+  }
+
+  return {
+    status: 200,
+    data: {
+      roomId: room.id,
+      roomType: room.roomType,
+      quoteId: room.quoteId,
+      createdAt: toIsoString(room.createdAt),
+      updatedAt: toIsoString(room.updatedAt),
+    },
+  };
+};
+
+/**
+ * 트랜잭션 안에서 기존 방을 재사용하거나 quoteId를 갱신한다.
+ * 방이 없으면 null.
+ */
+const reuseOrUpdateExistingRoom = async (
+  params: {
+    room: ChatRoomRecord;
+    quoteId?: number;
+  },
+  dbClient: ChatDbClient
+): Promise<{ room: ChatRoomRecord; quoteUpdated: boolean }> => {
+  const { room, quoteId } = params;
+  const shouldUpdateQuoteId =
+    quoteId !== undefined && room.quoteId !== quoteId;
+
+  if (shouldUpdateQuoteId && quoteId !== undefined) {
+    const updatedRoom = await chatRepository.updateRoomQuoteId(
+      room.id,
+      quoteId,
+      dbClient
+    );
+    return { room: updatedRoom, quoteUpdated: true };
+  }
+
+  return { room, quoteUpdated: false };
 };
 
 /**
@@ -320,33 +390,51 @@ const createCommunityChatRoom = async (
     });
 
   if (existingRoom) {
-    return {
-      status: 200,
-      data: {
-        roomId: existingRoom.id,
-        roomType: existingRoom.roomType,
-        quoteId: existingRoom.quoteId,
-        createdAt: toIsoString(existingRoom.createdAt),
-        updatedAt: toIsoString(existingRoom.updatedAt),
-      },
-    };
+    return toExistingRoomResult(existingRoom, false);
   }
 
-  const createdRoom = await chatRepository.createChatRoom({
-    communityPostId: post.id,
-    roomType: 'COMMUNITY',
-    participantIds,
-  });
+  // 방+참여자를 한 트랜잭션으로 묶고, 잠금 없이 생성 직전 재조회로 레이스를 완화한다. (#265)
+  const txResult = await runAuditedTransaction(
+    async (tx) => {
+      const roomAfterCheck =
+        await chatRepository.findRoomByCommunityPostAndParticipants(
+          {
+            communityPostId: post.id,
+            participantIds,
+          },
+          tx
+        );
+
+      if (roomAfterCheck) {
+        return { kind: 'reused' as const, room: roomAfterCheck };
+      }
+
+      const created = await chatRepository.createChatRoom(
+        {
+          communityPostId: post.id,
+          roomType: 'COMMUNITY',
+          participantIds,
+        },
+        tx
+      );
+      return { kind: 'created' as const, room: created };
+    },
+    { timeout: 15_000 }
+  );
+
+  if (txResult.kind === 'reused') {
+    return toExistingRoomResult(txResult.room, false);
+  }
 
   try {
     await notificationService.notifyChatRoomOpenedToCounterparts({
       creatorId: authUser.userId,
       participantIds,
-      chatRoomId: createdRoom.id,
+      chatRoomId: txResult.room.id,
     });
   } catch (error) {
     console.error(
-      `[createChatRoom] community chat room opened notification failed roomId=${createdRoom.id}`,
+      `[createChatRoom] community chat room opened notification failed roomId=${txResult.room.id}`,
       error
     );
   }
@@ -354,11 +442,11 @@ const createCommunityChatRoom = async (
   return {
     status: 201,
     data: {
-      roomId: createdRoom.id,
-      roomType: createdRoom.roomType,
-      quoteId: createdRoom.quoteId,
-      createdAt: toIsoString(createdRoom.createdAt),
-      updatedAt: toIsoString(createdRoom.updatedAt),
+      roomId: txResult.room.id,
+      roomType: txResult.room.roomType,
+      quoteId: txResult.room.quoteId,
+      createdAt: toIsoString(txResult.room.createdAt),
+      updatedAt: toIsoString(txResult.room.updatedAt),
     },
   };
 };
@@ -462,41 +550,16 @@ const createEstimateChatRoom = async (
   });
 
   if (existingRoom) {
-    const shouldUpdateQuoteId =
-      quoteId !== undefined && existingRoom.quoteId !== quoteId;
-
-    if (shouldUpdateQuoteId && quoteId !== undefined) {
-      const updatedRoom = await chatRepository.updateRoomQuoteId(
-        existingRoom.id,
-        quoteId
-      );
-
-      return {
-        status: 200,
-        data: {
-          roomId: updatedRoom.id,
-          roomType: updatedRoom.roomType,
-          quoteId: updatedRoom.quoteId,
-          updatedAt: toIsoString(updatedRoom.updatedAt),
-        },
-      };
-    }
-
-    return {
-      status: 200,
-      data: {
-        roomId: existingRoom.id,
-        roomType: existingRoom.roomType,
-        quoteId: existingRoom.quoteId,
-        createdAt: toIsoString(existingRoom.createdAt),
-        updatedAt: toIsoString(existingRoom.updatedAt),
-      },
-    };
+    const reused = await reuseOrUpdateExistingRoom(
+      { room: existingRoom, quoteId },
+      prisma
+    );
+    return toExistingRoomResult(reused.room, reused.quoteUpdated);
   }
 
-  // 신규 방만 — FOR UPDATE 재확인과 생성을 같은 트랜잭션에서 처리.
-  // basePrisma: 감사 extension이 mutating을 별도 tx로 감싸 room_id FK/타임아웃이 깨지는 것을 방지 (#265)
-  const createdRoom = await basePrisma.$transaction(
+  // FOR UPDATE 후 같은 tx에서 기존 방 재조회 → 없으면 생성.
+  // runAuditedTransaction: 감사 세션 + extension 중첩 tx 방지 (#265)
+  const txResult = await runAuditedTransaction(
     async (tx) => {
       if (estimateRequestId !== undefined) {
         const lockedRequest =
@@ -514,7 +577,30 @@ const createEstimateChatRoom = async (
         }
       }
 
-      return chatRepository.createChatRoom(
+      const roomAfterLock = await findExistingRoom(
+        {
+          designatedMoverId,
+          quoteId,
+          estimateRequestId,
+          roomType: body.roomType,
+          participantIds,
+        },
+        tx
+      );
+
+      if (roomAfterLock) {
+        const reused = await reuseOrUpdateExistingRoom(
+          { room: roomAfterLock, quoteId },
+          tx
+        );
+        return {
+          kind: 'reused' as const,
+          room: reused.room,
+          quoteUpdated: reused.quoteUpdated,
+        };
+      }
+
+      const created = await chatRepository.createChatRoom(
         {
           estimateRequestId,
           quoteId,
@@ -524,20 +610,25 @@ const createEstimateChatRoom = async (
         },
         tx
       );
+      return { kind: 'created' as const, room: created };
     },
     { timeout: 15_000 }
   );
+
+  if (txResult.kind === 'reused') {
+    return toExistingRoomResult(txResult.room, txResult.quoteUpdated);
+  }
 
   // 신규 생성(201)만 — 기존 방 재사용(200)에서는 발송하지 않음
   try {
     await notificationService.notifyChatRoomOpenedToCounterparts({
       creatorId: authUser.userId,
       participantIds,
-      chatRoomId: createdRoom.id,
+      chatRoomId: txResult.room.id,
     });
   } catch (error) {
     console.error(
-      `[createChatRoom] chat room opened notification failed roomId=${createdRoom.id}`,
+      `[createChatRoom] chat room opened notification failed roomId=${txResult.room.id}`,
       error
     );
   }
@@ -545,11 +636,11 @@ const createEstimateChatRoom = async (
   return {
     status: 201,
     data: {
-      roomId: createdRoom.id,
-      roomType: createdRoom.roomType,
-      quoteId: createdRoom.quoteId,
-      createdAt: toIsoString(createdRoom.createdAt),
-      updatedAt: toIsoString(createdRoom.updatedAt),
+      roomId: txResult.room.id,
+      roomType: txResult.room.roomType,
+      quoteId: txResult.room.quoteId,
+      createdAt: toIsoString(txResult.room.createdAt),
+      updatedAt: toIsoString(txResult.room.updatedAt),
     },
   };
 };

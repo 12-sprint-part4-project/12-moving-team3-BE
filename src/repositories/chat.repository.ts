@@ -194,18 +194,20 @@ export const findQuoteById = async (quoteId: number) => {
 
 /** 지정 요청 ID로 기존 채팅방을 조회한다. */
 export const findRoomByDesignatedMoverId = async (
-  designatedMoverId: number
+  designatedMoverId: number,
+  dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord | null> => {
-  return prisma.chatRoom.findFirst({
+  return dbClient.chatRoom.findFirst({
     where: { designatedMoverId },
   });
 };
 
 /** 견적 ID로 기존 채팅방을 조회한다. */
 export const findRoomByQuoteId = async (
-  quoteId: number
+  quoteId: number,
+  dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord | null> => {
-  return prisma.chatRoom.findFirst({
+  return dbClient.chatRoom.findFirst({
     where: { quoteId },
   });
 };
@@ -236,12 +238,15 @@ const pickRoomWithExactActiveParticipants = <
  * 견적 요청 + roomType + 활성 참여자 조합으로 기존 채팅방을 조회한다.
  * 활성 참여자(leftAt IS NULL)가 participantIds와 정확히 일치하는 방만 반환한다.
  */
-export const findRoomByEstimateAndParticipants = async (params: {
-  estimateRequestId: number;
-  roomType: ChatRoomType;
-  participantIds: string[];
-}): Promise<ChatRoomRecord | null> => {
-  const rooms = await prisma.chatRoom.findMany({
+export const findRoomByEstimateAndParticipants = async (
+  params: {
+    estimateRequestId: number;
+    roomType: ChatRoomType;
+    participantIds: string[];
+  },
+  dbClient: ChatDbClient = prisma
+): Promise<ChatRoomRecord | null> => {
+  const rooms = await dbClient.chatRoom.findMany({
     where: {
       estimateRequestId: params.estimateRequestId,
       roomType: params.roomType,
@@ -275,9 +280,10 @@ interface FindRoomByCommunityPostAndParticipantsParams {
  * 동일 게시글이라도 참여자 쌍이 다르면 별도 방이다.
  */
 export const findRoomByCommunityPostAndParticipants = async (
-  params: FindRoomByCommunityPostAndParticipantsParams
+  params: FindRoomByCommunityPostAndParticipantsParams,
+  dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord | null> => {
-  const rooms = await prisma.chatRoom.findMany({
+  const rooms = await dbClient.chatRoom.findMany({
     where: {
       communityPostId: params.communityPostId,
       roomType: 'COMMUNITY',
@@ -304,9 +310,10 @@ export const findRoomByCommunityPostAndParticipants = async (
 /** 기존 채팅방에 quoteId를 연결하고 updatedAt을 갱신한다. */
 export const updateRoomQuoteId = async (
   roomId: number,
-  quoteId: number
+  quoteId: number,
+  dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord> => {
-  return prisma.chatRoom.update({
+  return dbClient.chatRoom.update({
     where: { id: roomId },
     data: { quoteId },
   });
