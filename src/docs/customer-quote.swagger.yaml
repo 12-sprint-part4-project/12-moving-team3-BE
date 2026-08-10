@@ -277,6 +277,7 @@ paths:
         고객의 현재 대기 중(SUBMITTED) 견적 요청과 수신한 PENDING 견적 목록을 조회합니다.
         대기 중 요청이 없으면 data는 null입니다.
         Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+        정지(SUSPENDED) 계정도 조회할 수 있습니다.
       security:
         - bearerAuth: []
       responses:
@@ -355,6 +356,7 @@ paths:
         - filter=CONFIRMED: 확정 견적만 포함
         - estimateRequestId 지정 시 해당 견적 요청 블록만 반환 (UI 개별 필터 드롭다운용)
         Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+        정지(SUSPENDED) 계정도 조회할 수 있습니다.
       security:
         - bearerAuth: []
       parameters:
@@ -486,6 +488,7 @@ paths:
         fromAddress/toAddress는 departureAddress/arrivalAddress(도로명·지번)만 반환하며,
         departureDetailAddress/arrivalDetailAddress(동·호수)는 조회·응답에 포함하지 않습니다.
         Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+        정지(SUSPENDED) 계정도 조회할 수 있습니다.
       security:
         - bearerAuth: []
       parameters:
@@ -590,6 +593,7 @@ paths:
         만료(EXPIRED)·취소(CANCELED)된 요청은 각각 REQUEST_EXPIRED / REQUEST_CANCELED(409)를 반환합니다.
         이사일이 지난 요청은 REQUEST_EXPIRED(409)를 반환합니다.
         Access Token이 필요하며, userType이 CUSTOMER인 계정만 접근할 수 있습니다.
+        정지(SUSPENDED) 계정은 확정할 수 없습니다(USER_SUSPENDED).
       security:
         - bearerAuth: []
       parameters:
@@ -631,15 +635,24 @@ paths:
                   code: UNAUTHORIZED
                   message: 로그인이 필요한 기능입니다.
         '403':
-          description: 권한 없음
+          description: 권한 없음 (유저 타입 불일치 또는 정지 계정)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error:
-                  code: USER_TYPE_FORBIDDEN
-                  message: 접근 권한이 없습니다.
+              examples:
+                userTypeForbidden:
+                  summary: 고객이 아닌 계정
+                  value:
+                    error:
+                      code: USER_TYPE_FORBIDDEN
+                      message: 접근 권한이 없습니다.
+                userSuspended:
+                  summary: 정지된 계정
+                  value:
+                    error:
+                      code: USER_SUSPENDED
+                      message: 정지된 계정입니다. 해당 기능을 이용할 수 없습니다.
         '404':
           description: 견적서 또는 연결된 이사 요청을 찾을 수 없음
           content:
