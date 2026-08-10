@@ -12,6 +12,7 @@ import {
 } from '../schemas/estimate-request.schema';
 import { startOfDay } from '../utils/date.util';
 import {
+  expandRegionAddressAliases,
   getDistrictCityPrefixes,
   getRegionAddressKeywords,
 } from '../utils/region.util';
@@ -139,6 +140,7 @@ const buildAddressStartsWithCondition = (
 /**
  * 출발/도착 주소를 화면 시·구 라벨 단위로만 검색
  * - 검색어는 최대 2토큰만 사용 (시/도 + 시/군/구)
+ * - 시/도는 REGION_ADDRESS_KEYWORDS alias로 확장 (예: 경기 → 경기도)
  * - 주소 전체가 아니라 라벨 prefix(startsWith)로 매칭해 도로명·번지를 검색 대상에서 제외
  */
 const buildDistrictAddressConditions = (
@@ -157,17 +159,24 @@ const buildDistrictAddressConditions = (
   const fields = ['departureAddress', 'arrivalAddress'] as const;
 
   if (tokens.length === 2) {
-    const districtLabel = `${tokens[0]} ${tokens[1]}`;
-    return fields.map((field) =>
-      buildAddressStartsWithCondition(field, districtLabel)
+    const cityAliases = expandRegionAddressAliases(tokens[0]);
+    const district = tokens[1];
+
+    return fields.flatMap((field) =>
+      cityAliases.map((city) =>
+        buildAddressStartsWithCondition(field, `${city} ${district}`)
+      )
     );
   }
 
   const token = tokens[0];
   const cityPrefixes = getDistrictCityPrefixes();
+  const tokenAliases = expandRegionAddressAliases(token);
 
   return fields.flatMap((field) => [
-    buildAddressStartsWithCondition(field, token),
+    ...tokenAliases.map((alias) =>
+      buildAddressStartsWithCondition(field, alias)
+    ),
     ...cityPrefixes.map((city) =>
       buildAddressStartsWithCondition(field, `${city} ${token}`)
     ),
