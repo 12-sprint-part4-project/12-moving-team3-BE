@@ -37,13 +37,7 @@ export const refreshAdminToken = async (req: Request, res: Response) => {
     req.cookies?.[ADMIN_REFRESH_TOKEN_COOKIE_NAME]
   );
 
-  setAdminRefreshTokenCookie(
-    res,
-    result.refreshToken,
-    result.refreshTokenMaxAgeMs
-  );
-
-  // Refresh Token은 쿠키로만 전달하고 Body에는 Access Token만 노출한다.
+  // 기존 Refresh Cookie와 원래 만료 시각은 그대로 두고 Access Token만 반환한다.
   res.status(200).json({
     data: {
       accessToken: result.accessToken,

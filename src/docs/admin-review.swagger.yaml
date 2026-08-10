@@ -12,7 +12,7 @@ paths:
         - 작성자(user) name, nickname, email, phoneNumber
         - 기사(quote.mover) name, nickname, email, phoneNumber
 
-        deletionStatus 미전달 시 ACTIVE(미삭제)로 기본 적용됩니다.
+        deletionStatus 미전달 시 활성·삭제된 리뷰를 모두 조회합니다.
         ACTIVE는 미삭제, DELETED는 soft delete된 리뷰만 조회합니다.
         작성일 기간은 통계 API와 동일한 startDate/endDate 정책을 따릅니다.
 
@@ -46,12 +46,11 @@ paths:
           required: false
           description: |
             삭제 상태 필터.
-            미전달 시 ACTIVE(미삭제)가 기본값입니다.
+            미전달 시 활성·삭제된 리뷰를 모두 조회합니다.
             ACTIVE는 미삭제, DELETED는 삭제된 리뷰만 조회합니다.
           schema:
             type: string
             enum: [ACTIVE, DELETED]
-            default: ACTIVE
             example: ACTIVE
         - name: startDate
           in: query
