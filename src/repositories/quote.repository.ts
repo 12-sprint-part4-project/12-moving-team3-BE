@@ -11,7 +11,7 @@ import {
   SENT_QUOTE_STATUSES,
   type QuoteListStatus,
 } from '../schemas/quote.schema';
-import { startOfDayKst } from '../utils/date.util';
+import { startOfDay } from '../utils/date.util';
 
 // --- [기사님(MOVER)용 API] ---
 
@@ -856,7 +856,8 @@ export const findWritableQuotesByCustomerId = async (
   tx?: Prisma.TransactionClient
 ) => {
   const dbClient = tx ?? prisma;
-  const todayStart = startOfDayKst(new Date());
+  // isMoveDateExpired 와 동일: moveDate < startOfDay(now) (당일 미포함)
+  const todayStart = startOfDay(new Date());
   const skip = (params.page - 1) * params.limit;
 
   const where: Prisma.QuoteWhereInput = {
@@ -867,7 +868,7 @@ export const findWritableQuotesByCustomerId = async (
       userId: customerId,
       OR: [
         { status: EstimateRequestStatus.COMPLETED },
-        { moveDate: { lte: todayStart } },
+        { moveDate: { lt: todayStart } },
       ],
     },
     // create와 동일: 활성 리뷰(deletedAt null)가 없을 때만 작성 가능
