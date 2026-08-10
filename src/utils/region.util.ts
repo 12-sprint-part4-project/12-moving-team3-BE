@@ -70,6 +70,13 @@ export const getRegionAddressKeywords = (region: Region): string[] =>
   REGION_ADDRESS_KEYWORDS[region];
 
 /**
+ * 시·구 단위 검색에서 "구/시" 단독 키워드를 `시/도 + 구/시`로 확장할 때 쓰는 시/도 prefix
+ */
+export const getDistrictCityPrefixes = (): string[] => [
+  ...new Set(Object.values(REGION_ADDRESS_KEYWORDS).flat()),
+];
+
+/**
  * 주소 앞 단어가 해당 Region 키워드로 시작하는지 여부
  */
 const isAddressInRegion = (
