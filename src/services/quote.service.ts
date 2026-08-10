@@ -17,6 +17,7 @@ import type {
   RejectedQuoteListItemDto,
   SentQuoteListItemDto,
 } from '../dtos/quote.dto';
+import { resolveChatRoomQuoteBind } from '../constants/chat.constants';
 import { existsMoverProfile } from '../repositories/estimate-request.repository';
 import * as chatRepository from '../repositories/chat.repository';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
@@ -271,15 +272,17 @@ interface CreateProposalParams {
  * 지정 견적이면 GENERAL 방을 DESIGNATED로 승격한다.
  * (이미 다른 quoteId가 있으면 교체하지 않는다)
  */
+interface LinkQuoteToChatRoomParams {
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string;
+  quoteId: number;
+  isDesignated: boolean;
+}
+
 const linkQuoteToChatRoom = async (
   tx: QuoteTransactionClient,
-  params: {
-    estimateRequestId: number;
-    customerId: string;
-    moverId: string;
-    quoteId: number;
-    isDesignated: boolean;
-  }
+  params: LinkQuoteToChatRoomParams
 ): Promise<void> => {
   let designatedMoverId: number | undefined;
 
@@ -293,15 +296,39 @@ const linkQuoteToChatRoom = async (
     designatedMoverId = designated?.id;
   }
 
-  await chatRepository.linkQuoteToEstimateParticipantRoom(
+  const room = await chatRepository.findRoomByEstimateAndParticipants(
     {
       estimateRequestId: params.estimateRequestId,
+      roomTypes: ['DESIGNATED', 'GENERAL'],
       participantIds: [params.customerId, params.moverId],
-      quoteId: params.quoteId,
-      designatedMoverId,
     },
     tx
   );
+
+  if (!room) {
+    return;
+  }
+
+  const quoteBind = resolveChatRoomQuoteBind(room.quoteId, params.quoteId);
+  const quoteIdToBind = quoteBind === 'bind' ? params.quoteId : undefined;
+
+  if (room.roomType === 'GENERAL' && designatedMoverId !== undefined) {
+    await chatRepository.promoteRoomToDesignated(
+      {
+        roomId: room.id,
+        designatedMoverId,
+        quoteId: quoteIdToBind,
+      },
+      tx
+    );
+    return;
+  }
+
+  if (quoteBind !== 'bind') {
+    return;
+  }
+
+  await chatRepository.updateRoomQuoteId(room.id, params.quoteId, tx);
 };
 
 /**

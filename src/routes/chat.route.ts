@@ -605,7 +605,8 @@ router.post(
  *                     isMessagingAllowed:
  *                       type: boolean
  *                       description: |
- *                         메시지 발송 가능 여부. 견적 요청이 EXPIRED/CANCELED/COMPLETED이면 false.
+ *                         메시지 발송 가능 여부. 견적 요청이 EXPIRED/CANCELED/COMPLETED이거나
+ *                         연결된 견적이 REJECTED이면 false.
  *                         COMMUNITY 등 estimate 미연결 방은 true.
  *                     partnerLastReadMessageId:
  *                       type: integer

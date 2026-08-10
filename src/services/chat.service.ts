@@ -312,13 +312,15 @@ const toExistingRoomResult = (
  * 트랜잭션 안에서 기존 방을 재사용하거나 quoteId 최초 연결·DESIGNATED 승격을 반영한다.
  * quoteId는 null → 값 최초 연결만 허용하고, 이미 다른 quoteId면 INVALID_REQUEST.
  */
+interface ReuseOrUpdateExistingRoomParams {
+  room: ChatRoomRecord;
+  quoteId?: number;
+  designatedMoverId?: number;
+  targetRoomType: ChatRoomType;
+}
+
 const reuseOrUpdateExistingRoom = async (
-  params: {
-    room: ChatRoomRecord;
-    quoteId?: number;
-    designatedMoverId?: number;
-    targetRoomType: ChatRoomType;
-  },
+  params: ReuseOrUpdateExistingRoomParams,
   dbClient: ChatDbClient
 ): Promise<{ room: ChatRoomRecord; quoteUpdated: boolean }> => {
   const { room, quoteId, designatedMoverId, targetRoomType } = params;
