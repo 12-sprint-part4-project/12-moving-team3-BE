@@ -71,7 +71,7 @@ const buildUserSearchOr = (search: string): Prisma.UserWhereInput['OR'] => [
  * deletionStatus 미전달 시 deletedAt 조건을 두지 않아 전체를 조회한다.
  * 작성일 기간은 통계와 동일한 createDateRange를 쓴다.
  */
-const buildAdminReviewListWhere = (
+export const buildAdminReviewListWhere = (
   params: Pick<
     AdminReviewListQuery,
     'search' | 'rating' | 'deletionStatus' | 'startDate' | 'endDate'

@@ -1,6 +1,5 @@
 import type { DeviceType } from '@prisma/client';
 import { JsonWebTokenError } from 'jsonwebtoken';
-import { runAuditedTransaction } from '../lib/audit-context';
 import * as adminAuthRepository from '../repositories/admin-auth.repository';
 import { AppError } from '../utils/app.error';
 import {
@@ -111,7 +110,7 @@ export interface ValidateAdminRefreshTokenResult {
 
 /**
  * 쿠키 Refresh Token의 JWT·DB 유효성만 검증한다.
- * Access/Refresh 재발급·Rotation·쿠키 갱신은 호출측(이후 커밋) 책임이다.
+ * Access Token 발급과 HTTP 응답 처리는 호출측의 책임이다.
  */
 export const validateAdminRefreshToken = async (
   refreshToken: string | undefined
@@ -172,55 +171,18 @@ export const validateAdminRefreshToken = async (
 
 export interface RefreshAdminTokenResult {
   accessToken: string;
-  refreshToken: string;
-  refreshTokenMaxAgeMs: number;
 }
 
 /**
- * 검증된 Refresh Token을 Rotation한다.
- * 기존 레코드 삭제와 신규 저장은 트랜잭션으로 묶어 불완전 상태를 남기지 않는다.
+ * 검증된 Refresh Token으로 Access Token만 재발급한다.
+ * Refresh Token과 DB 레코드의 원래 만료 시각을 유지해 동시 재발급 요청도 독립적으로 처리한다.
  */
 export const refreshAdminToken = async (
   refreshToken: string | undefined
 ): Promise<RefreshAdminTokenResult> => {
-  const { admin, refreshTokenRecord } =
-    await validateAdminRefreshToken(refreshToken);
+  const { admin } = await validateAdminRefreshToken(refreshToken);
 
-  const accessToken = createAdminAccessToken(admin.id);
-  const nextRefreshToken = createAdminRefreshToken(admin.id);
-  const { expiresAt, maxAgeMs } = getAdminRefreshTokenExpiry(nextRefreshToken);
-  const nextTokenHash = hashAdminRefreshToken(nextRefreshToken);
-
-  await runAuditedTransaction(async (tx) => {
-    // 검증된 레코드만 삭제해 동일 관리자의 다른 세션 토큰은 유지한다.
-    const { count } = await adminAuthRepository.deleteAdminRefreshTokenById(
-      refreshTokenRecord.id,
-      admin.id,
-      tx
-    );
-
-    // 동시 Rotation 등으로 이미 삭제된 토큰이면 재발급하지 않는다.
-    if (count === 0) {
-      throw new AppError('ADMIN_UNAUTHORIZED');
-    }
-
-    await adminAuthRepository.createAdminRefreshTokenRecord(
-      {
-        adminId: admin.id,
-        tokenHash: nextTokenHash,
-        // 같은 세션의 device를 유지해 Rotation만으로 기기 정보가 바뀌지 않게 한다.
-        device: refreshTokenRecord.device,
-        expiresAt,
-      },
-      tx
-    );
-  });
-
-  return {
-    accessToken,
-    refreshToken: nextRefreshToken,
-    refreshTokenMaxAgeMs: maxAgeMs,
-  };
+  return { accessToken: createAdminAccessToken(admin.id) };
 };
 
 /**
