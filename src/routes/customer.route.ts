@@ -34,19 +34,21 @@ router.patch(
   customerProfileController.registerCustomerProfile
 );
 
-// 대기 중인 견적 리스트 조회 (Swagger: src/docs/customer-quote.swagger.yaml)
+// 대기 중인 견적 리스트 조회 — 정지 유저도 조회 허용
+// (Swagger: src/docs/customer-quote.swagger.yaml)
 router.get(
   '/quotes',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('CUSTOMER'),
   requireCompletedCustomerProfile,
   quoteController.getCustomerPendingQuotes
 );
 
-// 받았던 견적(과거) 리스트 조회 (Swagger: src/docs/customer-quote.swagger.yaml)
+// 받았던 견적(과거) 리스트 조회 — 정지 유저도 조회 허용
+// (Swagger: src/docs/customer-quote.swagger.yaml)
 router.get(
   '/past-quotes',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('CUSTOMER'),
   requireCompletedCustomerProfile,
   validateRequest({
@@ -56,10 +58,11 @@ router.get(
   quoteController.getCustomerPastQuotes
 );
 
-// 대기 중 / 받았던 견적 상세 조회 (Swagger: src/docs/customer-quote.swagger.yaml)
+// 대기 중 / 받았던 견적 상세 조회 — 정지 유저도 조회 허용
+// (Swagger: src/docs/customer-quote.swagger.yaml)
 router.get(
   '/quotes/:quoteId',
-  requireAuth,
+  requireAuthAllowSuspended,
   allowUserTypes('CUSTOMER'),
   requireCompletedCustomerProfile,
   validateRequest({
