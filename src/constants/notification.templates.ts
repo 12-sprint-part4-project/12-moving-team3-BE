@@ -13,7 +13,8 @@ export const MOVE_TYPE_LABELS: Record<MoveType, string> = {
  * FE 강조: type별 템플릿에서 payload 구간만 파란 span으로 렌더.
  *
  * 표시 이름 규칙:
- * - 이사(견적)·채팅방 오픈 → User.name (`customerName` / `moverName` / `counterpartName`)
+ * - 이사(견적)·채팅방 오픈(GENERAL/DESIGNATED) → User.name (`customerName` / `moverName` / `counterpartName`)
+ * - 채팅방 오픈(COMMUNITY) → User.nickname (payload 키는 동일 `counterpartName`)
  * - 커뮤니티·리뷰 → User.nickname (`*Nickname`)
  */
 export const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
