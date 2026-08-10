@@ -17,7 +17,9 @@ import type {
   RejectedQuoteListItemDto,
   SentQuoteListItemDto,
 } from '../dtos/quote.dto';
+import { resolveChatRoomQuoteBind } from '../constants/chat.constants';
 import { existsMoverProfile } from '../repositories/estimate-request.repository';
+import * as chatRepository from '../repositories/chat.repository';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as quoteRepository from '../repositories/quote.repository';
 import type {
@@ -208,6 +210,7 @@ export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
         tx,
         moverId,
         estimateRequestId,
+        customerId: estimateRequest.userId,
         body,
         isDesignatedTarget,
         existingQuote,
@@ -218,6 +221,7 @@ export const submitQuote = async (input: SubmitQuoteInput): Promise<Quote> => {
       tx,
       moverId,
       estimateRequestId,
+      customerId: estimateRequest.userId,
       body,
       isDesignatedTarget,
       existingQuote,
@@ -257,10 +261,75 @@ interface CreateProposalParams {
   tx: QuoteTransactionClient;
   moverId: string;
   estimateRequestId: number;
+  customerId: string;
   body: Extract<QuoteBody, { type: 'PROPOSAL' }>;
   isDesignatedTarget: boolean;
   existingQuote: { id: number; status: QuoteStatus } | null;
 }
+
+/**
+ * 생성된 견적을 동일 견적요청·참여자 채팅방에 최초 연결한다.
+ * 지정 견적이면 GENERAL 방을 DESIGNATED로 승격한다.
+ * (이미 다른 quoteId가 있으면 교체하지 않는다)
+ */
+interface LinkQuoteToChatRoomParams {
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string;
+  quoteId: number;
+  isDesignated: boolean;
+}
+
+const linkQuoteToChatRoom = async (
+  tx: QuoteTransactionClient,
+  params: LinkQuoteToChatRoomParams
+): Promise<void> => {
+  let designatedMoverId: number | undefined;
+
+  if (params.isDesignated) {
+    const designated =
+      await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
+        params.estimateRequestId,
+        params.moverId,
+        tx
+      );
+    designatedMoverId = designated?.id;
+  }
+
+  const room = await chatRepository.findRoomByEstimateAndParticipants(
+    {
+      estimateRequestId: params.estimateRequestId,
+      roomTypes: ['DESIGNATED', 'GENERAL'],
+      participantIds: [params.customerId, params.moverId],
+    },
+    tx
+  );
+
+  if (!room) {
+    return;
+  }
+
+  const quoteBind = resolveChatRoomQuoteBind(room.quoteId, params.quoteId);
+  const quoteIdToBind = quoteBind === 'bind' ? params.quoteId : undefined;
+
+  if (room.roomType === 'GENERAL' && designatedMoverId !== undefined) {
+    await chatRepository.promoteRoomToDesignated(
+      {
+        roomId: room.id,
+        designatedMoverId,
+        quoteId: quoteIdToBind,
+      },
+      tx
+    );
+    return;
+  }
+
+  if (quoteBind !== 'bind') {
+    return;
+  }
+
+  await chatRepository.updateRoomQuoteId(room.id, params.quoteId, tx);
+};
 
 /**
  * 견적 보내기(PROPOSAL) 처리
@@ -270,6 +339,7 @@ const createProposal = async ({
   tx,
   moverId,
   estimateRequestId,
+  customerId,
   body,
   isDesignatedTarget,
   existingQuote,
@@ -289,7 +359,7 @@ const createProposal = async ({
   }
 
   // PENDING 견적 생성
-  return createQuote(tx, {
+  const quote = await createQuote(tx, {
     estimateRequestId,
     moverId,
     status: QuoteStatus.PENDING,
@@ -297,12 +367,23 @@ const createProposal = async ({
     price: body.price,
     comment: body.comment,
   });
+
+  await linkQuoteToChatRoom(tx, {
+    estimateRequestId,
+    customerId,
+    moverId,
+    quoteId: quote.id,
+    isDesignated: isDesignatedTarget,
+  });
+
+  return quote;
 };
 
 interface CreateRejectionParams {
   tx: QuoteTransactionClient;
   moverId: string;
   estimateRequestId: number;
+  customerId: string;
   body: Extract<QuoteBody, { type: 'REJECTION' }>;
   isDesignatedTarget: boolean;
   existingQuote: { id: number; status: QuoteStatus } | null;
@@ -316,6 +397,7 @@ const createRejection = async ({
   tx,
   moverId,
   estimateRequestId,
+  customerId,
   body,
   isDesignatedTarget,
   existingQuote,
@@ -328,13 +410,24 @@ const createRejection = async ({
   assertNoExistingQuote(existingQuote);
 
   // REJECTED 견적 생성
-  return createQuote(tx, {
+  const quote = await createQuote(tx, {
     estimateRequestId,
     moverId,
     status: QuoteStatus.REJECTED,
     isDesignated: isDesignatedTarget,
     rejectReason: body.rejectReason,
   });
+
+  // 기존 채팅방에 quote 연결 → 칩 `반려` + 메시지 차단
+  await linkQuoteToChatRoom(tx, {
+    estimateRequestId,
+    customerId,
+    moverId,
+    quoteId: quote.id,
+    isDesignated: true,
+  });
+
+  return quote;
 };
 
 /**

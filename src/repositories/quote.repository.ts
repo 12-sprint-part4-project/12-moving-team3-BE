@@ -18,6 +18,7 @@ import { startOfDay } from '../utils/date.util';
 /** 비관적 락으로 조회한 견적 요청 행 */
 export interface LockedEstimateRequest {
   id: number;
+  userId: string;
   moveDate: Date | null;
   status: EstimateRequestStatus;
   confirmedQuoteId: number | null;
@@ -123,6 +124,7 @@ export const findEstimateRequestForUpdate = async (
   const rows = await tx.$queryRaw<LockedEstimateRequest[]>`
     SELECT
       er.id,
+      er.user_id AS "userId",
       er.move_date AS "moveDate",
       er.status,
       er.confirmed_quote_id AS "confirmedQuoteId",
