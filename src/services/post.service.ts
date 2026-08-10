@@ -363,10 +363,7 @@ export const completePost = async (postId: number, userId: string) => {
   }
 
   if (post.category !== PostsCategory.FURNITURE_SHARE) {
-    throw new AppError(
-      'POST_FORBIDDEN',
-      '가구 나눔 게시글만 나눔 완료 처리할 수 있습니다.'
-    );
+    throw new AppError('POST_FORBIDDEN');
   }
 
   if (post.isCompleted === true) {
@@ -376,16 +373,6 @@ export const completePost = async (postId: number, userId: string) => {
   const updatedCount = await postRepository.completePost(postId);
 
   if (updatedCount === 0) {
-    const latestPost = await postRepository.findPostForComplete(postId);
-
-    if (!latestPost) {
-      throw new AppError('POST_NOT_FOUND');
-    }
-
-    if (latestPost.isCompleted === true) {
-      throw new AppError('POST_ALREADY_COMPLETED');
-    }
-
     throw new AppError('POST_NOT_FOUND');
   }
 

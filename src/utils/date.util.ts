@@ -65,18 +65,3 @@ export const isMoveDateExpired = (
 
   return moveDate < startOfDay(now);
 };
-
-/**
- * 이사일 도달 여부 판별 (당일 포함, Asia/Seoul 기준)
- * moveDate가 없으면 미도달로 간주
- */
-export const isMoveDateReached = (
-  moveDate: Date | null,
-  now = new Date()
-): boolean => {
-  if (!moveDate) {
-    return false;
-  }
-
-  return moveDate <= startOfDayKst(now);
-};

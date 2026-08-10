@@ -5,7 +5,7 @@ import type { QuoteForReviewCreate } from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
 import type { ReviewBody } from '../schemas/review.schema';
 import { AppError } from '../utils/app.error';
-import { isMoveDateReached } from '../utils/date.util';
+import { isMoveDateExpired } from '../utils/date.util';
 import * as notificationService from './notification.service';
 import { toPublicViewUrl } from './s3.service';
 
@@ -150,7 +150,7 @@ const isUniqueConstraintError = (error: unknown): boolean =>
 /**
  * 리뷰 작성 가능 여부
  * - 확정된 견적(CONFIRMED)이며 요청의 confirmedQuote 와 일치
- * - 이사 완료(COMPLETED) 이거나 이사일 당일(포함) 이후
+ * - 이사 완료(COMPLETED) 이거나 이사일 경과 후(당일 미포함)
  */
 const assertReviewWritable = (
   quote: QuoteForReviewCreate,
@@ -168,7 +168,7 @@ const assertReviewWritable = (
 
   const isMoveCompleted =
     estimateRequest.status === EstimateRequestStatus.COMPLETED ||
-    isMoveDateReached(estimateRequest.moveDate);
+    isMoveDateExpired(estimateRequest.moveDate);
 
   if (!isConfirmedQuote || !isMoveCompleted) {
     throw new AppError('REVIEW_NOT_WRITABLE');
