@@ -53,6 +53,19 @@ export interface NotificationListItem {
   userReportId: number | null;
 }
 
+/** 견적 확정 알림 수신자 역할 — customer: moverName / mover: customerName */
+export type QuoteConfirmedRole = 'customer' | 'mover';
+
+export interface NotifyQuoteConfirmedParams {
+  receiverId: string;
+  role: QuoteConfirmedRole;
+  moverName?: string;
+  customerName?: string;
+  quoteId: number;
+  estimateRequestId: number;
+  tx?: DbClient;
+}
+
 export interface NotifyDesignatedQuoteRequestArrivedParams {
   estimateRequestId: number;
   customerId: string;
@@ -558,16 +571,9 @@ export const notifyQuoteOfferArrivedByQuoteId = async (
 };
 
 /** 견적 확정 → 고객/기사. type은 동일(QUOTE_CONFIRMED), 문구만 수신자별 */
-export const notifyQuoteConfirmed = async (params: {
-  receiverId: string;
-  /** customer: moverName / mover: customerName */
-  role: 'customer' | 'mover';
-  moverName?: string;
-  customerName?: string;
-  quoteId: number;
-  estimateRequestId: number;
-  tx?: DbClient;
-}): Promise<NotificationListItem> => {
+export const notifyQuoteConfirmed = async (
+  params: NotifyQuoteConfirmedParams
+): Promise<NotificationListItem> => {
   // 고객 수신: 기존 템플릿 유지. 기사 수신: 고객명 문구로 override
   if (params.role === 'mover') {
     return createNotification({
