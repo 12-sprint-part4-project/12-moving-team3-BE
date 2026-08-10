@@ -5,6 +5,7 @@ import {
   type EstimateRequestStatus,
   type MessageType,
 } from '@prisma/client';
+import { resolveChatRoomQuoteBind } from '../constants/chat.constants';
 import { prisma } from '../lib/prisma';
 
 export type ChatRoomRecord = ChatRoom;
@@ -235,21 +236,27 @@ const pickRoomWithExactActiveParticipants = <
 };
 
 /**
- * 견적 요청 + roomType + 활성 참여자 조합으로 기존 채팅방을 조회한다.
+ * 견적 요청 + roomType(들) + 활성 참여자 조합으로 기존 채팅방을 조회한다.
  * 활성 참여자(leftAt IS NULL)가 participantIds와 정확히 일치하는 방만 반환한다.
+ * GENERAL·DESIGNATED가 함께 있으면 DESIGNATED를 우선한다.
  */
 export const findRoomByEstimateAndParticipants = async (
   params: {
     estimateRequestId: number;
-    roomType: ChatRoomType;
+    roomType?: ChatRoomType;
+    roomTypes?: ChatRoomType[];
     participantIds: string[];
   },
   dbClient: ChatDbClient = prisma
 ): Promise<ChatRoomRecord | null> => {
+  const roomTypes =
+    params.roomTypes ??
+    (params.roomType !== undefined ? [params.roomType] : undefined);
+
   const rooms = await dbClient.chatRoom.findMany({
     where: {
       estimateRequestId: params.estimateRequestId,
-      roomType: params.roomType,
+      ...(roomTypes !== undefined ? { roomType: { in: roomTypes } } : {}),
       AND: params.participantIds.map((participantId) => ({
         participants: {
           some: {
@@ -267,7 +274,33 @@ export const findRoomByEstimateAndParticipants = async (
     },
   });
 
-  return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
+  const exactParticipants = rooms.filter((room) => {
+    const activeIds = room.participants.map((p) => p.participantId);
+    return (
+      activeIds.length === params.participantIds.length &&
+      params.participantIds.every((id) => activeIds.includes(id))
+    );
+  });
+
+  if (exactParticipants.length === 0) {
+    return null;
+  }
+
+  // 요청 roomType이 하나면 그걸 우선, 아니면 DESIGNATED > GENERAL
+  if (params.roomType !== undefined) {
+    return (
+      exactParticipants.find((room) => room.roomType === params.roomType) ??
+      exactParticipants.find((room) => room.roomType === 'DESIGNATED') ??
+      exactParticipants.find((room) => room.roomType === 'GENERAL') ??
+      exactParticipants[0]
+    );
+  }
+
+  return (
+    exactParticipants.find((room) => room.roomType === 'DESIGNATED') ??
+    exactParticipants.find((room) => room.roomType === 'GENERAL') ??
+    exactParticipants[0]
+  );
 };
 
 interface FindRoomByCommunityPostAndParticipantsParams {
@@ -307,7 +340,10 @@ export const findRoomByCommunityPostAndParticipants = async (
   return pickRoomWithExactActiveParticipants(rooms, params.participantIds);
 };
 
-/** 기존 채팅방에 quoteId를 연결하고 updatedAt을 갱신한다. */
+/**
+ * 기존 채팅방에 quoteId를 최초 연결한다.
+ * 호출 전에 quoteId가 null인지 확인할 것 (이미 연결된 값 교체 금지).
+ */
 export const updateRoomQuoteId = async (
   roomId: number,
   quoteId: number,
@@ -317,6 +353,78 @@ export const updateRoomQuoteId = async (
     where: { id: roomId },
     data: { quoteId },
   });
+};
+
+/**
+ * GENERAL 방만 DESIGNATED로 승격하고 designatedMoverId·(선택) quoteId를 연결한다.
+ * 이미 DESIGNATED인 방에는 사용하지 않는다.
+ * quoteId는 미연결(null)일 때만 함께 넘긴다 — 기존 quoteId 교체 금지.
+ */
+export const promoteRoomToDesignated = async (
+  params: {
+    roomId: number;
+    designatedMoverId: number;
+    quoteId?: number;
+  },
+  dbClient: ChatDbClient = prisma
+): Promise<ChatRoomRecord> => {
+  return dbClient.chatRoom.update({
+    where: { id: params.roomId },
+    data: {
+      roomType: 'DESIGNATED',
+      designatedMoverId: params.designatedMoverId,
+      ...(params.quoteId !== undefined ? { quoteId: params.quoteId } : {}),
+    },
+  });
+};
+
+/**
+ * 동일 견적요청·참여자 방(GENERAL|DESIGNATED)에 quoteId를 최초 연결한다.
+ * - quoteId가 이미 다른 값이면 교체하지 않는다 (conflict 시 방만 반환).
+ * - GENERAL이면 designatedMoverId가 있을 때 DESIGNATED로 승격한다.
+ * - 이미 DESIGNATED인 방의 designatedMoverId는 바꾸지 않는다.
+ */
+export const linkQuoteToEstimateParticipantRoom = async (
+  params: {
+    estimateRequestId: number;
+    participantIds: string[];
+    quoteId: number;
+    designatedMoverId?: number;
+  },
+  dbClient: ChatDbClient = prisma
+): Promise<ChatRoomRecord | null> => {
+  const room = await findRoomByEstimateAndParticipants(
+    {
+      estimateRequestId: params.estimateRequestId,
+      roomTypes: ['DESIGNATED', 'GENERAL'],
+      participantIds: params.participantIds,
+    },
+    dbClient
+  );
+
+  if (!room) {
+    return null;
+  }
+
+  const quoteBind = resolveChatRoomQuoteBind(room.quoteId, params.quoteId);
+  const quoteIdToBind = quoteBind === 'bind' ? params.quoteId : undefined;
+
+  if (room.roomType === 'GENERAL' && params.designatedMoverId !== undefined) {
+    return promoteRoomToDesignated(
+      {
+        roomId: room.id,
+        designatedMoverId: params.designatedMoverId,
+        quoteId: quoteIdToBind,
+      },
+      dbClient
+    );
+  }
+
+  if (quoteBind !== 'bind') {
+    return room;
+  }
+
+  return updateRoomQuoteId(room.id, params.quoteId, dbClient);
 };
 
 /** 채팅방 상세 조회에 필요한 방·참여자·견적 요청 정보를 조회한다. */
@@ -617,6 +725,12 @@ export const findRoomForMessaging = async (
     select: {
       id: true,
       estimateRequest: {
+        select: {
+          status: true,
+        },
+      },
+      quote: {
+        where: { deletedAt: null },
         select: {
           status: true,
         },

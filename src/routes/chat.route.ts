@@ -254,7 +254,7 @@ router.get(
  *     summary: 채팅 메시지 전송 (TEXT/IMAGE)
  *     description: |
  *       채팅방에 TEXT 또는 IMAGE 메시지를 전송합니다.
- *       활성 참여자만 발송 가능하며, 견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이면 `MESSAGING_NOT_ALLOWED`(403)로 거부됩니다.
+ *       활성 참여자만 발송 가능하며, 견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이거나 연결된 견적이 `REJECTED`이면 `MESSAGING_NOT_ALLOWED`(403)로 거부됩니다.
  *       TEXT: 전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
  *       IMAGE: 사전 `GET /api/presigned-upload-url?prefix=chat-attachments`로 업로드한 s3Key를 최대 5개까지 첨부합니다.
  *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
@@ -649,7 +649,7 @@ router.get(
  *     summary: 채팅방 생성
  *     description: |
  *       견적 채팅(`GENERAL`/`DESIGNATED`): 지정 요청 시점(`quoteId` 없음)과 견적 발송 시점(`quoteId` 있음) 모두에서 호출 가능합니다.
- *       이미 `designatedMoverId`로 방이 있으면 새 방을 만들지 않고 기존 방에 `quoteId`만 업데이트합니다.
+ *       이미 방이 있으면 재사용합니다. `quoteId`는 미연결일 때만 최초 연결하며, 이미 다른 `quoteId`가 있으면 `INVALID_REQUEST`로 거부합니다.
  *       견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이면 **신규 방 생성만** `MESSAGING_NOT_ALLOWED`(403)로 거부합니다. 기존 방 재사용(200)은 허용합니다.
  *       커뮤니티 채팅(`COMMUNITY`): 가구나눔 게시글 기준. 견적과 무관하며 고객·기사 모두 이용 가능합니다.
  *       Bearer Access Token 인증이 필요합니다.
@@ -730,7 +730,7 @@ router.get(
  *                       type: string
  *                       format: date-time
  *       200:
- *         description: 기존 방 반환 또는 quoteId 업데이트
+ *         description: 기존 방 반환 또는 quoteId 최초 연결
  *         content:
  *           application/json:
  *             schema:

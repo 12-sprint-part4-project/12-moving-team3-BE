@@ -10,7 +10,10 @@ import {
   CHAT_ATTACHMENT_MAX_SIZE,
   isValidChatAttachmentKey,
 } from '../constants/chat-attachment.constants';
-import { isMessagingAllowedByEstimateStatus } from '../constants/chat.constants';
+import {
+  isMessagingAllowedForChatRoom,
+  resolveChatRoomQuoteBind,
+} from '../constants/chat.constants';
 import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
@@ -228,7 +231,7 @@ const resolveParticipantIds = async (params: {
  * 기존 채팅방 조회 우선순위:
  * 1) designatedMoverId
  * 2) quoteId (없으면 estimateRequestId+참여자로 폴백 — 견적 연결 전 GENERAL 방 재사용)
- * 3) estimateRequestId + 참여자
+ * 3) estimateRequestId + 참여자 (GENERAL|DESIGNATED — 타입 달라도 한 방으로 재사용)
  */
 const findExistingRoom = async (
   params: {
@@ -241,10 +244,13 @@ const findExistingRoom = async (
   dbClient?: ChatDbClient
 ) => {
   if (params.designatedMoverId !== undefined) {
-    return chatRepository.findRoomByDesignatedMoverId(
+    const byDesignated = await chatRepository.findRoomByDesignatedMoverId(
       params.designatedMoverId,
       dbClient
     );
+    if (byDesignated) {
+      return byDesignated;
+    }
   }
 
   if (params.quoteId !== undefined) {
@@ -258,10 +264,12 @@ const findExistingRoom = async (
   }
 
   if (params.estimateRequestId !== undefined) {
+    // 같은 견적·참여자면 GENERAL↔DESIGNATED를 별도 방으로 두지 않는다.
     return chatRepository.findRoomByEstimateAndParticipants(
       {
         estimateRequestId: params.estimateRequestId,
         roomType: params.roomType,
+        roomTypes: ['DESIGNATED', 'GENERAL'],
         participantIds: params.participantIds,
       },
       dbClient
@@ -301,21 +309,63 @@ const toExistingRoomResult = (
 };
 
 /**
- * 트랜잭션 안에서 기존 방을 재사용하거나 quoteId를 갱신한다.
- * 방이 없으면 null.
+ * 트랜잭션 안에서 기존 방을 재사용하거나 quoteId 최초 연결·DESIGNATED 승격을 반영한다.
+ * quoteId는 null → 값 최초 연결만 허용하고, 이미 다른 quoteId면 INVALID_REQUEST.
  */
 const reuseOrUpdateExistingRoom = async (
   params: {
     room: ChatRoomRecord;
     quoteId?: number;
+    designatedMoverId?: number;
+    targetRoomType: ChatRoomType;
   },
   dbClient: ChatDbClient
 ): Promise<{ room: ChatRoomRecord; quoteUpdated: boolean }> => {
-  const { room, quoteId } = params;
-  const shouldUpdateQuoteId =
-    quoteId !== undefined && room.quoteId !== quoteId;
+  const { room, quoteId, designatedMoverId, targetRoomType } = params;
 
-  if (shouldUpdateQuoteId && quoteId !== undefined) {
+  // 이미 DESIGNATED인데 다른 designatedMoverId로 바꾸려 하면 거부
+  if (
+    targetRoomType === 'DESIGNATED' &&
+    room.roomType === 'DESIGNATED' &&
+    designatedMoverId !== undefined &&
+    room.designatedMoverId != null &&
+    room.designatedMoverId !== designatedMoverId
+  ) {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const quoteBind =
+    quoteId !== undefined
+      ? resolveChatRoomQuoteBind(room.quoteId, quoteId)
+      : null;
+
+  if (quoteBind === 'conflict') {
+    throw new AppError('INVALID_REQUEST');
+  }
+
+  const quoteIdToBind = quoteBind === 'bind' ? quoteId : undefined;
+
+  // GENERAL → DESIGNATED 승격만 허용 (DESIGNATED의 designatedMoverId는 교체하지 않음)
+  if (
+    targetRoomType === 'DESIGNATED' &&
+    room.roomType === 'GENERAL' &&
+    designatedMoverId !== undefined
+  ) {
+    const updatedRoom = await chatRepository.promoteRoomToDesignated(
+      {
+        roomId: room.id,
+        designatedMoverId,
+        quoteId: quoteIdToBind,
+      },
+      dbClient
+    );
+    return {
+      room: updatedRoom,
+      quoteUpdated: quoteBind === 'bind',
+    };
+  }
+
+  if (quoteBind === 'bind' && quoteId !== undefined) {
     const updatedRoom = await chatRepository.updateRoomQuoteId(
       room.id,
       quoteId,
@@ -329,7 +379,8 @@ const reuseOrUpdateExistingRoom = async (
 
 /**
  * 채팅방을 생성하거나 기존 방을 반환한다.
- * - 지정 요청으로 방이 이미 있으면 quoteId만 업데이트(200)
+ * - 지정 요청으로 방이 이미 있으면 quoteId가 없을 때만 최초 연결(200)
+ * - 이미 다른 quoteId가 있으면 INVALID_REQUEST
  * - 동일 조건의 기존 방이 있으면 그대로 반환(200)
  * - 없으면 신규 생성(201)
  * - COMMUNITY: 가구나눔 게시글 기준, 견적 무관, 고객·기사 모두 가능
@@ -552,7 +603,12 @@ const createEstimateChatRoom = async (
 
   if (existingRoom) {
     const reused = await reuseOrUpdateExistingRoom(
-      { room: existingRoom, quoteId },
+      {
+        room: existingRoom,
+        quoteId,
+        designatedMoverId,
+        targetRoomType: body.roomType,
+      },
       prisma
     );
     return toExistingRoomResult(reused.room, reused.quoteUpdated);
@@ -573,7 +629,11 @@ const createEstimateChatRoom = async (
           throw new AppError('ESTIMATE_REQUEST_NOT_FOUND');
         }
 
-        if (!isMessagingAllowedByEstimateStatus(lockedRequest.status)) {
+        if (
+          !isMessagingAllowedForChatRoom({
+            estimateRequestStatus: lockedRequest.status,
+          })
+        ) {
           throw new AppError('MESSAGING_NOT_ALLOWED');
         }
       }
@@ -591,7 +651,12 @@ const createEstimateChatRoom = async (
 
       if (roomAfterLock) {
         const reused = await reuseOrUpdateExistingRoom(
-          { room: roomAfterLock, quoteId },
+          {
+            room: roomAfterLock,
+            quoteId,
+            designatedMoverId,
+            targetRoomType: body.roomType,
+          },
           tx
         );
         return {
@@ -840,9 +905,10 @@ export const getChatRoomDetail = async (
       : null,
     quoteId: room.quoteId,
     quoteStatus: toQuoteStatus(room.roomType, room.quote),
-    isMessagingAllowed: isMessagingAllowedByEstimateStatus(
-      room.estimateRequest?.status
-    ),
+    isMessagingAllowed: isMessagingAllowedForChatRoom({
+      estimateRequestStatus: room.estimateRequest?.status,
+      quoteStatus: room.quote?.status,
+    }),
     partnerLastReadMessageId: partnerReadStatus?.lastReadMessageId ?? null,
     partnerLastReadAt: partnerReadStatus
       ? toIsoString(partnerReadStatus.readAt)
@@ -1059,7 +1125,12 @@ const assertCanSendMessage = async (
     throw new AppError('FORBIDDEN');
   }
 
-  if (!isMessagingAllowedByEstimateStatus(room.estimateRequest?.status)) {
+  if (
+    !isMessagingAllowedForChatRoom({
+      estimateRequestStatus: room.estimateRequest?.status,
+      quoteStatus: room.quote?.status,
+    })
+  ) {
     throw new AppError('MESSAGING_NOT_ALLOWED');
   }
 };
