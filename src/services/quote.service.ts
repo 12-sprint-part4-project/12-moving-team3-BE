@@ -640,7 +640,7 @@ const toCustomerQuoteMoverDto = async (
   mover: CustomerQuoteMoverRow
 ): Promise<CustomerQuoteMoverDto> => ({
   moverId: mover.id,
-  nickname: mover.nickname,
+  name: mover.name,
   profileImage: toPublicViewUrl(mover.profileImageKey),
   shortDescription: mover.shortDescription,
   rating: toAverageRating(mover.ratingSum, mover.reviewCount),

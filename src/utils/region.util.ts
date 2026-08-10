@@ -27,22 +27,22 @@ const REGION_LABELS: Record<Region, string> = {
  * (departureAddress/arrivalAddress 는 자유 형식 주소 문자열이라 매칭용 키워드를 별도로 관리)
  */
 const REGION_ADDRESS_KEYWORDS: Record<Region, string[]> = {
-  SEOUL: ['서울'],
-  GYEONGGI: ['경기'],
-  INCHEON: ['인천'],
-  GANGWON: ['강원'],
+  SEOUL: ['서울', '서울특별시', '서울시'],
+  GYEONGGI: ['경기', '경기도'],
+  INCHEON: ['인천', '인천광역시', '인천시'],
+  GANGWON: ['강원', '강원특별자치도', '강원도'],
   CHUNGBUK: ['충북', '충청북도'],
   CHUNGNAM: ['충남', '충청남도'],
-  SEJONG: ['세종'],
-  DAEJEON: ['대전'],
-  JEONBUK: ['전북', '전라북도'],
-  GWANGJU_JEONNAM: ['광주', '전남', '전라남도'],
+  SEJONG: ['세종', '세종특별자치시', '세종시'],
+  DAEJEON: ['대전', '대전광역시', '대전시'],
+  JEONBUK: ['전북', '전북특별자치도', '전라북도'],
+  GWANGJU_JEONNAM: ['광주', '광주광역시', '전남', '전라남도'],
   GYEONGBUK: ['경북', '경상북도'],
-  DAEGU: ['대구'],
-  ULSAN: ['울산'],
+  DAEGU: ['대구', '대구광역시', '대구시'],
+  ULSAN: ['울산', '울산광역시', '울산시'],
   GYEONGNAM: ['경남', '경상남도'],
-  BUSAN: ['부산'],
-  JEJU: ['제주'],
+  BUSAN: ['부산', '부산광역시', '부산시'],
+  JEJU: ['제주', '제주특별자치도', '제주도'],
 };
 
 /**
@@ -68,6 +68,39 @@ const getRegionLabel = (region: Region): string => REGION_LABELS[region];
  */
 export const getRegionAddressKeywords = (region: Region): string[] =>
   REGION_ADDRESS_KEYWORDS[region];
+
+/**
+ * 시·구 단위 검색에서 "구/시" 단독 키워드를 `시/도 + 구/시`로 확장할 때 쓰는 시/도 prefix
+ */
+export const getDistrictCityPrefixes = (): string[] => [
+  ...new Set(Object.values(REGION_ADDRESS_KEYWORDS).flat()),
+];
+
+/**
+ * 시/도 검색어를 동일 Region의 주소 표기 alias로 확장
+ */
+export const expandRegionAddressAliases = (cityToken: string): string[] => {
+  const normalized = cityToken.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const matchedGroups = Object.values(REGION_ADDRESS_KEYWORDS).filter(
+    (keywords) =>
+      keywords.some(
+        (keyword) =>
+          keyword === normalized ||
+          keyword.startsWith(normalized) ||
+          normalized.startsWith(keyword)
+      )
+  );
+
+  if (matchedGroups.length === 0) {
+    return [normalized];
+  }
+
+  return [...new Set(matchedGroups.flat())];
+};
 
 /**
  * 주소 앞 단어가 해당 Region 키워드로 시작하는지 여부

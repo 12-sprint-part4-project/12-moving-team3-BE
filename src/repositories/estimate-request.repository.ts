@@ -11,7 +11,11 @@ import {
   type EstimateRequestSort,
 } from '../schemas/estimate-request.schema';
 import { startOfDay } from '../utils/date.util';
-import { getRegionAddressKeywords } from '../utils/region.util';
+import {
+  expandRegionAddressAliases,
+  getDistrictCityPrefixes,
+  getRegionAddressKeywords,
+} from '../utils/region.util';
 
 type DbClient = Prisma.TransactionClient;
 export interface MoverProfileWithRegions {
@@ -123,6 +127,85 @@ const buildServiceAreaCondition = (
 };
 
 /**
+ * 주소가 시·구 라벨(앞 1~2토큰)로 시작하는지 조건
+ * 예: "서울 강서구" → "서울 강서구 공항대로 247" 매칭, "공항대로"/"247" 단독 검색은 비매칭
+ */
+const buildAddressStartsWithCondition = (
+  field: 'departureAddress' | 'arrivalAddress',
+  prefix: string
+): Prisma.EstimateRequestWhereInput => ({
+  [field]: { startsWith: prefix, mode: 'insensitive' },
+});
+
+/**
+ * 출발/도착 주소를 화면 시·구 라벨 단위로만 검색
+ * - 검색어는 최대 2토큰만 사용 (시/도 + 시/군/구)
+ * - 시/도는 REGION_ADDRESS_KEYWORDS alias로 확장 (예: 경기 → 경기도)
+ * - 주소 전체가 아니라 라벨 prefix(startsWith)로 매칭해 도로명·번지를 검색 대상에서 제외
+ */
+const buildDistrictAddressConditions = (
+  keyword: string
+): Prisma.EstimateRequestWhereInput[] => {
+  const tokens = keyword
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
+    .slice(0, 2);
+
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const fields = ['departureAddress', 'arrivalAddress'] as const;
+
+  if (tokens.length === 2) {
+    const cityAliases = expandRegionAddressAliases(tokens[0]);
+    const district = tokens[1];
+
+    return fields.flatMap((field) =>
+      cityAliases.map((city) =>
+        buildAddressStartsWithCondition(field, `${city} ${district}`)
+      )
+    );
+  }
+
+  const token = tokens[0];
+  const cityPrefixes = getDistrictCityPrefixes();
+  const tokenAliases = expandRegionAddressAliases(token);
+
+  return fields.flatMap((field) => [
+    ...tokenAliases.map((alias) =>
+      buildAddressStartsWithCondition(field, alias)
+    ),
+    ...cityPrefixes.map((city) =>
+      buildAddressStartsWithCondition(field, `${city} ${token}`)
+    ),
+  ]);
+};
+
+/**
+ * keyword 검색: 고객 이름 + 출발/도착 시·구 라벨
+ * - 이름은 전체 문자열 partial match
+ * - 주소는 시·구 라벨(앞 1~2토큰) prefix 일치만 허용
+ */
+const buildKeywordCondition = (
+  keyword: string
+): Prisma.EstimateRequestWhereInput => {
+  const normalized = keyword.trim().replace(/\s+/g, ' ');
+
+  if (!normalized) {
+    return {};
+  }
+
+  return {
+    OR: [
+      { user: { name: { contains: normalized, mode: 'insensitive' } } },
+      ...buildDistrictAddressConditions(normalized),
+    ],
+  };
+};
+
+/**
  * 목록/카운트 조회에 공통으로 쓰이는 where 조건 생성
  * - 기본 제외 조건: SUBMITTED 상태가 아니거나, 견적이 확정되었거나, 이사일이 지났거나,
  *   이 기사님이 이미 견적을 제출/반려(Quote 존재)한 요청은 항상 제외
@@ -142,9 +225,7 @@ const buildWhere = (
   ];
 
   if (params.keyword) {
-    conditions.push({
-      user: { name: { contains: params.keyword, mode: 'insensitive' } },
-    });
+    conditions.push(buildKeywordCondition(params.keyword));
   }
 
   if (params.moveTypes && params.moveTypes.length > 0) {
