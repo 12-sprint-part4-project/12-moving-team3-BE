@@ -209,6 +209,11 @@ components:
               type: string
               enum: [PENDING, CONFIRMED, REJECTED]
               example: CONFIRMED
+            comment:
+              type: string
+              nullable: true
+              example: 안전하고 신속하게 이사 도와드리겠습니다.
+              description: 견적 코멘트 (보낸 견적). 반려 견적이면 null
             rejectReason:
               type: string
               nullable: true
@@ -913,6 +918,7 @@ paths:
                   estimateRequestId: 101
                   price: 180000
                   status: CONFIRMED
+                  comment: 안전하고 신속하게 이사 도와드리겠습니다.
                   rejectReason: null
                   isMoveCompleted: false
                   customer:
