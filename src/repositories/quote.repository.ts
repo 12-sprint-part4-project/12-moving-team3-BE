@@ -45,6 +45,7 @@ export interface QuoteDetailRow {
   moverId: string | null;
   price: number | null;
   status: QuoteStatus;
+  comment: string | null;
   rejectReason: string | null;
   isDesignated: boolean;
   estimateRequest: {
@@ -263,6 +264,7 @@ const quoteDetailSelect = {
   moverId: true,
   price: true,
   status: true,
+  comment: true,
   rejectReason: true,
   isDesignated: true,
   deletedAt: true,
