@@ -12,6 +12,7 @@ export interface QuoteDetailDto {
   estimateRequestId: number;
   price: number | null;
   status: QuoteStatus;
+  comment: string | null;
   rejectReason: string | null;
   estimateRequestStatus: EstimateRequestStatus;
   isMoveCompleted: boolean;

@@ -452,6 +452,7 @@ const toQuoteDetailDto = (
     estimateRequestId: quote.estimateRequestId,
     price: quote.price,
     status: quote.status,
+    comment: quote.comment,
     rejectReason: quote.rejectReason,
     estimateRequestStatus: estimateRequest.status,
     isMoveCompleted: isClosedEstimateRequestCard(estimateRequest.status),
