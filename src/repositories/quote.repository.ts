@@ -746,7 +746,9 @@ export const findCustomerQuoteById = async (
 export interface CustomerQuoteForConfirmRow {
   id: number;
   estimateRequestId: number;
+  moverId: string | null;
   status: QuoteStatus;
+  isDesignated: boolean;
 }
 
 /**
@@ -767,7 +769,9 @@ export const findCustomerQuoteForConfirm = async (
     select: {
       id: true,
       estimateRequestId: true,
+      moverId: true,
       status: true,
+      isDesignated: true,
     },
   });
 };

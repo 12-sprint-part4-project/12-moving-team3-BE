@@ -589,6 +589,8 @@ paths:
         고객이 받은 견적 중 하나를 확정합니다.
         해당 견적(Quote)과 연결된 이사 요청(Estimate Request)을 함께 CONFIRMED로 변경하고,
         confirmedQuoteId를 설정합니다.
+        동일 견적요청·고객·기사 채팅방이 이미 있고 quoteId가 비어 있으면 최초 연결하여
+        목록/상세 칩이 `견적 확정`으로 보이도록 합니다. 지정 견적이면 GENERAL 방을 DESIGNATED로 승격할 수 있습니다.
         EstimateRequest가 SUBMITTED가 아니거나 이미 확정된 경우, 또는 동일 견적 재확정 시 409를 반환합니다.
         만료(EXPIRED)·취소(CANCELED)된 요청은 각각 REQUEST_EXPIRED / REQUEST_CANCELED(409)를 반환합니다.
         이사일이 지난 요청은 REQUEST_EXPIRED(409)를 반환합니다.

@@ -1055,6 +1055,17 @@ export const confirmQuote = async (
       throw new AppError('ALREADY_CONFIRMED_REQUEST');
     }
 
+    // 기존 채팅방에 quoteId 미연결이면 연결 → 칩 `견적 확정` 소스 보장
+    if (quote.moverId) {
+      await linkQuoteToChatRoom(tx, {
+        estimateRequestId: quote.estimateRequestId,
+        customerId,
+        moverId: quote.moverId,
+        quoteId,
+        isDesignated: quote.isDesignated,
+      });
+    }
+
     return { confirmedQuoteId: quoteId };
   });
 
