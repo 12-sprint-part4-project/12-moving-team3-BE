@@ -8,6 +8,8 @@ paths:
         이미 지정된 기사님이면 기존 지정 행(`id` 포함)을 그대로 반환합니다(멱등).
         해당 기사님이 이미 대기(PENDING)·확정(CONFIRMED) 견적을 보낸 경우
         409(QUOTE_ALREADY_RECEIVED_FROM_MOVER)를 반환합니다.
+        동일 견적요청·고객·기사 GENERAL 채팅방이 이미 있으면 DESIGNATED로 승격하고
+        `designatedMoverId`를 연결합니다. 채팅방이 없으면 생성하지 않습니다.
       security:
         - bearerAuth: []
       requestBody:
