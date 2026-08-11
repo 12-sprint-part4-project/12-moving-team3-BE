@@ -1,8 +1,30 @@
-/**
- * 마크다운 → plain text (미리보기·빈 본문 검증용).
- * @see 12-moving-team3-FE src/lib/stripCommunityPostMarkdown.ts
- */
-export const stripPostMarkdown = (markdown: string): string =>
+import sanitizeHtml from 'sanitize-html';
+
+const ALLOWED_TAGS: string[] = [
+  'p', 'br', 'strong', 'em',
+  'h1', 'h2', 'ul', 'ol', 'li',
+  'a', 'blockquote', 'code', 'pre',
+];
+
+const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
+  a: ['href', 'target'],
+};
+
+export const isHtmlContent = (content: string): boolean =>
+  content.trimStart().startsWith('<');
+
+/** HTML sanitize — 허용 태그·속성만 남기고 javascript: URL 차단 */
+export const sanitizePostHtml = (html: string): string =>
+  sanitizeHtml(html, {
+    allowedTags: ALLOWED_TAGS,
+    allowedAttributes: ALLOWED_ATTRIBUTES,
+    allowedSchemes: ['http', 'https', 'mailto'],
+  });
+
+const stripHtml = (html: string): string =>
+  sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s+/g, ' ').trim();
+
+const stripMarkdown = (markdown: string): string =>
   markdown
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`[^`]*`/g, ' ')
@@ -18,5 +40,9 @@ export const stripPostMarkdown = (markdown: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+/** HTML·Markdown 모두 plain text로 변환 (미리보기·빈 본문 검증용) */
+export const stripPostContent = (content: string): string =>
+  isHtmlContent(content) ? stripHtml(content) : stripMarkdown(content);
+
 export const isPostContentEmpty = (content: string): boolean =>
-  stripPostMarkdown(content).length === 0;
+  stripPostContent(content).length === 0;
