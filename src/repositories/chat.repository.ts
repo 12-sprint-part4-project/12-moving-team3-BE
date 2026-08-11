@@ -427,6 +427,7 @@ export const findRoomDetailById = async (roomId: number) => {
             select: {
               id: true,
               userType: true,
+              name: true,
               nickname: true,
               profileImageKey: true,
             },
@@ -546,6 +547,7 @@ export const findActiveRoomsByUserId = async (userId: string) => {
             select: {
               id: true,
               userType: true,
+              name: true,
               nickname: true,
               profileImageKey: true,
             },
