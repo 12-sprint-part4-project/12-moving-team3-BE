@@ -15,7 +15,9 @@ import type { PostCursor } from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
 import {
   isPostContentEmpty,
-  stripPostMarkdown,
+  sanitizePostHtml,
+  stripPostContent,
+  isHtmlContent,
 } from '../utils/post-content.util';
 import {
   assertValidPostImageKeys,
@@ -109,11 +111,13 @@ const getCursorValue = (
 };
 
 const resolvePostContent = (content: string): string => {
-  if (isPostContentEmpty(content)) {
+  const sanitized = isHtmlContent(content) ? sanitizePostHtml(content) : content;
+
+  if (isPostContentEmpty(sanitized)) {
     throw new AppError('POST_CONTENT_EMPTY');
   }
 
-  return content;
+  return sanitized;
 };
 
 const mapPostListItem = (
@@ -124,7 +128,7 @@ const mapPostListItem = (
   category: post.category,
   region: post.region ?? null,
   title: post.title,
-  contentPreview: stripPostMarkdown(post.content).slice(
+  contentPreview: stripPostContent(post.content).slice(
     0,
     CONTENT_PREVIEW_MAX_LENGTH
   ),
