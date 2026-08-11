@@ -63,8 +63,15 @@ const router = Router();
  *                               userType:
  *                                 type: string
  *                                 enum: [CUSTOMER, MOVER]
+ *                               name:
+ *                                 type: string
+ *                                 description: User.name
  *                               nickname:
  *                                 type: string
+ *                                 description: User.nickname
+ *                               displayName:
+ *                                 type: string
+ *                                 description: 표시명. COMMUNITY는 nickname, GENERAL/DESIGNATED는 name. 없으면 상대방
  *                               profileImageUrl:
  *                                 type: string
  *                                 nullable: true
@@ -569,8 +576,15 @@ router.post(
  *                         userType:
  *                           type: string
  *                           enum: [CUSTOMER, MOVER]
+ *                         name:
+ *                           type: string
+ *                           description: User.name
  *                         nickname:
  *                           type: string
+ *                           description: User.nickname
+ *                         displayName:
+ *                           type: string
+ *                           description: 표시명. COMMUNITY는 nickname, GENERAL/DESIGNATED는 name. 없으면 상대방
  *                         profileImageUrl:
  *                           type: string
  *                           nullable: true

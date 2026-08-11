@@ -7,6 +7,7 @@ import {
   type NotificationType,
   type Prisma,
 } from '@prisma/client';
+import { resolveChatCounterpartDisplayName } from '../constants/chat.constants';
 import {
   QUOTE_CONFIRMED_FOR_MOVER,
   renderNotificationContent,
@@ -956,11 +957,10 @@ const resolveChatRoomOpenedCounterpartName = async (
   const user =
     await notificationRepository.findUserNameAndNicknameById(creatorId);
 
-  if (roomType === 'COMMUNITY') {
-    return user?.nickname || user?.name || '상대방';
-  }
-
-  return user?.name || '상대방';
+  return resolveChatCounterpartDisplayName(roomType, {
+    name: user?.name ?? null,
+    nickname: user?.nickname ?? null,
+  });
 };
 
 /**

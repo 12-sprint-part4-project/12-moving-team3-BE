@@ -12,6 +12,7 @@ import {
 } from '../constants/chat-attachment.constants';
 import {
   isMessagingAllowedForChatRoom,
+  resolveChatCounterpartDisplayName,
   resolveChatRoomQuoteBind,
 } from '../constants/chat.constants';
 import { runAuditedTransaction } from '../lib/audit-context';
@@ -54,7 +55,12 @@ interface CreateChatRoomResult {
 interface ChatRoomPartner {
   id: string;
   userType: UserType;
+  /** User.name */
+  name: string;
+  /** User.nickname */
   nickname: string;
+  /** roomType별 표시명. COMMUNITY=닉네임, 견적=이름 (#299) */
+  displayName: string;
   profileImageUrl: string | null;
 }
 
@@ -159,6 +165,27 @@ const toQuoteStatus = (
 
   return quote?.status ?? null;
 };
+
+interface ChatRoomPartnerSource {
+  id: string;
+  userType: UserType;
+  name: string;
+  nickname: string;
+  profileImageKey: string | null;
+}
+
+/** 채팅 응답용 partner. displayName은 roomType별 알림과 동일 규칙. (#299) */
+const toChatRoomPartner = (
+  partner: ChatRoomPartnerSource,
+  roomType: ChatRoomType
+): ChatRoomPartner => ({
+  id: partner.id,
+  userType: partner.userType,
+  name: partner.name,
+  nickname: partner.nickname,
+  displayName: resolveChatCounterpartDisplayName(roomType, partner),
+  profileImageUrl: toPublicViewUrl(partner.profileImageKey),
+});
 
 /** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
 const selectPartnerParticipant = <
@@ -794,12 +821,7 @@ export const getChatRoomList = async (
           roomId: room.id,
           roomType: room.roomType,
           quoteStatus: toQuoteStatus(room.roomType, room.quote),
-          partner: {
-            id: partner.id,
-            userType: partner.userType,
-            nickname: partner.nickname,
-            profileImageUrl: toPublicViewUrl(partner.profileImageKey),
-          },
+          partner: toChatRoomPartner(partner, room.roomType),
           lastMessage: lastMessage
             ? {
                 messageId: lastMessage.messageId,
@@ -888,12 +910,7 @@ export const getChatRoomDetail = async (
 
   return {
     roomType: room.roomType,
-    partner: {
-      id: partner.id,
-      userType: partner.userType,
-      nickname: partner.nickname,
-      profileImageUrl: toPublicViewUrl(partner.profileImageKey),
-    },
+    partner: toChatRoomPartner(partner, room.roomType),
     requestSummary: room.estimateRequest
       ? {
           estimateRequestId: room.estimateRequest.id,
