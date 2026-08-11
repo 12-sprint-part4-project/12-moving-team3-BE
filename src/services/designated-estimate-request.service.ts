@@ -6,6 +6,8 @@ import type {
 } from '../dtos/designated-estimate-request.dto';
 import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
+import * as chatRepository from '../repositories/chat.repository';
+import type { ChatDbClient } from '../repositories/chat.repository';
 import * as designatedEstimateRequestRepository from '../repositories/designated-estimate-request.repository';
 import * as estimateRequestRepository from '../repositories/estimate-request.repository';
 import * as quoteRepository from '../repositories/quote.repository';
@@ -31,6 +33,14 @@ interface DesignatedEstimateRequestServiceParams {
   moverId: string;
 }
 
+/** 지정 생성 직후 기존 채팅방 roomType 동기화 입력 */
+interface SyncDesignatedChatRoomParams {
+  estimateRequestId: number;
+  customerId: string;
+  moverId: string;
+  designatedMoverId: number;
+}
+
 const isUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Prisma.PrismaClientKnownRequestError &&
   error.code === 'P2002';
@@ -42,6 +52,36 @@ const toDto = (
   estimateId: row.estimateId,
   moverId: row.moverId,
 });
+
+/**
+ * 동일 견적요청·고객·기사 GENERAL 채팅방이 있으면 DESIGNATED로 승격한다.
+ * 방이 없으면 생성하지 않는다. 이미 DESIGNATED면 designatedMoverId를 바꾸지 않는다.
+ */
+const syncDesignatedChatRoomType = async (
+  dbClient: ChatDbClient,
+  params: SyncDesignatedChatRoomParams
+): Promise<void> => {
+  const room = await chatRepository.findRoomByEstimateAndParticipants(
+    {
+      estimateRequestId: params.estimateRequestId,
+      roomTypes: ['DESIGNATED', 'GENERAL'],
+      participantIds: [params.customerId, params.moverId],
+    },
+    dbClient
+  );
+
+  if (!room || room.roomType !== 'GENERAL') {
+    return;
+  }
+
+  await chatRepository.promoteRoomToDesignated(
+    {
+      roomId: room.id,
+      designatedMoverId: params.designatedMoverId,
+    },
+    dbClient
+  );
+};
 
 /**
  * 지정 견적 존재 여부 조회 (고객 본인 견적요청만)
@@ -84,6 +124,7 @@ export const checkDesignatedEstimateExistence = async (
 /**
  * 지정 견적 요청 생성 — SUBMITTED 상태의 본인 견적요청에만 가능
  * 트랜잭션에서 estimate_request FOR UPDATE 후 Quote/지정 검사·생성으로 race를 차단
+ * 동일 견적·참여자 GENERAL 채팅방이 있으면 DESIGNATED로 승격한다(없으면 생성하지 않음)
  */
 export const createDesignatedEstimateRequest = async (
   params: DesignatedEstimateRequestServiceParams
@@ -112,6 +153,13 @@ export const createDesignatedEstimateRequest = async (
     );
 
   if (existing) {
+    // 지정만 되고 채팅하기 전 GENERAL 방이 남아 있을 수 있어 roomType을 보정한다
+    await syncDesignatedChatRoomType(prisma, {
+      estimateRequestId,
+      customerId: userId,
+      moverId,
+      designatedMoverId: existing.id,
+    });
     return toDto(existing);
   }
 
@@ -196,13 +244,21 @@ export const createDesignatedEstimateRequest = async (
         throw new AppError('QUOTE_ALREADY_RECEIVED_FROM_MOVER');
       }
 
-      return toDto(
-        await designatedEstimateRequestRepository.create(
-          estimateRequestId,
-          moverId,
-          tx
-        )
+      const createdRow = await designatedEstimateRequestRepository.create(
+        estimateRequestId,
+        moverId,
+        tx
       );
+
+      // 지정 생성과 동시에 기존 GENERAL 방을 DESIGNATED로 승격 (없으면 생성하지 않음)
+      await syncDesignatedChatRoomType(tx, {
+        estimateRequestId,
+        customerId: userId,
+        moverId,
+        designatedMoverId: createdRow.id,
+      });
+
+      return toDto(createdRow);
     });
 
     // 지정 알림 — 커밋 이후(실패해도 지정 생성은 유지). 일반 알림과 별도 사건.
@@ -235,6 +291,12 @@ export const createDesignatedEstimateRequest = async (
         );
 
       if (raced) {
+        await syncDesignatedChatRoomType(prisma, {
+          estimateRequestId,
+          customerId: userId,
+          moverId,
+          designatedMoverId: raced.id,
+        });
         return toDto(raced);
       }
 
