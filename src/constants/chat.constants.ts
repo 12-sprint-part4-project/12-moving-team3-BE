@@ -1,4 +1,30 @@
-import type { EstimateRequestStatus, QuoteStatus } from '@prisma/client';
+import type {
+  ChatRoomType,
+  EstimateRequestStatus,
+  QuoteStatus,
+} from '@prisma/client';
+
+/** 채팅 상대 표시명 해석에 쓰는 name/nickname */
+export interface ChatCounterpartNameSource {
+  name: string | null;
+  nickname: string | null;
+}
+
+/**
+ * 채팅 상대 표시명.
+ * COMMUNITY는 닉네임(없으면 name), 견적(GENERAL/DESIGNATED)은 이름. 둘 다 없으면 '상대방'.
+ * 알림 CHAT_ROOM_OPENED와 동일한 규칙이다. (#299)
+ */
+export const resolveChatCounterpartDisplayName = (
+  roomType: ChatRoomType,
+  user: ChatCounterpartNameSource
+): string => {
+  if (roomType === 'COMMUNITY') {
+    return user.nickname || user.name || '상대방';
+  }
+
+  return user.name || '상대방';
+};
 
 /**
  * 견적 요청이 종료된 상태 — 신규 방 생성·메시지 발송 차단.

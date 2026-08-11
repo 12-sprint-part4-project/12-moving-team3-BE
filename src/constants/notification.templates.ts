@@ -16,6 +16,7 @@ export const MOVE_TYPE_LABELS: Record<MoveType, string> = {
  * - 이사(견적)·채팅방 오픈(GENERAL/DESIGNATED) → User.name (`customerName` / `moverName` / `counterpartName`)
  * - 채팅방 오픈(COMMUNITY) → User.nickname (payload 키는 동일 `counterpartName`)
  * - 커뮤니티·리뷰 → User.nickname (`*Nickname`)
+ * 채팅 partner.displayName도 동일 규칙 (`resolveChatCounterpartDisplayName`, #299)
  */
 export const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
   NEW_QUOTE_REQUEST_ARRIVED:
