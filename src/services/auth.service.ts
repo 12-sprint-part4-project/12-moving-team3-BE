@@ -59,16 +59,18 @@ export interface SignupServiceResult {
   refreshTokenMaxAgeMs: number;
 }
 
+export interface AuthApiUser {
+  id: string;
+  userType: ApiUserType;
+  nickname: string;
+  email: string;
+  phoneNumber: string;
+  isProfileCompleted: boolean;
+  status: ApiUserStatus;
+}
+
 export interface LoginServiceResult {
-  user: {
-    id: string;
-    userType: ApiUserType;
-    nickname: string;
-    email: string;
-    phoneNumber: string;
-    isProfileCompleted: boolean;
-    status: ApiUserStatus;
-  };
+  user: AuthApiUser;
   accessToken: string;
   refreshToken: string;
   refreshTokenMaxAgeMs: number;
@@ -104,6 +106,23 @@ const resolveUserStatus = (
   return userStatus?.status === UserStatus.SUSPENDED ? 'SUSPENDED' : 'ACTIVE';
 };
 
+/** login / kakao / me 공통 user 응답 매핑 */
+const toAuthApiUser = (user: KakaoAuthUser): AuthApiUser => {
+  return {
+    id: user.id,
+    userType: toApiUserType(user.userType),
+    nickname: user.nickname,
+    email: user.email,
+    phoneNumber: user.phoneNumber ?? '',
+    isProfileCompleted: resolveIsProfileCompleted(
+      user.userType,
+      user.customerProfile,
+      user.moverProfile
+    ),
+    status: resolveUserStatus(user.userStatus),
+  };
+};
+
 const issueAuthSession = async (
   user: KakaoAuthUser,
   device: DeviceType
@@ -127,23 +146,23 @@ const issueAuthSession = async (
   });
 
   return {
-    user: {
-      id: user.id,
-      userType: apiUserType,
-      nickname: user.nickname,
-      email: user.email,
-      phoneNumber: user.phoneNumber ?? '',
-      isProfileCompleted: resolveIsProfileCompleted(
-        user.userType,
-        user.customerProfile,
-        user.moverProfile
-      ),
-      status: resolveUserStatus(user.userStatus),
-    },
+    user: toAuthApiUser(user),
     accessToken,
     refreshToken,
     refreshTokenMaxAgeMs: maxAgeMs,
   };
+};
+
+/** Access Token으로 현재 로그인 유저 조회 (토큰은 응답에 포함하지 않음) */
+export const getMe = async (userId: string): Promise<AuthApiUser> => {
+  const user = await authRepository.findUserForAuthById(userId);
+
+  // 토큰은 유효해도 계정이 없으면 인증된 사용자로 취급하지 않는다.
+  if (!user) {
+    throw new AppError('UNAUTHORIZED');
+  }
+
+  return toAuthApiUser(user);
 };
 
 const resolveUniqueKakaoNickname = async (
@@ -232,19 +251,7 @@ const createKakaoUser = async (
   });
 
   return {
-    user: {
-      id: result.user.id,
-      userType: toApiUserType(result.user.userType),
-      nickname: result.user.nickname,
-      email: result.user.email,
-      phoneNumber: result.user.phoneNumber ?? '',
-      isProfileCompleted: resolveIsProfileCompleted(
-        result.user.userType,
-        result.user.customerProfile,
-        result.user.moverProfile
-      ),
-      status: resolveUserStatus(result.user.userStatus),
-    },
+    user: toAuthApiUser(result.user),
     accessToken: result.accessToken,
     refreshToken: result.refreshToken,
     refreshTokenMaxAgeMs: result.refreshTokenMaxAgeMs,
@@ -300,19 +307,7 @@ const linkKakaoToExistingUser = async (
   });
 
   return {
-    user: {
-      id: user.id,
-      userType: apiUserType,
-      nickname: user.nickname,
-      email: user.email,
-      phoneNumber: user.phoneNumber ?? '',
-      isProfileCompleted: resolveIsProfileCompleted(
-        user.userType,
-        user.customerProfile,
-        user.moverProfile
-      ),
-      status: resolveUserStatus(user.userStatus),
-    },
+    user: toAuthApiUser(user),
     accessToken,
     refreshToken,
     refreshTokenMaxAgeMs: maxAgeMs,
@@ -366,19 +361,7 @@ export const login = async (
   });
 
   return {
-    user: {
-      id: user.id,
-      userType: apiUserType,
-      nickname: user.nickname,
-      email: user.email,
-      phoneNumber: user.phoneNumber ?? '',
-      isProfileCompleted: resolveIsProfileCompleted(
-        user.userType,
-        user.customerProfile,
-        user.moverProfile
-      ),
-      status: resolveUserStatus(user.userStatus),
-    },
+    user: toAuthApiUser(user),
     accessToken,
     refreshToken,
     refreshTokenMaxAgeMs: maxAgeMs,
