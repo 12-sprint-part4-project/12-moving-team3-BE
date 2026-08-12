@@ -246,6 +246,66 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        AuthMeResponse: {
+          type: 'object',
+          required: ['data'],
+          properties: {
+            data: {
+              type: 'object',
+              required: ['user'],
+              properties: {
+                user: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'userType',
+                    'nickname',
+                    'email',
+                    'phoneNumber',
+                    'isProfileCompleted',
+                    'status',
+                  ],
+                  properties: {
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      example: '550e8400-e29b-41d4-a716-446655440000',
+                    },
+                    userType: {
+                      type: 'string',
+                      enum: ['CUSTOMER', 'MOVER'],
+                      example: 'CUSTOMER',
+                    },
+                    nickname: { type: 'string', example: 'sojeong' },
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'customer@example.com',
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '01012345678',
+                      description: '프로필 미등록이면 빈 문자열',
+                    },
+                    isProfileCompleted: {
+                      type: 'boolean',
+                      example: true,
+                      description:
+                        'CUSTOMER: CustomerProfile.service 길이 > 0, MOVER: MoverProfile.service 길이 > 0',
+                    },
+                    status: {
+                      type: 'string',
+                      enum: ['ACTIVE', 'SUSPENDED'],
+                      example: 'ACTIVE',
+                      description:
+                        '계정 상태. UserStatusInfo가 없으면 ACTIVE로 정규화',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         LogoutResponse: {
           type: 'object',
           required: ['data'],

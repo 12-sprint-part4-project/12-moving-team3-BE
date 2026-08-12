@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { getAuthenticatedUser } from '../middlewares/auth.middleware';
 import {
   parseKakaoLoginBody,
   parseLoginBody,
@@ -107,5 +108,14 @@ export const kakaoLogin = async (req: Request, res: Response) => {
       accessToken: result.accessToken,
       isNewUser: result.isNewUser,
     },
+  });
+};
+
+export const getMe = async (_req: Request, res: Response) => {
+  const { userId } = getAuthenticatedUser(res);
+  const user = await authService.getMe(userId);
+
+  res.status(200).json({
+    data: { user },
   });
 };

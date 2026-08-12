@@ -91,6 +91,26 @@ export const findUserWithLocalAuthByEmail = async (email: string) => {
   });
 };
 
+/** Access Token 기준 현재 유저 조회 (login/kakao user 매핑용) */
+export const findUserForAuthById = async (
+  userId: string,
+  db: DbClient = prisma
+) => {
+  return db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      userType: true,
+      nickname: true,
+      email: true,
+      phoneNumber: true,
+      customerProfile: { select: { id: true, service: true } },
+      moverProfile: { select: { id: true, service: true } },
+      userStatus: { select: { status: true } },
+    },
+  });
+};
+
 /**
  * 카카오 providerAccountId(회원번호)로 연결된 User를 조회한다.
  */
