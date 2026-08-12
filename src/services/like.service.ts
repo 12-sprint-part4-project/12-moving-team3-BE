@@ -18,7 +18,7 @@ export const createLike = async (postId: number, userId: string) => {
   const existing = await likeRepository.findLike(postId, userId);
 
   if (existing) {
-    throw new AppError('LIKE_ALREADY_EXISTS');
+    return;
   }
 
   try {
@@ -29,7 +29,7 @@ export const createLike = async (postId: number, userId: string) => {
     }
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      throw new AppError('LIKE_ALREADY_EXISTS');
+      return;
     }
 
     throw error;
@@ -47,12 +47,12 @@ export const deleteLike = async (postId: number, userId: string) => {
   const existing = await likeRepository.findLike(postId, userId);
 
   if (!existing) {
-    throw new AppError('LIKE_NOT_FOUND');
+    return;
   }
 
   const result = await likeRepository.deleteLike(postId, userId);
 
   if (!result.deleted) {
-    throw new AppError('LIKE_NOT_FOUND');
+    return;
   }
 };
