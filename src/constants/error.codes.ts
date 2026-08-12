@@ -154,7 +154,7 @@ export const ERROR_CODES = {
   },
   INVALID_PHONE_NUMBER_FORMAT: {
     status: 400,
-    message: '전화번호는 숫자 11자리로 입력해 주세요.',
+    message: '전화번호는 010으로 시작하는 숫자 11자리로 입력해 주세요.',
   },
   PHONE_NUMBER_ALREADY_EXISTS: {
     status: 409,
