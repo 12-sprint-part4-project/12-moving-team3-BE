@@ -360,10 +360,8 @@ export const login = async (
     );
   });
 
-  const { authAccounts: _authAccounts, ...authUser } = user;
-
   return {
-    user: toAuthApiUser(authUser),
+    user: toAuthApiUser(user),
     accessToken,
     refreshToken,
     refreshTokenMaxAgeMs: maxAgeMs,
