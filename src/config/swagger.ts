@@ -100,7 +100,7 @@ const options: swaggerJSDoc.Options = {
           properties: {
             data: {
               type: 'object',
-              required: ['user', 'accessToken'],
+              required: ['user'],
               properties: {
                 user: {
                   type: 'object',
@@ -150,10 +150,6 @@ const options: swaggerJSDoc.Options = {
                       example: '2026-07-20T13:30:00.000Z',
                     },
                   },
-                },
-                accessToken: {
-                  type: 'string',
-                  description: 'Access Token (JWT)',
                 },
               },
             },
