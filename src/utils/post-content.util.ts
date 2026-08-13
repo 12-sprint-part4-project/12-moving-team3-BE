@@ -47,7 +47,7 @@ export const stripPostContent = (content: string): string =>
 /** 목록 미리보기용 — 첫 단락만 추출 후 plain text 변환 */
 export const stripPostContentPreview = (content: string): string => {
   if (isHtmlContent(content)) {
-    const firstBlock = content.split(/<\/p>|<br/i)[0] ?? content;
+    const firstBlock = content.split(/<\/p\s*>|<br\b[^>]*>/i)[0] ?? content;
     return stripHtml(firstBlock);
   }
   const firstLine = content.split('\n')[0] ?? content;
