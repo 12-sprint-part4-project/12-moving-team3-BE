@@ -52,6 +52,7 @@ export const postNeighborsQuerySchema = postListQuerySchema.pick({
   region: true,
   keyword: true,
   sort: true,
+  hideCompleted: true,
 });
 
 export type PostNeighborsQuery = z.infer<typeof postNeighborsQuerySchema>;
