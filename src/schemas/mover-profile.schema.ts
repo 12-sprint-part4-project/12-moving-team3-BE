@@ -6,7 +6,7 @@ export const moverProfileBodySchema = z.object({
   nickname: z.string().trim().min(2).max(20),
   career: z.coerce.number().int().min(0).max(50),
   shortDescription: z.string().trim().min(1).max(20),
-  description: z.string().trim().min(8),
+  description: z.string().trim().min(8).max(200),
   service: moveTypeArraySchema,
   serviceRegions: regionArraySchema,
   s3Key: s3KeySchema,
