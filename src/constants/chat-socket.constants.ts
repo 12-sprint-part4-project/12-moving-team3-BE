@@ -9,6 +9,8 @@ export const CHAT_SOCKET_SERVER_EVENTS = {
   MESSAGE: 'chat:message',
   READ: 'chat:read',
   UNREAD: 'chat:unread',
+  /** 상대가 방을 나감 (#314). 클라이언트 chat:leave(방 소켓 퇴장)와 별개 */
+  PARTNER_LEFT: 'chat:partner-left',
   ERROR: 'chat:error',
 } as const;
 

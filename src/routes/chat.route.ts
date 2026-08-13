@@ -472,6 +472,7 @@ router.post(
  *       활성 참여 중인 채팅방에서 나갑니다. 활성 참여자 row에 `leftAt`을 설정합니다.
  *       이미 나간 상태면 `409 ALREADY_LEFT`를 반환합니다.
  *       나가기 이후 해당 시점 이전 메시지는 미노출되며, 상대가 새 메시지를 보내면 목록에 재노출될 수 있습니다.
+ *       성공 시 남은 활성 참여자에게 소켓 `chat:partner-left`(`roomId`, `leftAt`)를 발송합니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
@@ -540,7 +541,8 @@ router.post(
  *     description: |
  *       채팅방의 상대방 정보, 견적 요청 요약, 메시지 발송 가능 여부,
  *       상대방 읽음 커서(`partnerLastReadMessageId`)와
- *       상대방 마지막 읽음 시각(`partnerLastReadAt`, 읽음 기록 없으면 null)을 반환합니다.
+ *       상대방 마지막 읽음 시각(`partnerLastReadAt`, 읽음 기록 없으면 null),
+ *       상대 나가기 여부(`isPartnerLeft` / `partnerLeftAt`)를 반환합니다.
  *       활성 참여자(leftAt IS NULL)만 조회할 수 있습니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
@@ -631,6 +633,16 @@ router.post(
  *                       format: date-time
  *                       nullable: true
  *                       description: 상대방이 마지막으로 읽은 시각(ISO). 읽음 기록 없으면 null
+ *                     isPartnerLeft:
+ *                       type: boolean
+ *                       description: |
+ *                         상대가 채팅방을 나간 상태인지.
+ *                         상대 활성 참여(leftAt IS NULL)가 없고 최신 참여 이력의 leftAt이 있으면 true.
+ *                     partnerLeftAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       description: 상대가 나간 시각(ISO). isPartnerLeft가 false이면 null
  *                     updatedAt:
  *                       type: string
  *                       format: date-time
