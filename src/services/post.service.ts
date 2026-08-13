@@ -17,6 +17,7 @@ import {
   isPostContentEmpty,
   sanitizePostHtml,
   stripPostContent,
+  stripPostContentPreview,
   isHtmlContent,
 } from '../utils/post-content.util';
 import {
@@ -128,7 +129,7 @@ const mapPostListItem = (
   category: post.category,
   region: post.region ?? null,
   title: post.title,
-  contentPreview: stripPostContent(post.content).slice(
+  contentPreview: stripPostContentPreview(post.content).slice(
     0,
     CONTENT_PREVIEW_MAX_LENGTH
   ),
@@ -150,12 +151,14 @@ const getPostListFilterParams = (query: {
   category?: PostListQuery['category'];
   region?: PostListQuery['region'];
   keyword?: PostListQuery['keyword'];
+  hideCompleted?: PostListQuery['hideCompleted'];
 }) => ({
   category: query.category,
   excludeCategories:
     query.category === undefined ? [PostsCategory.FURNITURE_SHARE] : undefined,
   region: query.region,
   keyword: query.keyword,
+  hideCompleted: query.hideCompleted,
 });
 
 /** 게시글 목록 조회 */
