@@ -283,7 +283,9 @@ paths:
                   example: 꼼꼼한이사
                 description:
                   type: string
-                  description: 상세 소개 (최소 8자)
+                  minLength: 8
+                  maxLength: 200
+                  description: 상세 소개 (8~200자)
                   example: 포장부터 정리까지 책임지고 진행합니다.
                 service:
                   type: array
