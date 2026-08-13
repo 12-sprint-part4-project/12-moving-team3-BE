@@ -37,22 +37,12 @@ export const login = async (req: Request, res: Response) => {
 
 export const signup = async (req: Request, res: Response) => {
   const body = parseSignupBody(req.body);
+  const result = await authService.signup(body);
 
-  const result = await authService.signup({
-    ...body,
-    device: resolveAuthDeviceType(req.get('user-agent')),
-  });
-
-  setAuthRefreshTokenCookie(
-    res,
-    result.refreshToken,
-    result.refreshTokenMaxAgeMs
-  );
-
+  // 일반 회원가입은 계정만 생성한다. 세션(토큰)은 로그인 후에 발급한다.
   res.status(201).json({
     data: {
       user: result.user,
-      accessToken: result.accessToken,
     },
   });
 };

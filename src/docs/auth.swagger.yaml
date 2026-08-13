@@ -6,17 +6,8 @@ paths:
       description: |
         일반 유저(CUSTOMER) 또는 기사님(MOVER) 계정을 생성합니다.
         전화번호는 회원가입에서 받지 않으며, 이후 프로필 등록 API에서 수집합니다.
-        Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
-        Swagger UI 응답 패널에는 Set-Cookie가 잘 안 보일 수 있으므로,
-        브라우저 Network 탭 Response Headers와 Application > Cookies(path=/api/auth)에서 확인하세요.
-        device는 Body로 받지 않고 User-Agent를 서버에서 판별합니다.
-      parameters:
-        - name: User-Agent
-          in: header
-          required: false
-          description: 기기 유형(DESKTOP/MOBILE/TABLET) 판별에 사용. 없거나 판별 불가 시 DESKTOP.
-          schema:
-            type: string
+        Access/Refresh Token은 발급하지 않습니다. 로그인(POST /api/auth/login) 후 세션이 생성됩니다.
+        (카카오 로그인은 신규 가입이어도 즉시 토큰을 발급합니다.)
       requestBody:
         required: true
         content:
@@ -44,12 +35,7 @@ paths:
                   passwordConfirmation: Password123!
       responses:
         '201':
-          description: 회원가입 성공
-          headers:
-            Set-Cookie:
-              description: Refresh Token (httpOnly, path=/api/auth)
-              schema:
-                type: string
+          description: 회원가입 성공 (토큰 미발급)
           content:
             application/json:
               schema:
@@ -155,6 +141,7 @@ paths:
         BE가 카카오 Access Token·사용자 정보를 조회한 뒤,
         카카오 회원번호로 DB를 조회해 있으면 로그인하고,
         없으면 동일 이메일의 기존 계정에 카카오를 연동하거나 신규 회원가입합니다.
+        신규 가입이어도 Access/Refresh Token을 즉시 발급합니다.
         Access Token은 응답 body로, Refresh Token은 httpOnly Cookie(refreshToken)로 전달합니다.
       parameters:
         - name: User-Agent
