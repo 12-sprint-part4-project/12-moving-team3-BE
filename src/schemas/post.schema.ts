@@ -38,6 +38,10 @@ export const postListQuerySchema = z.object({
   sort: z.enum(POST_SORT_VALUES).optional().default('LATEST'),
   cursor: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(20).optional().default(10),
+  hideCompleted: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 });
 
 export type PostListQuery = z.infer<typeof postListQuerySchema>;
@@ -48,6 +52,7 @@ export const postNeighborsQuerySchema = postListQuerySchema.pick({
   region: true,
   keyword: true,
   sort: true,
+  hideCompleted: true,
 });
 
 export type PostNeighborsQuery = z.infer<typeof postNeighborsQuerySchema>;

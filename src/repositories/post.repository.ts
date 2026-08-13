@@ -20,6 +20,7 @@ export interface FindPostsParams {
   excludeCategories?: PostsCategory[];
   region?: Region;
   keyword?: string;
+  hideCompleted?: boolean;
   sort: PostSort;
   cursor?: PostCursor;
   limit: number;
@@ -31,6 +32,7 @@ export interface PostListFilterParams {
   excludeCategories?: PostsCategory[];
   region?: Region;
   keyword?: string;
+  hideCompleted?: boolean;
 }
 
 export interface FindPostNeighborsParams extends PostListFilterParams {
@@ -47,6 +49,7 @@ const buildPostListBaseWhere = (
     category: { notIn: params.excludeCategories },
   }),
   ...(params.region && { region: params.region }),
+  ...(params.hideCompleted === true && { isCompleted: false }),
   ...(params.keyword && {
     OR: [
       { title: { contains: params.keyword, mode: 'insensitive' } },
@@ -98,6 +101,7 @@ export const findPosts = async ({
   excludeCategories,
   region,
   keyword,
+  hideCompleted,
   sort,
   cursor,
   limit,
@@ -108,6 +112,7 @@ export const findPosts = async ({
     excludeCategories,
     region,
     keyword,
+    hideCompleted,
   });
 
   const where: Prisma.PostWhereInput = cursor
