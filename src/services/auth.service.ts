@@ -31,10 +31,6 @@ import { resolveIsProfileCompleted } from '../utils/profile.util';
 
 export type ApiUserStatus = 'ACTIVE' | 'SUSPENDED';
 
-export interface SignupServiceInput extends SignupBody {
-  device: DeviceType;
-}
-
 export interface LoginServiceInput extends LoginBody {
   device: DeviceType;
 }
@@ -54,9 +50,6 @@ export interface SignupServiceResult {
     isProfileCompleted: boolean;
     createdAt: Date;
   };
-  accessToken: string;
-  refreshToken: string;
-  refreshTokenMaxAgeMs: number;
 }
 
 export interface AuthApiUser {
@@ -368,8 +361,9 @@ export const login = async (
   };
 };
 
+/** 계정만 생성한다. Access/Refresh Token은 발급하지 않는다(로그인 필요). */
 export const signup = async (
-  input: SignupServiceInput
+  input: SignupBody
 ): Promise<SignupServiceResult> => {
   const existingEmail = await authRepository.findUserByEmail(input.email);
 
@@ -388,8 +382,8 @@ export const signup = async (
   const passwordHash = await hashAuthPassword(input.password);
 
   try {
-    const result = await runAuditedTransaction(async (tx) => {
-      const user = await authRepository.createUserWithLocalAuth(
+    const user = await runAuditedTransaction(async (tx) => {
+      return authRepository.createUserWithLocalAuth(
         {
           name: input.name,
           nickname: input.nickname,
@@ -399,48 +393,23 @@ export const signup = async (
         },
         tx
       );
-
-      const apiUserType = toApiUserType(user.userType);
-      const accessToken = createAccessToken(user.id, apiUserType);
-      const refreshToken = createRefreshToken(user.id);
-      const { expiresAt, maxAgeMs } = getAuthRefreshTokenExpiry(refreshToken);
-
-      await authRepository.createRefreshTokenRecord(
-        {
-          userId: user.id,
-          tokenHash: hashAuthRefreshToken(refreshToken),
-          device: input.device,
-          expiresAt,
-        },
-        tx
-      );
-
-      return {
-        user,
-        accessToken,
-        refreshToken,
-        refreshTokenMaxAgeMs: maxAgeMs,
-      };
     });
 
     return {
       user: {
-        id: result.user.id,
-        userType: toApiUserType(result.user.userType),
-        name: result.user.name,
-        nickname: result.user.nickname,
-        email: result.user.email,
-        phoneNumber: result.user.phoneNumber ?? '',
+        id: user.id,
+        userType: toApiUserType(user.userType),
+        name: user.name,
+        nickname: user.nickname,
+        email: user.email,
+        phoneNumber: user.phoneNumber ?? '',
         isProfileCompleted: resolveIsProfileCompleted(
-          result.user.userType,
-          result.user.customerProfile,
-          result.user.moverProfile
+          user.userType,
+          user.customerProfile,
+          user.moverProfile
         ),
-        createdAt: result.user.createdAt,
+        createdAt: user.createdAt,
       },
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-      refreshTokenMaxAgeMs: result.refreshTokenMaxAgeMs,
     };
   } catch (error) {
     const appError = toAppErrorFromPrisma(error);
