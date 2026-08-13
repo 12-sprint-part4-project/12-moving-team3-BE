@@ -60,6 +60,12 @@ export interface ChatUnreadPayload {
   roomUnreadCount?: number;
 }
 
+/** 상대방 나가기 알림 (#314) */
+export interface ChatPartnerLeftPayload {
+  roomId: number;
+  leftAt: string;
+}
+
 export interface ChatSocketErrorPayload {
   code: string;
   message: string;
@@ -80,5 +86,6 @@ export interface ChatServerToClientEvents {
   'chat:message': (payload: ChatMessagePayload) => void;
   'chat:read': (payload: ChatReadPayload) => void;
   'chat:unread': (payload: ChatUnreadPayload) => void;
+  'chat:partner-left': (payload: ChatPartnerLeftPayload) => void;
   'chat:error': (payload: ChatSocketErrorPayload) => void;
 }

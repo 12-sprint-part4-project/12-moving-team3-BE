@@ -32,6 +32,7 @@ import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
 import {
   emitChatMessageCreated,
+  emitChatPartnerLeft,
   emitChatRoomRead,
 } from './chat-socket.service';
 import * as notificationService from './notification.service';
@@ -110,6 +111,10 @@ interface ChatRoomDetailResult {
   partnerLastReadMessageId: number | null;
   /** 상대방 readAt(ISO). 읽음 기록 없으면 null */
   partnerLastReadAt: string | null;
+  /** 상대가 방을 나간 상태인지 (#314) */
+  isPartnerLeft: boolean;
+  /** 상대가 나간 시각(ISO). 활성 참여 중이면 null (#314) */
+  partnerLeftAt: string | null;
   updatedAt: string;
 }
 
@@ -873,6 +878,7 @@ export const getUnreadCount = async (
  * - 활성 참여자(leftAt IS NULL)만 접근 가능
  * - partner는 상대방 유저 정보(활성 우선, 없으면 최근 참여 이력)를 반환
  * - partnerLastReadMessageId는 상대방 읽음 커서(없으면 null)
+ * - isPartnerLeft / partnerLeftAt은 상대 참여 row의 leftAt으로 파생 (#314)
  */
 export const getChatRoomDetail = async (
   authUser: AuthenticatedUser,
@@ -907,6 +913,7 @@ export const getChatRoomDetail = async (
     roomId,
     partner.id
   );
+  const isPartnerLeft = partnerParticipant.leftAt !== null;
 
   return {
     roomType: room.roomType,
@@ -932,6 +939,11 @@ export const getChatRoomDetail = async (
     partnerLastReadAt: partnerReadStatus
       ? toIsoString(partnerReadStatus.readAt)
       : null,
+    isPartnerLeft,
+    partnerLeftAt:
+      isPartnerLeft && partnerParticipant.leftAt
+        ? toIsoString(partnerParticipant.leftAt)
+        : null,
     updatedAt: toIsoString(room.updatedAt),
   };
 };
@@ -1240,6 +1252,7 @@ export const markChatRoomAsRead = async (
  * 채팅방에서 나간다.
  * - 활성 참여(leftAt IS NULL) row에 leftAt을 설정한다
  * - 이미 나간 상태면 ALREADY_LEFT, 참여 이력이 없으면 FORBIDDEN
+ * - 성공 시 남은 활성 참여자에게 chat:partner-left를 알린다 (#314)
  */
 export const leaveChatRoom = async (
   authUser: AuthenticatedUser,
@@ -1271,8 +1284,14 @@ export const leaveChatRoom = async (
     throw new AppError('FORBIDDEN', '채팅방 참여 권한이 없습니다.');
   }
 
+  const leftAtIso = toIsoString(leftAt);
+  await emitChatPartnerLeft({
+    roomId,
+    leftAt: leftAtIso,
+  });
+
   return {
     roomId,
-    leftAt: toIsoString(leftAt),
+    leftAt: leftAtIso,
   };
 };

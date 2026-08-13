@@ -6,6 +6,7 @@ import * as chatRepository from '../repositories/chat.repository';
 import { getChatIo } from '../sockets';
 import type {
   ChatMessagePayload,
+  ChatPartnerLeftPayload,
   ChatReadPayload,
 } from '../sockets/socket.types';
 import { resolveUnreadPayload } from '../utils/chat-unread.util';
@@ -22,6 +23,11 @@ interface ChatRoomReadParams {
   lastReadMessageId: number;
   readAt: string;
   partnerIds: string[];
+}
+
+interface ChatPartnerLeftParams {
+  roomId: number;
+  leftAt: string;
 }
 
 /**
@@ -108,5 +114,39 @@ export const emitChatRoomRead = async (
     );
   } catch (error) {
     console.error('[chat-socket] emitChatRoomRead failed', error);
+  }
+};
+
+/**
+ * 상대가 방을 나갔음을 남은 활성 참여자에게 알린다 (#314).
+ * - leave 직후 호출하므로 활성 참여자 = 남은 상대
+ * - Socket.IO 미초기화 시 no-op
+ * - 알림 실패는 REST 응답에 영향을 주지 않도록 내부에서 처리한다
+ */
+export const emitChatPartnerLeft = async (
+  params: ChatPartnerLeftParams
+): Promise<void> => {
+  try {
+    const io = getChatIo();
+    if (!io) {
+      return;
+    }
+
+    const payload: ChatPartnerLeftPayload = {
+      roomId: params.roomId,
+      leftAt: params.leftAt,
+    };
+
+    const remainingParticipantIds =
+      await chatRepository.findActiveParticipantIds(params.roomId);
+
+    for (const participantId of remainingParticipantIds) {
+      io.to(toUserSocketRoom(participantId)).emit(
+        CHAT_SOCKET_SERVER_EVENTS.PARTNER_LEFT,
+        payload
+      );
+    }
+  } catch (error) {
+    console.error('[chat-socket] emitChatPartnerLeft failed', error);
   }
 };
