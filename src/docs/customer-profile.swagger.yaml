@@ -209,6 +209,9 @@ paths:
         - **수정**(이미 등록됨): `phoneNumber`는 필수이며, 나머지 필드는 전달한 항목만 부분 수정합니다. `nickname`을 생략하면 기존 값을 유지하고, `null`/빈값은 허용하지 않습니다. 변경 항목이 없으면 `NO_CHANGE`.
         - 비밀번호 변경 시 `newPassword`와 함께 `currentPassword`, `newPasswordConfirm`이 필요합니다.
         - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
+          - 생략: 기존 이미지 유지
+          - string: 새 이미지로 교체
+          - `null`: 프로필 이미지 삭제
       security:
         - bearerAuth: []
       requestBody:
@@ -278,7 +281,11 @@ paths:
                   example: [HOME, SMALL]
                 s3Key:
                   type: string
-                  description: Presigned 업로드 후 받은 S3 key
+                  nullable: true
+                  minLength: 1
+                  description: |
+                    Presigned 업로드 후 받은 S3 key.
+                    생략 시 유지, string이면 교체, null이면 삭제. 빈 문자열은 허용하지 않습니다.
                   example: profile-images/1710000000000_profile.jpg
             examples:
               register:
@@ -297,6 +304,11 @@ paths:
                   phoneNumber: '01098765432'
                   region: GYEONGGI
                   service: [SMALL, OFFICE]
+              removeProfileImage:
+                summary: 프로필 이미지 삭제 예시
+                value:
+                  phoneNumber: '01098765432'
+                  s3Key: null
               updatePassword:
                 summary: 비밀번호 변경 포함 수정 예시
                 value:

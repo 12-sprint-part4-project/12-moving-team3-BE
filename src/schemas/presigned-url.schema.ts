@@ -19,4 +19,5 @@ export type PresignedUploadUrlQuery = z.infer<
   typeof presignedUploadUrlQuerySchema
 >;
 
-export const s3KeySchema = z.string().min(1).optional();
+/** 생략: 유지, string: 교체, null: 삭제 */
+export const s3KeySchema = z.string().min(1).nullable().optional();
