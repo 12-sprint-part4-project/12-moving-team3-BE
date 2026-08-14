@@ -106,12 +106,14 @@ const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
     throw new AppError('SERVICE_TYPE_REQUIRED');
   }
 
-  const existingNicknameUser = await authRepository.findUserByNickname(
-    body.nickname
-  );
+  if (body.nickname !== undefined) {
+    const existingNicknameUser = await authRepository.findUserByNickname(
+      body.nickname
+    );
 
-  if (existingNicknameUser && existingNicknameUser.id !== input.userId) {
-    throw new AppError('NICKNAME_ALREADY_EXISTS');
+    if (existingNicknameUser && existingNicknameUser.id !== input.userId) {
+      throw new AppError('NICKNAME_ALREADY_EXISTS');
+    }
   }
 
   const existingPhoneUser = await authRepository.findUserByPhoneNumber(
@@ -131,9 +133,9 @@ const createCustomerProfile = async (input: CreateCustomerProfileInput) => {
       region: body.region,
       service: body.service,
       profileImageKey: nextProfileImageKey,
-      nickname: body.nickname,
       phoneNumber: body.phoneNumber,
       ...(body.name !== undefined ? { name: body.name } : {}),
+      ...(body.nickname !== undefined ? { nickname: body.nickname } : {}),
     });
 
     if (
@@ -186,6 +188,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
   const hasNameChange =
     body.name !== undefined && body.name !== existingProfile.user.name;
   const hasNicknameChange =
+    body.nickname !== undefined &&
     body.nickname !== existingProfile.user.nickname;
   const hasPhoneChange =
     body.phoneNumber !== existingProfile.user.phoneNumber;
@@ -210,7 +213,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
     throw new AppError('NO_CHANGE');
   }
 
-  if (hasNicknameChange) {
+  if (hasNicknameChange && body.nickname !== undefined) {
     const existingNicknameUser = await authRepository.findUserByNickname(
       body.nickname
     );
