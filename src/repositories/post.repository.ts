@@ -42,21 +42,32 @@ export interface FindPostNeighborsParams extends PostListFilterParams {
 
 const buildPostListBaseWhere = (
   params: PostListFilterParams
-): Prisma.PostWhereInput => ({
-  deletedAt: null,
-  ...(params.category && { category: params.category }),
-  ...(params.excludeCategories?.length && {
-    category: { notIn: params.excludeCategories },
-  }),
-  ...(params.region && { region: params.region }),
-  ...(params.hideCompleted === true && { isCompleted: false }),
-  ...(params.keyword && {
-    OR: [
-      { title: { contains: params.keyword, mode: 'insensitive' } },
-      { content: { contains: params.keyword, mode: 'insensitive' } },
-    ],
-  }),
-});
+): Prisma.PostWhereInput => {
+  const andConditions: Prisma.PostWhereInput[] = [];
+
+  if (params.hideCompleted === true) {
+    andConditions.push({ OR: [{ isCompleted: false }, { isCompleted: null }] });
+  }
+
+  if (params.keyword) {
+    andConditions.push({
+      OR: [
+        { title: { contains: params.keyword, mode: 'insensitive' } },
+        { content: { contains: params.keyword, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  return {
+    deletedAt: null,
+    ...(params.category && { category: params.category }),
+    ...(params.excludeCategories?.length && {
+      category: { notIn: params.excludeCategories },
+    }),
+    ...(params.region && { region: params.region }),
+    ...(andConditions.length > 0 && { AND: andConditions }),
+  };
+};
 
 /** 정렬 기준 desc + id desc 키셋 커서 조건 */
 const buildCursorCondition = (
