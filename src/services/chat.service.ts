@@ -31,6 +31,10 @@ import type {
 import { AppError } from '../utils/app.error';
 import { filterChatContent } from '../utils/chat-content-filter.util';
 import {
+  compareChatRoomsByLastActivityDesc,
+  computeChatRoomLastActivityAt,
+} from '../utils/chat-room-activity.util';
+import {
   emitChatMessageCreated,
   emitChatPartnerLeft,
   emitChatRoomRead,
@@ -80,6 +84,8 @@ interface ChatRoomListItem {
   quoteStatus: QuoteStatus | null;
   partner: ChatRoomPartner;
   lastMessage: ChatRoomLastMessage | null;
+  /** 사용자 관점 마지막 활동 시각(방 생성·재참여·메시지 중 최신, ISO) */
+  lastActivityAt: string;
   partnerLastReadMessageId: number | null;
   partnerLastReadAt: string | null;
   unreadCount: number;
@@ -751,6 +757,7 @@ const createEstimateChatRoom = async (
  * - 활성 참여(leftAt IS NULL) 방만 포함
  * - 상대가 나간 방도 목록에 유지(partner는 최신 참여 이력 기준)
  * - lastMessage / unreadCount는 최근 joinedAt 이후 메시지만 반영
+ * - lastActivityAt(방 생성·재참여·메시지 중 최신) 내림차순 정렬 (#328)
  */
 export const getChatRoomList = async (
   authUser: AuthenticatedUser
@@ -808,44 +815,54 @@ export const getChatRoomList = async (
 
   const roomListItems = (
     await Promise.all(
-      roomVisibility.map(async ({ room }): Promise<ChatRoomListItem | null> => {
-        const partnerParticipant = selectPartnerParticipant(
-          room.participants,
-          authUser.userId
-        );
+      roomVisibility.map(
+        async ({ room, joinedAt }): Promise<ChatRoomListItem | null> => {
+          const partnerParticipant = selectPartnerParticipant(
+            room.participants,
+            authUser.userId
+          );
 
-        if (!partnerParticipant) {
-          return null;
+          if (!partnerParticipant) {
+            return null;
+          }
+
+          const partner = partnerParticipant.user;
+          const lastMessage = lastMessageByRoomId.get(room.id);
+          const partnerReadStatus = partnerReadStatusByRoomId.get(room.id);
+          const lastActivityAt = computeChatRoomLastActivityAt({
+            roomCreatedAt: room.createdAt,
+            joinedAt,
+            lastMessageCreatedAt: lastMessage?.createdAt ?? null,
+          });
+
+          return {
+            roomId: room.id,
+            roomType: room.roomType,
+            quoteStatus: toQuoteStatus(room.roomType, room.quote),
+            partner: toChatRoomPartner(partner, room.roomType),
+            lastMessage: lastMessage
+              ? {
+                  messageId: lastMessage.messageId,
+                  senderId: lastMessage.senderId,
+                  content: lastMessage.content,
+                  messageType: lastMessage.messageType,
+                  createdAt: toIsoString(lastMessage.createdAt),
+                }
+              : null,
+            lastActivityAt: toIsoString(lastActivityAt),
+            partnerLastReadMessageId:
+              partnerReadStatus?.lastReadMessageId ?? null,
+            partnerLastReadAt: partnerReadStatus
+              ? toIsoString(partnerReadStatus.readAt)
+              : null,
+            unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
+          };
         }
-
-        const partner = partnerParticipant.user;
-        const lastMessage = lastMessageByRoomId.get(room.id);
-        const partnerReadStatus = partnerReadStatusByRoomId.get(room.id);
-
-        return {
-          roomId: room.id,
-          roomType: room.roomType,
-          quoteStatus: toQuoteStatus(room.roomType, room.quote),
-          partner: toChatRoomPartner(partner, room.roomType),
-          lastMessage: lastMessage
-            ? {
-                messageId: lastMessage.messageId,
-                senderId: lastMessage.senderId,
-                content: lastMessage.content,
-                messageType: lastMessage.messageType,
-                createdAt: toIsoString(lastMessage.createdAt),
-              }
-            : null,
-          partnerLastReadMessageId:
-            partnerReadStatus?.lastReadMessageId ?? null,
-          partnerLastReadAt: partnerReadStatus
-            ? toIsoString(partnerReadStatus.readAt)
-            : null,
-          unreadCount: unreadCountByRoomId.get(room.id) ?? 0,
-        };
-      })
+      )
     )
   ).filter((item): item is ChatRoomListItem => item !== null);
+
+  roomListItems.sort(compareChatRoomsByLastActivityDesc);
 
   return { rooms: roomListItems };
 };
