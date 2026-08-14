@@ -515,7 +515,7 @@ export const findActiveRoomFiltersByUserId = async (userId: string) => {
  * 유저가 활성 참여 중인 채팅방 목록을 조회한다.
  * - 방 노출: 요청자 leftAt IS NULL
  * - participants는 leftAt 무관하게 조회(상대가 나간 방도 partner 표시)
- * - lastMessageAt → updatedAt 최신순
+ * - DB orderBy는 보조용. 최종 순서는 Service에서 lastActivityAt으로 정렬 (#328)
  */
 export const findActiveRoomsByUserId = async (userId: string) => {
   return prisma.chatRoom.findMany({
@@ -527,9 +527,14 @@ export const findActiveRoomsByUserId = async (userId: string) => {
         },
       },
     },
-    orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+    orderBy: [
+      { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+      { updatedAt: 'desc' },
+      { id: 'desc' },
+    ],
     select: {
       id: true,
+      createdAt: true,
       roomType: true,
       quote: {
         where: { deletedAt: null },

@@ -25,6 +25,7 @@ const router = Router();
  *     description: |
  *       인증된 사용자가 활성 참여 중인 채팅방 목록을 반환합니다.
  *       최근 메시지·미읽음 수는 재참여(joinedAt) 이후 메시지만 반영합니다.
+ *       목록은 lastActivityAt(방 생성·재참여·메시지 중 최신) 내림차순입니다.
  *       Bearer Access Token 인증이 필요합니다.
  *     security:
  *       - bearerAuth: []
@@ -92,6 +93,10 @@ const router = Router();
  *                               createdAt:
  *                                 type: string
  *                                 format: date-time
+ *                           lastActivityAt:
+ *                             type: string
+ *                             format: date-time
+ *                             description: 사용자 관점 마지막 활동 시각(방 생성·재참여·메시지 중 최신)
  *                           partnerLastReadMessageId:
  *                             type: integer
  *                             nullable: true
