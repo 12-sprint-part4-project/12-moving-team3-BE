@@ -324,9 +324,10 @@ paths:
                 s3Key:
                   type: string
                   nullable: true
+                  minLength: 1
                   description: |
                     Presigned 업로드 후 받은 S3 key.
-                    생략 시 유지, string이면 교체, null이면 삭제.
+                    생략 시 유지, string이면 교체, null이면 삭제. 빈 문자열은 허용하지 않습니다.
                   example: uploads/1710000000000_profile.jpg
             examples:
               default:
