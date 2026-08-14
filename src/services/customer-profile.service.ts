@@ -261,7 +261,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
     });
 
     if (
-      nextProfileImageKey &&
+      hasImageChange &&
       previousProfileImageKey &&
       previousProfileImageKey !== nextProfileImageKey
     ) {
