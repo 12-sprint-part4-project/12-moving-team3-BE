@@ -51,42 +51,20 @@ paths:
                         description: COMPLETED 상태 견적 요청 수
                         example: 30
                       averageCompletedPrice:
-                        type: object
-                        required: [_avg]
-                        description: CONFIRMED 상태 견적의 평균 금액 집계 결과
-                        properties:
-                          _avg:
-                            type: object
-                            required: [price]
-                            properties:
-                              price:
-                                type: integer
-                                nullable: true
-                                description: 완료된 견적 평균 금액
-                                example: 250000
+                        type: integer
+                        description: |
+                          CONFIRMED 상태 견적의 평균 금액.
+                          소수점은 반올림한 정수로 반환하며, 대상이 없으면 0이다.
+                        example: 250000
                       totalCompletedPrice:
-                        type: object
-                        required: [_sum]
-                        description: CONFIRMED 상태 견적의 총 금액 집계 결과
-                        properties:
-                          _sum:
-                            type: object
-                            required: [price]
-                            properties:
-                              price:
-                                type: integer
-                                nullable: true
-                                description: 총 완료 견적 금액
-                                example: 7500000
+                        type: integer
+                        description: CONFIRMED 상태 견적의 총 금액. 대상이 없으면 0
+                        example: 7500000
               example:
                 data:
                   totalCompletedCount: 30
-                  averageCompletedPrice:
-                    _avg:
-                      price: 250000
-                  totalCompletedPrice:
-                    _sum:
-                      price: 7500000
+                  averageCompletedPrice: 250000
+                  totalCompletedPrice: 7500000
         '400':
           description: 쿼리 파라미터 유효성 검사 실패
           content:

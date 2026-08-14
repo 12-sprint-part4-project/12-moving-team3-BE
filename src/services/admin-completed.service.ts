@@ -52,9 +52,11 @@ export const getCompletedStatistics = async ({
       totalCompletedQuotePrice(quoteWhere),
     ]);
 
+  const roundedAverageCompletedPrice = Math.round(averageCompletedPrice);
+
   return {
     totalCompletedCount,
-    averageCompletedPrice,
+    averageCompletedPrice: roundedAverageCompletedPrice,
     totalCompletedPrice,
   };
 };
