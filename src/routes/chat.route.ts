@@ -218,6 +218,7 @@ router.get(
  *                             type: string
  *                           isFiltered:
  *                             type: boolean
+ *                             description: 전화·계좌·욕설(Exact 또는 유사도) 마스킹 여부
  *                           attachments:
  *                             type: array
  *                             items:
@@ -349,6 +350,7 @@ router.get(
  *                       description: TEXT는 마스킹된 내용, IMAGE는 빈 문자열
  *                     isFiltered:
  *                       type: boolean
+ *                       description: 전화·계좌·욕설(Exact 또는 유사도) 마스킹 여부
  *                     attachments:
  *                       type: array
  *                       items:
