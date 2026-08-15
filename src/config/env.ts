@@ -12,6 +12,10 @@ const env = {
   kakaoRestApiKey: process.env.KAKAO_REST_API_KEY ?? '',
   kakaoRedirectUri: process.env.KAKAO_REDIRECT_URI ?? '',
   kakaoClientSecret: process.env.KAKAO_CLIENT_SECRET ?? '',
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  bannedWordSimilarityThreshold: Number(
+    process.env.BANNED_WORD_SIMILARITY_THRESHOLD
+  ),
 };
 
 export default env;

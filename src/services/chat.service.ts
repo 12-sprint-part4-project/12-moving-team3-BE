@@ -1044,13 +1044,14 @@ export const sendChatMessage = async (
   return sendTextMessage(authUser, roomId, body.content);
 };
 
-/** TEXT 메시지 저장·마스킹·재참여 처리를 수행한다. */
+/** TEXT 메시지 저장·마스킹(전화·계좌·욕설 Exact/유사도)·재참여 처리를 수행한다. */
 const sendTextMessage = async (
   authUser: AuthenticatedUser,
   roomId: number,
   content: string
 ): Promise<ChatMessageItem> => {
-  const { maskedContent, isFiltered, rawContent } = filterChatContent(content);
+  const { maskedContent, isFiltered, rawContent } =
+    await filterChatContent(content);
 
   const message = await prisma.$transaction(async (tx) => {
     await assertCanSendMessage(tx, roomId, authUser.userId);
