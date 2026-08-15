@@ -378,6 +378,22 @@ model ChatMessageRawLog {
   @@map("chat_message_raw_logs")
 }
 
+/// 금칙어 사전. embedding은 pgvector(raw SQL 전용, Prisma Client 미지원)
+model BannedWord {
+  id             Int                         @id @default(autoincrement())
+  word           String                      @unique @db.VarChar(100)
+  normalizedWord String?                     @map("normalized_word") @db.VarChar(100)
+  category       String?                     @db.VarChar(50)
+  isActive       Boolean                     @default(true) @map("is_active")
+  embedding      Unsupported("vector(1536)")?
+  createdAt      DateTime                    @default(now()) @map("created_at")
+  updatedAt      DateTime                    @updatedAt @map("updated_at")
+
+  @@index([normalizedWord])
+  @@index([isActive])
+  @@map("banned_words")
+}
+
 model AdminUser {
   id            Int                 @id @default(autoincrement())
   email         String              @unique
