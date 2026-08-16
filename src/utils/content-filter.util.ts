@@ -3,6 +3,8 @@ import {
   BANNED_WORD_SIMILARITY_TOP_K,
   DEFAULT_BANNED_WORDS,
   DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD,
+  PERSONAL_INFO_FILTER_MESSAGE,
+  PROFANITY_FILTER_MESSAGE,
 } from '../constants/banned-words';
 import env from '../config/env';
 import * as bannedWordRepository from '../repositories/banned-word.repository';
@@ -11,9 +13,6 @@ import type {
   SimilarBannedWord,
 } from '../repositories/banned-word.repository';
 import { embed } from './embeddings.util';
-
-/** 마스킹에 사용하는 대체 문자 */
-export const CONTENT_FILTER_MASK = '***';
 
 /** 휴대폰·유선 + 구분자 있는 전화 형태(111-1111-1111 등) */
 const PHONE_PATTERNS: RegExp[] = [
@@ -29,6 +28,9 @@ const ACCOUNT_CARD_PATTERNS: RegExp[] = [
 ];
 
 const SIMILARITY_TOKEN_PATTERN = /[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z]{2,12}/g;
+
+/** Exact에서 글자 사이에 허용하는 우회 구분자 (! ~ 포함) */
+const PROFANITY_SEPARATOR_CLASS = '[\\s._@#$%^&*()!~\\-]*';
 
 export interface FilterUserTextResult {
   maskedContent: string;
@@ -57,21 +59,16 @@ export interface FilterUserTextDeps {
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const applyPatterns = (text: string, patterns: RegExp[]): string => {
-  let result = text;
-
-  for (const pattern of patterns) {
+const matchesAnyPattern = (text: string, patterns: RegExp[]): boolean =>
+  patterns.some((pattern) => {
     pattern.lastIndex = 0;
-    result = result.replace(pattern, CONTENT_FILTER_MASK);
-  }
-
-  return result;
-};
+    return pattern.test(text);
+  });
 
 /** 단어 글자 사이에 공백·구분자 삽입을 허용하는 Exact 패턴 */
 const toFlexibleProfanityPattern = (word: string): RegExp => {
   const chars = [...word].map(escapeRegExp);
-  return new RegExp(chars.join('[\\s._\\-*@#$%^&()]*'), 'g');
+  return new RegExp(chars.join(PROFANITY_SEPARATOR_CLASS), 'gi');
 };
 
 const uniqueNonEmpty = (values: Array<string | null | undefined>): string[] => {
@@ -90,30 +87,23 @@ const uniqueNonEmpty = (values: Array<string | null | undefined>): string[] => {
   return result;
 };
 
-/**
- * 금칙어 Exact 치환. 원문 포함 + 글자 사이 구분자 변형을 마스킹한다.
- */
-export const applyExactProfanity = (
+/** 금칙어 Exact 매칭. 원문 포함 + 글자 사이 구분자 변형. */
+export const containsExactProfanity = (
   text: string,
   words: ActiveBannedWord[]
-): string => {
+): boolean => {
   const targets = uniqueNonEmpty(
     words.flatMap((item) => [item.word, item.normalizedWord])
   );
 
-  let result = text;
-
-  for (const word of targets) {
-    result = result.replace(
-      toFlexibleProfanityPattern(word),
-      CONTENT_FILTER_MASK
-    );
-  }
-
-  return result;
+  return targets.some((word) => {
+    const pattern = toFlexibleProfanityPattern(word);
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  });
 };
 
-/** 유사도 검사 후보 토큰. MASK·숫자·과한 길이는 제외한다. */
+/** 유사도 검사 후보 토큰. 숫자·한 글자는 제외한다. */
 export const collectSimilarityCandidates = (text: string): string[] => {
   const matches = text.match(SIMILARITY_TOKEN_PATTERN) ?? [];
   const unique = uniqueNonEmpty(matches);
@@ -141,19 +131,19 @@ const resolveThreshold = (deps?: FilterUserTextDeps): number => {
   return DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD;
 };
 
-const applySimilarityProfanity = async (
+const hasSimilarityProfanity = async (
   text: string,
   deps: FilterUserTextDeps,
   threshold: number
-): Promise<string> => {
+): Promise<boolean> => {
   const hasKey = deps.hasEmbeddingApiKey ?? Boolean(env.openaiApiKey);
   if (!hasKey) {
-    return text;
+    return false;
   }
 
   const candidates = collectSimilarityCandidates(text);
   if (candidates.length === 0) {
-    return text;
+    return false;
   }
 
   const embedFn = deps.embed ?? embed;
@@ -170,14 +160,12 @@ const applySimilarityProfanity = async (
     vectors = await embedFn(candidates);
   } catch (error) {
     console.error('[content-filter] embedding failed; skip similarity', error);
-    return text;
+    return false;
   }
 
   if (vectors.length !== candidates.length) {
-    return text;
+    return false;
   }
-
-  let result = text;
 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
@@ -200,19 +188,18 @@ const applySimilarityProfanity = async (
     const shouldMask = hits.some(
       (hit) => Number.isFinite(hit.similarity) && hit.similarity >= threshold
     );
-    if (!shouldMask) {
-      continue;
+    if (shouldMask) {
+      return true;
     }
-
-    result = result.split(candidate).join(CONTENT_FILTER_MASK);
   }
 
-  return result;
+  return false;
 };
 
 /**
  * 사용자 입력 텍스트 클린 필터.
- * 전화/계좌는 정규식, 욕설은 Exact 후 Embedding 유사도(threshold). LLM은 호출하지 않는다.
+ * 전화/계좌는 정규식, 욕설은 Exact 후 Embedding 유사도. LLM은 호출하지 않는다.
+ * 감지 시 메시지 전체를 유형별 안내 문구로 바꾼다. 욕설이 있으면 욕설 문구를 우선한다.
  */
 export const filterUserText = async (
   content: string,
@@ -224,15 +211,12 @@ export const filterUserText = async (
   const maskProfanity = options.maskProfanity ?? true;
 
   const rawContent = content;
-  let maskedContent = content;
 
-  if (maskPhone) {
-    maskedContent = applyPatterns(maskedContent, PHONE_PATTERNS);
-  }
+  const hasPersonalInfo =
+    (maskPhone && matchesAnyPattern(content, PHONE_PATTERNS)) ||
+    (maskAccount && matchesAnyPattern(content, ACCOUNT_CARD_PATTERNS));
 
-  if (maskAccount) {
-    maskedContent = applyPatterns(maskedContent, ACCOUNT_CARD_PATTERNS);
-  }
+  let hasProfanity = false;
 
   if (maskProfanity) {
     const findWords =
@@ -253,12 +237,21 @@ export const filterUserText = async (
       words = fallbackBannedWords();
     }
 
-    maskedContent = applyExactProfanity(maskedContent, words);
-    maskedContent = await applySimilarityProfanity(
-      maskedContent,
-      deps,
-      resolveThreshold(deps)
-    );
+    hasProfanity = containsExactProfanity(content, words);
+    if (!hasProfanity) {
+      hasProfanity = await hasSimilarityProfanity(
+        content,
+        deps,
+        resolveThreshold(deps)
+      );
+    }
+  }
+
+  let maskedContent = content;
+  if (hasProfanity) {
+    maskedContent = PROFANITY_FILTER_MESSAGE;
+  } else if (hasPersonalInfo) {
+    maskedContent = PERSONAL_INFO_FILTER_MESSAGE;
   }
 
   return {
