@@ -27,7 +27,7 @@ const ACCOUNT_CARD_PATTERNS: RegExp[] = [
   /\b\d{10,14}\b/g,
 ];
 
-const SIMILARITY_TOKEN_PATTERN = /[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z]{2,12}/g;
+const SIMILARITY_TOKEN_PATTERN = /[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]{2,12}/g;
 
 /** Exact에서 글자 사이에 허용하는 우회 구분자 (! ~ 포함) */
 const PROFANITY_SEPARATOR_CLASS = '[\\s._@#$%^&*()!~\\-]*';

@@ -4,7 +4,11 @@
  */
 export const DEFAULT_BANNED_WORDS = [
   '시발',
+  '시이발',
+  '쉬발',
+  '시바',
   '씨발',
+  '씨바',
   '시팔',
   '씨팔',
   '시벌',
@@ -95,6 +99,7 @@ export const DEFAULT_BANNED_WORDS = [
   'tlqkf',
   'sibal',
   'ssibal',
+  's1bal',
   'fuck',
   'fucking',
   'shit',
@@ -103,7 +108,7 @@ export const DEFAULT_BANNED_WORDS = [
 
 export const BANNED_WORD_CATEGORY_PROFANITY = 'PROFANITY';
 
-export const DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD = 0.82;
+export const DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD = 0.55;
 
 export const BANNED_WORD_SIMILARITY_TOP_K = 3;
 
