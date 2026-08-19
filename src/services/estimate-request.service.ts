@@ -320,10 +320,8 @@ const isReadyToSubmit = (row: CustomerEstimateRequestRow): boolean =>
   row.moveDate != null &&
   row.departureZipCode != null &&
   row.departureAddress != null &&
-  row.departureDetailAddress != null &&
   row.arrivalZipCode != null &&
-  row.arrivalAddress != null &&
-  row.arrivalDetailAddress != null;
+  row.arrivalAddress != null;
 
 /**
  * Date(@db.Date) → YYYY-MM-DD 문자열
