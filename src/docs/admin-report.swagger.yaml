@@ -172,7 +172,8 @@ paths:
                               nullable: true
                               oneOf:
                                 - type: object
-                                  required: [type, id, name, nickname, email, userType]
+                                  required:
+                                    [type, id, name, nickname, email, userType]
                                   properties:
                                     type:
                                       type: string
@@ -213,7 +214,8 @@ paths:
                                         nickname:
                                           type: string
                                 - type: object
-                                  required: [type, id, content, messageType, sender]
+                                  required:
+                                    [type, id, content, messageType, sender]
                                   properties:
                                     type:
                                       type: string
@@ -736,7 +738,16 @@ paths:
                       content:
                         nullable: true
                         type: object
-                        required: [type, id, title, body, createdAt, deletedAt, metadata]
+                        required:
+                          [
+                            type,
+                            id,
+                            title,
+                            body,
+                            createdAt,
+                            deletedAt,
+                            metadata,
+                          ]
                         properties:
                           type:
                             type: string
@@ -819,7 +830,15 @@ paths:
                           - type: object
                             description: REVIEW 콘텐츠
                             required:
-                              [type, id, rating, content, createdAt, updatedAt, deletedAt]
+                              [
+                                type,
+                                id,
+                                rating,
+                                content,
+                                createdAt,
+                                updatedAt,
+                                deletedAt,
+                              ]
                             properties:
                               type:
                                 type: string
@@ -844,7 +863,16 @@ paths:
                           - type: object
                             description: ARTICLE 콘텐츠
                             required:
-                              [type, id, category, title, content, createdAt, updatedAt, deletedAt]
+                              [
+                                type,
+                                id,
+                                category,
+                                title,
+                                content,
+                                createdAt,
+                                updatedAt,
+                                deletedAt,
+                              ]
                             properties:
                               type:
                                 type: string
@@ -869,7 +897,16 @@ paths:
                                 nullable: true
                           - type: object
                             description: COMMENT 콘텐츠
-                            required: [type, id, postId, parentId, content, createdAt, deletedAt]
+                            required:
+                              [
+                                type,
+                                id,
+                                postId,
+                                parentId,
+                                content,
+                                createdAt,
+                                deletedAt,
+                              ]
                             properties:
                               type:
                                 type: string
@@ -893,7 +930,15 @@ paths:
                           - type: object
                             description: MESSAGE 콘텐츠
                             required:
-                              [type, id, roomId, messageType, content, isFiltered, createdAt]
+                              [
+                                type,
+                                id,
+                                roomId,
+                                messageType,
+                                content,
+                                isFiltered,
+                                createdAt,
+                              ]
                             properties:
                               type:
                                 type: string

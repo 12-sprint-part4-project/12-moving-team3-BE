@@ -40,8 +40,7 @@ export const markAsRead = async (
 ) => {
   try {
     const { userId } = getAuthenticatedUser(res);
-    const { notificationId } =
-      getValidatedParams<NotificationIdParams>(res);
+    const { notificationId } = getValidatedParams<NotificationIdParams>(res);
     const data = await notificationService.markNotificationAsRead(
       notificationId,
       userId

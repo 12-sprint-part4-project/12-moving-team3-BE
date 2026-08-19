@@ -1,9 +1,19 @@
 import sanitizeHtml from 'sanitize-html';
 
 const ALLOWED_TAGS: string[] = [
-  'p', 'br', 'strong', 'em',
-  'h1', 'h2', 'ul', 'ol', 'li',
-  'a', 'blockquote', 'code', 'pre',
+  'p',
+  'br',
+  'strong',
+  'em',
+  'h1',
+  'h2',
+  'ul',
+  'ol',
+  'li',
+  'a',
+  'blockquote',
+  'code',
+  'pre',
 ];
 
 const ALLOWED_ATTRIBUTES: sanitizeHtml.IOptions['allowedAttributes'] = {
@@ -22,7 +32,9 @@ export const sanitizePostHtml = (html: string): string =>
   });
 
 const stripHtml = (html: string): string =>
-  sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s+/g, ' ').trim();
+  sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const stripMarkdown = (markdown: string): string =>
   markdown

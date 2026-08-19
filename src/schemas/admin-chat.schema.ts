@@ -28,4 +28,6 @@ export type AdminChatRoomParams = z.infer<typeof adminChatRoomParamsSchema>;
  */
 export const adminChatMessagesQuerySchema = chatMessagesQuerySchema;
 
-export type AdminChatMessagesQuery = z.infer<typeof adminChatMessagesQuerySchema>;
+export type AdminChatMessagesQuery = z.infer<
+  typeof adminChatMessagesQuerySchema
+>;

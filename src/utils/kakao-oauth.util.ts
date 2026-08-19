@@ -96,8 +96,7 @@ export const exchangeKakaoAuthorizationCode = async (
 
   try {
     payload = (await response.json()) as
-      | KakaoTokenApiSuccess
-      | KakaoTokenApiError;
+      KakaoTokenApiSuccess | KakaoTokenApiError;
   } catch (error) {
     if (env.nodeEnv === 'development') {
       console.error('[kakao] token exchange JSON parse error', error);

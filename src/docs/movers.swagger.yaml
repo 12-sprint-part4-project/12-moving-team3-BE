@@ -54,8 +54,7 @@ paths:
             reviewCount·averageRating·confirmedCount는 리뷰/견적 집계 기준.
           schema:
             type: string
-            enum:
-              [reviewCount, averageRating, career, confirmedCount]
+            enum: [reviewCount, averageRating, career, confirmedCount]
             default: reviewCount
         - name: cursor
           in: query
