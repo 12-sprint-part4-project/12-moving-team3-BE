@@ -148,14 +148,7 @@ paths:
                               example: '2026-08-01T04:30:00.000Z'
                             target:
                               type: string
-                              enum:
-                                [
-                                  USER,
-                                  REVIEW,
-                                  MESSAGE,
-                                  ARTICLE,
-                                  COMMENT,
-                                ]
+                              enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
                               description: 신고 대상 유형
                               example: REVIEW
                             category:

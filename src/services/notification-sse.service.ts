@@ -59,11 +59,7 @@ export const subscribe = (userId: string, res: Response): void => {
 };
 
 /** 특정 유저의 모든 SSE 클라이언트에 이벤트 전송 */
-export const publish = (
-  userId: string,
-  event: string,
-  data: unknown
-): void => {
+export const publish = (userId: string, event: string, data: unknown): void => {
   const clients = clientsByUserId.get(userId);
   if (!clients || clients.size === 0) {
     return;

@@ -115,9 +115,7 @@ export const getAdminMemberDetail = async (
     isMover
       ? reviewRepository.getReviewStatsByMoverId(memberId)
       : Promise.resolve(null),
-    isMover
-      ? countConfirmedQuotesByMoverId(memberId)
-      : Promise.resolve(0),
+    isMover ? countConfirmedQuotesByMoverId(memberId) : Promise.resolve(0),
   ]);
 
   return {

@@ -30,8 +30,7 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
     '{moverName} 기사님의 {moveTypeLabel} 지정 견적이 도착했어요',
   // 강조: `확정` (고정 문구). 고객 수신 기본 템플릿 — 기사 수신은 QUOTE_CONFIRMED_FOR_MOVER
   QUOTE_CONFIRMED: '{moverName} 기사님의 견적이 확정되었어요',
-  DESIGNATED_QUOTE_REJECTED:
-    '{moverName} 기사님이 지정 견적 요청을 반려했어요',
+  DESIGNATED_QUOTE_REJECTED: '{moverName} 기사님이 지정 견적 요청을 반려했어요',
   // 강조: `{departureRegion} → {arrivalRegion} 이사 예정일`
   CUSTOMER_MOVE_DAY_REMINDER:
     '내일은 {departureRegion} → {arrivalRegion} 이사 예정일이에요.',

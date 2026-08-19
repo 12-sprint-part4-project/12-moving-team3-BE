@@ -127,7 +127,9 @@ export interface UpdateMoverBasicInfoInput {
   passwordHash?: string;
 }
 
-export const updateMoverBasicInfo = async (input: UpdateMoverBasicInfoInput) => {
+export const updateMoverBasicInfo = async (
+  input: UpdateMoverBasicInfoInput
+) => {
   return runAuditedTransaction(async (tx) => {
     const hasUserUpdate =
       input.name !== undefined || input.phoneNumber !== undefined;
