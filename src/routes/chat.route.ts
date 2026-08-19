@@ -268,7 +268,7 @@ router.get(
  *     description: |
  *       채팅방에 TEXT 또는 IMAGE 메시지를 전송합니다.
  *       활성 참여자만 발송 가능하며, 견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이거나 연결된 견적이 `REJECTED`이면 `MESSAGING_NOT_ALLOWED`(403)로 거부됩니다.
- *       TEXT: 전화·계좌·욕설은 서버에서 안내 문구로 대체되며, 필터 시 원문은 rawLog에만 저장됩니다. 욕설이 있으면 제재 안내를 우선합니다.
+ *       TEXT: 문장 안 전화·계좌 번호는 `[전화번호]`·`[계좌번호]`로 치환(mask)하고, 번호만 있는 메시지와 한글 숫자 우회 번호는 안내 문구로 대체(block)합니다. 필터 시 원문은 rawLog에만 저장됩니다. 욕설이 있으면 제재 안내를 우선합니다.
  *       IMAGE: 사전 `GET /api/presigned-upload-url?prefix=chat-attachments`로 업로드한 s3Key를 최대 5개까지 첨부합니다.
  *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
  *       성공 시 Socket.IO로 `chat:message`·수신자 `chat:unread`를 emit합니다.

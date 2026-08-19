@@ -17,7 +17,7 @@ import { embed } from './embeddings.util';
 /** 휴대폰·유선 + 구분자 있는 전화 형태(111-1111-1111 등) */
 const PHONE_PATTERNS: RegExp[] = [
   /01[016789][-\s]?\d{3,4}[-\s]?\d{4}/g,
-  /0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/g,
+  /\b0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/g,
   /\d{2,4}[-\s]\d{3,5}[-\s]\d{4}/g,
 ];
 
@@ -84,12 +84,6 @@ export interface FilterUserTextDeps {
   hasEmbeddingApiKey?: boolean;
 }
 
-interface FilterReasonKey {
-  code: FilterReasonCode;
-  method: FilterMethod;
-  similarity?: number;
-}
-
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -98,11 +92,8 @@ interface TextRange {
   end: number;
 }
 
-interface FilterHit {
-  code: FilterReasonCode;
-  method: FilterMethod;
+interface FilterHit extends FilterReason {
   range?: TextRange;
-  similarity?: number;
 }
 
 /** 정규식 매칭 구간. lastIndex를 패턴마다 새로 둔다. */
@@ -212,13 +203,15 @@ const resolvePhoneAndAccountRanges = (
   const mergedPhone = mergeOverlappingRanges(phoneRanges);
   const mergedAccount = mergeOverlappingRanges(accountRanges);
 
-  const mobilePhones = mergedPhone.filter((phone) =>
-    isMobilePhoneRange(text, phone)
+  const priorityPhones = mergedPhone.filter(
+    (phone) =>
+      isMobilePhoneRange(text, phone) ||
+      extractDigits(text, phone).startsWith('0')
   );
 
   const accounts = mergedAccount.filter(
     (account) =>
-      !mobilePhones.some((phone) => rangesOverlap(phone, account))
+      !priorityPhones.some((phone) => rangesOverlap(phone, account))
   );
 
   const phones = mergedPhone.filter(
@@ -288,7 +281,10 @@ const KOREAN_DIGIT_MAP: Record<string, string> = {
   구: '9',
 };
 
-const PHONE_NORMALIZED_CANDIDATE_PATTERN = /[공영일이삼사오육륙칠팔구0-9\s-]{10,}/g;
+const createPhoneCandidatePattern = (): RegExp =>
+  /[공영일이삼사오육륙칠팔구0-9\s-]{10,}/g;
+
+const NORMALIZED_MOBILE_PATTERN = /01[016789]\d{7,8}/;
 
 const normalizePhoneCandidate = (value: string): string =>
   [...value]
@@ -297,10 +293,7 @@ const normalizePhoneCandidate = (value: string): string =>
 
 const collectNormalizedPhoneRanges = (text: string): TextRange[] => {
   const ranges: TextRange[] = [];
-  const pattern = new RegExp(
-    PHONE_NORMALIZED_CANDIDATE_PATTERN.source,
-    PHONE_NORMALIZED_CANDIDATE_PATTERN.flags
-  );
+  const pattern = createPhoneCandidatePattern();
   let match = pattern.exec(text);
 
   while (match) {
@@ -308,11 +301,7 @@ const collectNormalizedPhoneRanges = (text: string): TextRange[] => {
     const normalized = normalizePhoneCandidate(value);
     const hasKoreanDigits = /[공영일이삼사오육륙칠팔구]/.test(value);
 
-    if (
-      hasKoreanDigits &&
-      /^01[016789]\d{7,8}$/.test(normalized) &&
-      value.length > 0
-    ) {
+    if (hasKoreanDigits && NORMALIZED_MOBILE_PATTERN.test(normalized)) {
       ranges.push({
         start: match.index,
         end: match.index + value.length,
@@ -352,7 +341,7 @@ const toUniqueReasons = (hits: FilterHit[]): FilterReason[] => {
   const seen = new Set<string>();
 
   for (const hit of hits) {
-    const reason: FilterReasonKey = {
+    const reason: FilterReason = {
       code: hit.code,
       method: hit.method,
       ...(hit.similarity != null && { similarity: hit.similarity }),
@@ -517,10 +506,10 @@ export const decideFilterAction = (
 
   const personalInfoRanges = mergeOverlappingRanges(
     hits.flatMap((hit) =>
-      hit.code === 'PERSONAL_INFO_PHONE' || hit.code === 'PERSONAL_INFO_ACCOUNT'
-        ? hit.range
-          ? [hit.range]
-          : []
+      (hit.code === 'PERSONAL_INFO_PHONE' ||
+        hit.code === 'PERSONAL_INFO_ACCOUNT') &&
+      hit.range
+        ? [hit.range]
         : []
     )
   );
@@ -552,16 +541,15 @@ const toMaskedContent = (
   }
 
   if (action === 'mask') {
+    const rangesOf = (code: FilterReasonCode): TextRange[] =>
+      hits.flatMap((hit) => (hit.code === code && hit.range ? [hit.range] : []));
+
     const phoneReplacements = mergeOverlappingRanges(
-      hits
-        .filter((hit) => hit.code === 'PERSONAL_INFO_PHONE' && hit.range)
-        .map((hit) => hit.range!)
+      rangesOf('PERSONAL_INFO_PHONE')
     ).map((range) => ({ ...range, replacement: '[전화번호]' }));
 
     const accountReplacements = mergeOverlappingRanges(
-      hits
-        .filter((hit) => hit.code === 'PERSONAL_INFO_ACCOUNT' && hit.range)
-        .map((hit) => hit.range!)
+      rangesOf('PERSONAL_INFO_ACCOUNT')
     ).map((range) => ({ ...range, replacement: '[계좌번호]' }));
 
     return replaceRanges(content, [...phoneReplacements, ...accountReplacements]);
