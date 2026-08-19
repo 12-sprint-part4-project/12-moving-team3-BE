@@ -82,11 +82,50 @@ export interface FilterUserTextDeps {
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const matchesAnyPattern = (text: string, patterns: RegExp[]): boolean =>
-  patterns.some((pattern) => {
-    pattern.lastIndex = 0;
-    return pattern.test(text);
-  });
+interface TextRange {
+  start: number;
+  end: number;
+}
+
+/** 정규식 매칭 구간. lastIndex를 패턴마다 새로 둔다. */
+const collectMatchRanges = (text: string, patterns: RegExp[]): TextRange[] => {
+  const ranges: TextRange[] = [];
+
+  for (const pattern of patterns) {
+    const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`;
+    const globalPattern = new RegExp(pattern.source, flags);
+    let match = globalPattern.exec(text);
+
+    while (match) {
+      if (match[0].length === 0) {
+        globalPattern.lastIndex += 1;
+        match = globalPattern.exec(text);
+        continue;
+      }
+
+      ranges.push({
+        start: match.index,
+        end: match.index + match[0].length,
+      });
+      match = globalPattern.exec(text);
+    }
+  }
+
+  return ranges;
+};
+
+const rangesOverlap = (left: TextRange, right: TextRange): boolean =>
+  left.start < right.end && right.start < left.end;
+
+/** 제외 구간과 겹치지 않는 매칭이 있으면 true. 전화로 잡힌 숫자를 계좌로 다시 잡지 않기 위함. */
+const hasMatchOutsideRanges = (
+  text: string,
+  patterns: RegExp[],
+  excluded: TextRange[]
+): boolean =>
+  collectMatchRanges(text, patterns).some((range) =>
+    excluded.every((item) => !rangesOverlap(item, range))
+  );
 
 /** 단어 글자 사이에 공백·구분자 삽입을 허용하는 Exact 패턴 */
 const toFlexibleProfanityPattern = (word: string): RegExp => {
@@ -330,11 +369,16 @@ export const filterUserText = async (
     }
   }
 
-  if (maskPhone && matchesAnyPattern(content, PHONE_PATTERNS)) {
+  const phoneRanges =
+    maskPhone ? collectMatchRanges(content, PHONE_PATTERNS) : [];
+  if (phoneRanges.length > 0) {
     reasons.push({ code: 'PERSONAL_INFO_PHONE', method: 'regex' });
   }
 
-  if (maskAccount && matchesAnyPattern(content, ACCOUNT_CARD_PATTERNS)) {
+  if (
+    maskAccount &&
+    hasMatchOutsideRanges(content, ACCOUNT_CARD_PATTERNS, phoneRanges)
+  ) {
     reasons.push({ code: 'PERSONAL_INFO_ACCOUNT', method: 'regex' });
   }
 
