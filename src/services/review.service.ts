@@ -238,9 +238,7 @@ export const getCustomerWritableQuotes = async (
         ? {
             id: quote.mover.id,
             name: quote.mover.name,
-            profileImageUrl: toPublicViewUrl(
-              quote.mover.profileImageKey
-            ),
+            profileImageUrl: toPublicViewUrl(quote.mover.profileImageKey),
           }
         : null,
     }))
@@ -282,9 +280,7 @@ export const getCustomerReviews = async (
           ? {
               id: quote.mover.id,
               name: quote.mover.name,
-              profileImageUrl: toPublicViewUrl(
-                quote.mover.profileImageKey
-              ),
+              profileImageUrl: toPublicViewUrl(quote.mover.profileImageKey),
             }
           : null,
         quote: quote

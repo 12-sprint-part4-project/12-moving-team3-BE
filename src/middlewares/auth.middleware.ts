@@ -24,7 +24,9 @@ const setAuditUserId = (userId: string): void => {
   );
 };
 
-const authenticateAccessToken = (req: Parameters<RequestHandler>[0]): AuthenticatedUser => {
+const authenticateAccessToken = (
+  req: Parameters<RequestHandler>[0]
+): AuthenticatedUser => {
   const header = req.get('authorization');
   const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
 

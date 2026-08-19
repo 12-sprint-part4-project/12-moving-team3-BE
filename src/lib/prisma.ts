@@ -2,10 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import env from '../config/env';
-import {
-  explicitAuditedTxStorage,
-  getAuditContext,
-} from './request-context';
+import { explicitAuditedTxStorage, getAuditContext } from './request-context';
 
 const connectionString = env.databaseUrl;
 
@@ -60,7 +57,10 @@ export const prisma = basePrisma.$extends({
         }
 
         // explicitAuditedTxStorage / auditWrapStorage: 스코프 바인딩이라 병렬 요청과 간섭 없음
-        if (explicitAuditedTxStorage.getStore() || auditWrapStorage.getStore()) {
+        if (
+          explicitAuditedTxStorage.getStore() ||
+          auditWrapStorage.getStore()
+        ) {
           // 이미 감사 tx 안 — 중첩 set_config 금지. tx delegate 경로면 여기로 오면 안 됨.
           return query(args);
         }
@@ -99,9 +99,9 @@ export const prisma = basePrisma.$extends({
               );
             }
 
-            return (op as (operationArgs: typeof args) => ReturnType<typeof query>)(
-              args
-            );
+            return (
+              op as (operationArgs: typeof args) => ReturnType<typeof query>
+            )(args);
           })
         );
       },

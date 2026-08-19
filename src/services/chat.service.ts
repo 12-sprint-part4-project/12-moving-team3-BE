@@ -1054,8 +1054,12 @@ const sendTextMessage = async (
   roomId: number,
   content: string
 ): Promise<ChatMessageItem> => {
-  const { maskedContent, isFiltered, rawContent } =
+  const { maskedContent, isFiltered, rawContent, decision } =
     await filterChatContent(content);
+
+  if (decision.action !== 'allow') {
+    console.info('[content-filter]', JSON.stringify(decision));
+  }
 
   const message = await prisma.$transaction(async (tx) => {
     await assertCanSendMessage(tx, roomId, authUser.userId);

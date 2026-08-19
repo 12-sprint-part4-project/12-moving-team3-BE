@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import * as estimateRequestController from '../controllers/estimate-request.controller';
-import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
+import {
+  allowUserTypes,
+  requireAuth,
+  requireAuthAllowSuspended,
+} from '../middlewares/auth.middleware';
 import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {

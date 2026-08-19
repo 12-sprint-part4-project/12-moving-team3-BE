@@ -112,7 +112,9 @@ const getCursorValue = (
 };
 
 const resolvePostContent = (content: string): string => {
-  const sanitized = isHtmlContent(content) ? sanitizePostHtml(content) : content;
+  const sanitized = isHtmlContent(content)
+    ? sanitizePostHtml(content)
+    : content;
 
   if (isPostContentEmpty(sanitized)) {
     throw new AppError('POST_CONTENT_EMPTY');

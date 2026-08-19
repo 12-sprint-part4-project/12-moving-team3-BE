@@ -48,8 +48,7 @@ export const getCustomerProfile = async (userId: string) => {
     throw new AppError('PROFILE_NOT_FOUND');
   }
 
-  const localAuth =
-    await authRepository.findLocalPasswordHashByUserId(userId);
+  const localAuth = await authRepository.findLocalPasswordHashByUserId(userId);
 
   return {
     profileId: profile.id,
@@ -190,8 +189,7 @@ const updateCustomerProfile = async (input: UpdateCustomerProfileInput) => {
   const hasNicknameChange =
     body.nickname !== undefined &&
     body.nickname !== existingProfile.user.nickname;
-  const hasPhoneChange =
-    body.phoneNumber !== existingProfile.user.phoneNumber;
+  const hasPhoneChange = body.phoneNumber !== existingProfile.user.phoneNumber;
   const hasRegionChange =
     body.region !== undefined && body.region !== existingProfile.region;
   const hasServiceChange =
