@@ -71,6 +71,8 @@ export const moveDateSchema = z.iso.date({
 });
 
 const addressFieldSchema = z.string().trim().min(1);
+/** 상세주소(동·호수) — 없는 주소도 있어 선택값. 미입력 시 빈 문자열로 저장 */
+const optionalAddressFieldSchema = z.string().trim().optional().default('');
 
 const step1DataSchema = z.object({
   moveType: moveTypeSchema,
@@ -83,10 +85,10 @@ const step2DataSchema = z.object({
 const step3DataSchema = z.object({
   departureZipCode: addressFieldSchema,
   departureAddress: addressFieldSchema,
-  departureDetailAddress: addressFieldSchema,
+  departureDetailAddress: optionalAddressFieldSchema,
   arrivalZipCode: addressFieldSchema,
   arrivalAddress: addressFieldSchema,
-  arrivalDetailAddress: addressFieldSchema,
+  arrivalDetailAddress: optionalAddressFieldSchema,
 });
 
 /** 단계별 입력 저장 — FE 스텝 1~3 (출발지+도착지는 step 3 일괄) */
@@ -123,11 +125,25 @@ export const ESTIMATE_REQUEST_REVISABLE_FIELDS = [
 export type EstimateRequestRevisableField =
   (typeof ESTIMATE_REQUEST_REVISABLE_FIELDS)[number];
 
-/** 완료 항목 재수정 — field + value 단건 수정 */
-export const reviseEstimateRequestFieldBodySchema = z.object({
-  field: z.enum(ESTIMATE_REQUEST_REVISABLE_FIELDS),
-  value: z.string().trim().min(1),
-});
+/** 재수정 시에도 빈 값을 허용하는 필드 — 상세주소(동·호수)만 선택값 */
+const OPTIONAL_REVISABLE_FIELDS = [
+  'departureDetailAddress',
+  'arrivalDetailAddress',
+] as const;
+
+/** 완료 항목 재수정 — field + value 단건 수정. 상세주소만 빈 값 허용 */
+export const reviseEstimateRequestFieldBodySchema = z
+  .object({
+    field: z.enum(ESTIMATE_REQUEST_REVISABLE_FIELDS),
+    value: z.string().trim(),
+  })
+  .refine(
+    (data) =>
+      OPTIONAL_REVISABLE_FIELDS.includes(
+        data.field as (typeof OPTIONAL_REVISABLE_FIELDS)[number]
+      ) || data.value.length > 0,
+    { message: '값을 입력해 주세요.', path: ['value'] }
+  );
 
 export type ReviseEstimateRequestFieldBody = z.infer<
   typeof reviseEstimateRequestFieldBodySchema
