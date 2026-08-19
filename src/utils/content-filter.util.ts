@@ -21,10 +21,15 @@ const PHONE_PATTERNS: RegExp[] = [
   /\d{2,4}[-\s]\d{3,5}[-\s]\d{4}/g,
 ];
 
-/** 카드번호(4-4-4-4) · 계좌번호로 보이는 연속 숫자 패턴 */
-const ACCOUNT_CARD_PATTERNS: RegExp[] = [
-  /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
+/** 계좌번호: 연속 숫자 · 하이픈 구분 (카드 4-4-4-4는 필터하지 않음) */
+const ACCOUNT_PATTERNS: RegExp[] = [
   /\b\d{10,14}\b/g,
+  /\b[1-9]\d{1,3}[-\s]\d{2,4}[-\s]\d{5,8}\b/g,
+];
+
+/** 카드 형식(4-4-4-4, 구분자 필수) — 필터 대상은 아니며, 전화 패턴 오탐 제외용 */
+const CARD_LIKE_EXCLUSION_PATTERNS: RegExp[] = [
+  /\b\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4}\b/g,
 ];
 
 const SIMILARITY_TOKEN_PATTERN = /[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]{2,12}/g;
@@ -39,7 +44,7 @@ export type FilterReasonCode =
   | 'PERSONAL_INFO_PHONE'
   | 'PERSONAL_INFO_ACCOUNT';
 
-export type FilterMethod = 'exact' | 'similarity' | 'regex';
+export type FilterMethod = 'exact' | 'similarity' | 'regex' | 'normalized';
 
 /** 공개 결정 근거. 매칭 단어·원문 번호는 넣지 않는다. */
 export interface FilterReason {
@@ -79,12 +84,25 @@ export interface FilterUserTextDeps {
   hasEmbeddingApiKey?: boolean;
 }
 
+interface FilterReasonKey {
+  code: FilterReasonCode;
+  method: FilterMethod;
+  similarity?: number;
+}
+
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 interface TextRange {
   start: number;
   end: number;
+}
+
+interface FilterHit {
+  code: FilterReasonCode;
+  method: FilterMethod;
+  range?: TextRange;
+  similarity?: number;
 }
 
 /** 정규식 매칭 구간. lastIndex를 패턴마다 새로 둔다. */
@@ -117,15 +135,195 @@ const collectMatchRanges = (text: string, patterns: RegExp[]): TextRange[] => {
 const rangesOverlap = (left: TextRange, right: TextRange): boolean =>
   left.start < right.end && right.start < left.end;
 
-/** 제외 구간과 겹치지 않는 매칭이 있으면 true. 전화로 잡힌 숫자를 계좌로 다시 잡지 않기 위함. */
-const hasMatchOutsideRanges = (
+const compareRanges = (left: TextRange, right: TextRange): number =>
+  left.start - right.start || left.end - right.end;
+
+const dedupeRanges = (ranges: TextRange[]): TextRange[] => {
+  const sorted = [...ranges].sort(compareRanges);
+  const result: TextRange[] = [];
+
+  for (const range of sorted) {
+    const last = result[result.length - 1];
+    if (last && last.start === range.start && last.end === range.end) {
+      continue;
+    }
+    result.push(range);
+  }
+
+  return result;
+};
+
+/** 겹치거나 이어지는 구간을 하나로 합친다. 전화 패턴 중복 매칭 방지. */
+const mergeOverlappingRanges = (ranges: TextRange[]): TextRange[] => {
+  const sorted = dedupeRanges(ranges);
+  if (sorted.length === 0) {
+    return [];
+  }
+
+  const merged: TextRange[] = [{ ...sorted[0] }];
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const current = sorted[index];
+    const last = merged[merged.length - 1];
+
+    if (current.start <= last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+
+  return merged;
+};
+
+/** 숫자 뽑아내기 */
+const extractDigits = (text: string, range: TextRange): string =>
+  text.slice(range.start, range.end).replace(/\D/g, '');
+
+/** 휴대폰 번호 판별 */
+const isMobilePhoneRange = (text: string, range: TextRange): boolean => {
+  const digits = extractDigits(text, range);
+  return /^01[016789]\d{7,8}$/.test(digits);
+};
+
+const isValidAccountRange = (
   text: string,
-  patterns: RegExp[],
-  excluded: TextRange[]
-): boolean =>
-  collectMatchRanges(text, patterns).some((range) =>
-    excluded.every((item) => !rangesOverlap(item, range))
+  range: TextRange,
+  cardLikeRanges: TextRange[]
+): boolean => {
+  const digits = extractDigits(text, range);
+  if (digits.length < 10 || digits.length > 14) {
+    return false;
+  }
+
+  return !cardLikeRanges.some((cardLike) => rangesOverlap(range, cardLike));
+};
+
+/**
+ * 전화·계좌 구간 충돌 해소.
+ * - 010 휴대폰은 계좌 패턴(연속·하이픈)보다 우선
+ * - 그 외 겹치면 계좌 우선 (전화 3번 패턴 오탐 방지)
+ */
+const resolvePhoneAndAccountRanges = (
+  text: string,
+  phoneRanges: TextRange[],
+  accountRanges: TextRange[]
+): { phoneRanges: TextRange[]; accountRanges: TextRange[] } => {
+  const mergedPhone = mergeOverlappingRanges(phoneRanges);
+  const mergedAccount = mergeOverlappingRanges(accountRanges);
+
+  const mobilePhones = mergedPhone.filter((phone) =>
+    isMobilePhoneRange(text, phone)
   );
+
+  const accounts = mergedAccount.filter(
+    (account) =>
+      !mobilePhones.some((phone) => rangesOverlap(phone, account))
+  );
+
+  const phones = mergedPhone.filter(
+    (phone) => !accounts.some((account) => rangesOverlap(phone, account))
+  );
+
+  return {
+    phoneRanges: mergeOverlappingRanges(phones),
+    accountRanges: mergeOverlappingRanges(accounts),
+  };
+};
+
+const NON_CONTENT_PATTERN = /^[\s.,!?()[\]{}"'`~:;<>/@#$%^&*+=_|\\-]*$/;
+
+/** 독립적인 구간 판별. 문장 안 번호는 mask */
+const isStandaloneRanges = (text: string, ranges: TextRange[]): boolean => {
+  if (ranges.length === 0) {
+    return false;
+  }
+
+  let cursor = 0;
+  let remainder = '';
+
+  for (const range of dedupeRanges(ranges)) {
+    remainder += text.slice(cursor, range.start);
+    cursor = range.end;
+  }
+  remainder += text.slice(cursor);
+
+  return NON_CONTENT_PATTERN.test(remainder);
+};
+
+const replaceRanges = (
+  text: string,
+  replacements: Array<TextRange & { replacement: string }>
+): string => {
+  if (replacements.length === 0) {
+    return text;
+  }
+
+  const sorted = [...replacements].sort(compareRanges);
+  let cursor = 0;
+  let result = '';
+
+  for (const item of sorted) {
+    result += text.slice(cursor, item.start);
+    result += item.replacement;
+    cursor = item.end;
+  }
+
+  result += text.slice(cursor);
+  return result;
+};
+
+const KOREAN_DIGIT_MAP: Record<string, string> = {
+  공: '0',
+  영: '0',
+  일: '1',
+  이: '2',
+  삼: '3',
+  사: '4',
+  오: '5',
+  육: '6',
+  륙: '6',
+  칠: '7',
+  팔: '8',
+  구: '9',
+};
+
+const PHONE_NORMALIZED_CANDIDATE_PATTERN = /[공영일이삼사오육륙칠팔구0-9\s-]{10,}/g;
+
+const normalizePhoneCandidate = (value: string): string =>
+  [...value]
+    .map((char) => KOREAN_DIGIT_MAP[char] ?? (/\d/.test(char) ? char : ''))
+    .join('');
+
+const collectNormalizedPhoneRanges = (text: string): TextRange[] => {
+  const ranges: TextRange[] = [];
+  const pattern = new RegExp(
+    PHONE_NORMALIZED_CANDIDATE_PATTERN.source,
+    PHONE_NORMALIZED_CANDIDATE_PATTERN.flags
+  );
+  let match = pattern.exec(text);
+
+  while (match) {
+    const value = match[0];
+    const normalized = normalizePhoneCandidate(value);
+    const hasKoreanDigits = /[공영일이삼사오육륙칠팔구]/.test(value);
+
+    if (
+      hasKoreanDigits &&
+      /^01[016789]\d{7,8}$/.test(normalized) &&
+      value.length > 0
+    ) {
+      ranges.push({
+        start: match.index,
+        end: match.index + value.length,
+      });
+    }
+
+    match = pattern.exec(text);
+  }
+
+  return dedupeRanges(ranges);
+};
 
 /** 단어 글자 사이에 공백·구분자 삽입을 허용하는 Exact 패턴 */
 const toFlexibleProfanityPattern = (word: string): RegExp => {
@@ -144,6 +342,27 @@ const uniqueNonEmpty = (values: Array<string | null | undefined>): string[] => {
     }
     seen.add(trimmed);
     result.push(trimmed);
+  }
+
+  return result;
+};
+
+const toUniqueReasons = (hits: FilterHit[]): FilterReason[] => {
+  const result: FilterReason[] = [];
+  const seen = new Set<string>();
+
+  for (const hit of hits) {
+    const reason: FilterReasonKey = {
+      code: hit.code,
+      method: hit.method,
+      ...(hit.similarity != null && { similarity: hit.similarity }),
+    };
+    const key = JSON.stringify(reason);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(reason);
   }
 
   return result;
@@ -275,37 +494,53 @@ const findSimilarityProfanity = async (
 };
 
 /**
- * reasons로 action을 고른다. block > mask > allow.
- * 욕설·계좌는 block, 전화만 있으면 mask.
+ * reasons와 구간을 바탕으로 action을 고른다. block > mask > allow.
+ * 욕설·한글 우회 전화·번호만 있는 메시지는 block, 문장 안 번호는 mask.
  */
-export const decideFilterAction = (reasons: FilterReason[]): FilterAction => {
-  if (reasons.length === 0) {
+export const decideFilterAction = (
+  hits: FilterHit[],
+  content: string
+): FilterAction => {
+  if (hits.length === 0) {
     return 'allow';
   }
 
-  const hasBlockReason = reasons.some(
-    (reason) =>
-      reason.code === 'PROFANITY' || reason.code === 'PERSONAL_INFO_ACCOUNT'
-  );
-  if (hasBlockReason) {
+  const hasProfanity = hits.some((hit) => hit.code === 'PROFANITY');
+  if (hasProfanity) {
     return 'block';
   }
 
-  const hasPhone = reasons.some(
-    (reason) => reason.code === 'PERSONAL_INFO_PHONE'
-  );
-  if (hasPhone) {
-    return 'mask';
+  const hasNormalizedPhone = hits.some((hit) => hit.method === 'normalized');
+  if (hasNormalizedPhone) {
+    return 'block';
   }
 
-  return 'allow';
+  const personalInfoRanges = mergeOverlappingRanges(
+    hits.flatMap((hit) =>
+      hit.code === 'PERSONAL_INFO_PHONE' || hit.code === 'PERSONAL_INFO_ACCOUNT'
+        ? hit.range
+          ? [hit.range]
+          : []
+        : []
+    )
+  );
+  if (personalInfoRanges.length === 0) {
+    return 'allow';
+  }
+
+  if (isStandaloneRanges(content, personalInfoRanges)) {
+    return 'block';
+  }
+
+  return 'mask';
 };
 
 /** action·reasons를 기존 고정 안내 문구로 매핑한다. 욕설이 있으면 욕설 문구를 우선한다. */
 const toMaskedContent = (
   content: string,
   action: FilterAction,
-  reasons: FilterReason[]
+  reasons: FilterReason[],
+  hits: FilterHit[]
 ): string => {
   if (action === 'allow') {
     return content;
@@ -316,13 +551,30 @@ const toMaskedContent = (
     return PROFANITY_FILTER_MESSAGE;
   }
 
+  if (action === 'mask') {
+    const phoneReplacements = mergeOverlappingRanges(
+      hits
+        .filter((hit) => hit.code === 'PERSONAL_INFO_PHONE' && hit.range)
+        .map((hit) => hit.range!)
+    ).map((range) => ({ ...range, replacement: '[전화번호]' }));
+
+    const accountReplacements = mergeOverlappingRanges(
+      hits
+        .filter((hit) => hit.code === 'PERSONAL_INFO_ACCOUNT' && hit.range)
+        .map((hit) => hit.range!)
+    ).map((range) => ({ ...range, replacement: '[계좌번호]' }));
+
+    return replaceRanges(content, [...phoneReplacements, ...accountReplacements]);
+  }
+
   return PERSONAL_INFO_FILTER_MESSAGE;
 };
 
 /**
  * 사용자 입력 텍스트 클린 필터.
- * 전화/계좌는 정규식, 욕설은 Exact 후 Embedding 유사도. LLM은 호출하지 않는다.
- * 탐지 결과는 decision(action/reasons)으로 남기고, 화면 문구는 고정 템플릿으로 매핑한다.
+ * 전화/계좌는 정규식, 한글 우회 전화는 전처리 탐지, 욕설은 Exact 후 Embedding 유사도.
+ * LLM은 호출하지 않는다. 탐지 결과는 decision(action/reasons)으로 남기고,
+ * 문장 안 번호는 span 치환(mask), 번호만 있는 메시지와 우회 번호는 block으로 매핑한다.
  */
 export const filterUserText = async (
   content: string,
@@ -334,7 +586,7 @@ export const filterUserText = async (
   const maskProfanity = options.maskProfanity ?? true;
 
   const rawContent = content;
-  const reasons: FilterReason[] = [];
+  const hits: FilterHit[] = [];
 
   if (maskProfanity) {
     const findWords =
@@ -356,7 +608,7 @@ export const filterUserText = async (
     }
 
     if (containsExactProfanity(content, words)) {
-      reasons.push({ code: 'PROFANITY', method: 'exact' });
+      hits.push({ code: 'PROFANITY', method: 'exact' });
     } else {
       const similarityReason = await findSimilarityProfanity(
         content,
@@ -364,27 +616,53 @@ export const filterUserText = async (
         resolveThreshold(deps)
       );
       if (similarityReason) {
-        reasons.push(similarityReason);
+        hits.push(similarityReason);
       }
     }
   }
 
-  const phoneRanges =
-    maskPhone ? collectMatchRanges(content, PHONE_PATTERNS) : [];
-  if (phoneRanges.length > 0) {
-    reasons.push({ code: 'PERSONAL_INFO_PHONE', method: 'regex' });
+  const cardLikeRanges = mergeOverlappingRanges(
+    collectMatchRanges(content, CARD_LIKE_EXCLUSION_PATTERNS)
+  );
+
+  const rawPhoneRanges = maskPhone
+    ? collectMatchRanges(content, PHONE_PATTERNS).filter(
+        (phone) =>
+          !cardLikeRanges.some((cardLike) => rangesOverlap(phone, cardLike))
+      )
+    : [];
+  const rawAccountRanges = maskAccount
+    ? mergeOverlappingRanges(
+        collectMatchRanges(content, ACCOUNT_PATTERNS).filter((range) =>
+          isValidAccountRange(content, range, cardLikeRanges)
+        )
+      )
+    : [];
+
+  const { phoneRanges, accountRanges } = resolvePhoneAndAccountRanges(
+    content,
+    rawPhoneRanges,
+    rawAccountRanges
+  );
+
+  for (const range of phoneRanges) {
+    hits.push({ code: 'PERSONAL_INFO_PHONE', method: 'regex', range });
   }
 
-  if (
-    maskAccount &&
-    hasMatchOutsideRanges(content, ACCOUNT_CARD_PATTERNS, phoneRanges)
-  ) {
-    reasons.push({ code: 'PERSONAL_INFO_ACCOUNT', method: 'regex' });
+  const normalizedPhoneRanges =
+    maskPhone ? collectNormalizedPhoneRanges(content) : [];
+  for (const range of normalizedPhoneRanges) {
+    hits.push({ code: 'PERSONAL_INFO_PHONE', method: 'normalized', range });
   }
 
-  const action = decideFilterAction(reasons);
+  for (const range of accountRanges) {
+    hits.push({ code: 'PERSONAL_INFO_ACCOUNT', method: 'regex', range });
+  }
+
+  const action = decideFilterAction(hits, content);
+  const reasons = toUniqueReasons(hits);
   const decision: FilterDecision = { action, reasons };
-  const maskedContent = toMaskedContent(content, action, reasons);
+  const maskedContent = toMaskedContent(content, action, reasons, hits);
 
   return {
     rawContent,
