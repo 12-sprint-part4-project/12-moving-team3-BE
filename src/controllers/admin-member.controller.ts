@@ -52,10 +52,7 @@ export const suspendAdminMember = async (
     const { memberId } = getValidated<AdminMemberStatusParams>(res, 'params');
     const { adminId } = getAuthenticatedAdmin(res);
 
-    const data = await adminMemberService.suspendAdminMember(
-      memberId,
-      adminId
-    );
+    const data = await adminMemberService.suspendAdminMember(memberId, adminId);
 
     res.status(200).json({ data });
   } catch (error) {

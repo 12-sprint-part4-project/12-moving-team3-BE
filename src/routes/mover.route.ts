@@ -14,7 +14,11 @@ import {
   quoteListQuerySchema,
   quoteParamsSchema,
 } from '../schemas/quote.schema';
-import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
+import {
+  allowUserTypes,
+  requireAuth,
+  requireAuthAllowSuspended,
+} from '../middlewares/auth.middleware';
 import { requireCompletedMoverProfile } from '../middlewares/profile.middleware';
 
 const router = Router();

@@ -83,8 +83,7 @@ export const requireCompletedProfileForChatAttachment: RequestHandler = (
   next
 ) => {
   const query = res.locals.validated?.query as
-    | PresignedUploadUrlQuery
-    | undefined;
+    PresignedUploadUrlQuery | undefined;
 
   if (query?.prefix !== 'chat-attachments') {
     next();

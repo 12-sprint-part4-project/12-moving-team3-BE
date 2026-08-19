@@ -32,10 +32,33 @@ const SIMILARITY_TOKEN_PATTERN = /[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]{2,12}/g;
 /** Exact에서 글자 사이에 허용하는 우회 구분자 (! ~ 포함) */
 const PROFANITY_SEPARATOR_CLASS = '[\\s._@#$%^&*()!~\\-]*';
 
+export type FilterAction = 'allow' | 'mask' | 'block';
+
+export type FilterReasonCode =
+  | 'PROFANITY'
+  | 'PERSONAL_INFO_PHONE'
+  | 'PERSONAL_INFO_ACCOUNT';
+
+export type FilterMethod = 'exact' | 'similarity' | 'regex';
+
+/** 공개 결정 근거. 매칭 단어·원문 번호는 넣지 않는다. */
+export interface FilterReason {
+  code: FilterReasonCode;
+  method: FilterMethod;
+  similarity?: number;
+}
+
+/** 필터 판정. LLM이 만들지 않고 코드가 결정한다. */
+export interface FilterDecision {
+  action: FilterAction;
+  reasons: FilterReason[];
+}
+
 export interface FilterUserTextResult {
   maskedContent: string;
   isFiltered: boolean;
   rawContent: string;
+  decision: FilterDecision;
 }
 
 export type FilterChatContentResult = FilterUserTextResult;
@@ -131,19 +154,23 @@ const resolveThreshold = (deps?: FilterUserTextDeps): number => {
   return DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD;
 };
 
-const hasSimilarityProfanity = async (
+/**
+ * Embedding 유사도 검색. 임계값 이상 hit 중 최고 점수 하나만 reason으로 반환한다.
+ * 매칭 단어는 공개 JSON에 넣지 않는다.
+ */
+const findSimilarityProfanity = async (
   text: string,
   deps: FilterUserTextDeps,
   threshold: number
-): Promise<boolean> => {
+): Promise<FilterReason | null> => {
   const hasKey = deps.hasEmbeddingApiKey ?? Boolean(env.openaiApiKey);
   if (!hasKey) {
-    return false;
+    return null;
   }
 
   const candidates = collectSimilarityCandidates(text);
   if (candidates.length === 0) {
-    return false;
+    return null;
   }
 
   const embedFn = deps.embed ?? embed;
@@ -160,12 +187,14 @@ const hasSimilarityProfanity = async (
     vectors = await embedFn(candidates);
   } catch (error) {
     console.error('[content-filter] embedding failed; skip similarity', error);
-    return false;
+    return null;
   }
 
   if (vectors.length !== candidates.length) {
-    return false;
+    return null;
   }
+
+  let bestSimilarity: number | null = null;
 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
@@ -185,21 +214,76 @@ const hasSimilarityProfanity = async (
       continue;
     }
 
-    const shouldMask = hits.some(
-      (hit) => Number.isFinite(hit.similarity) && hit.similarity >= threshold
-    );
-    if (shouldMask) {
-      return true;
+    for (const hit of hits) {
+      if (!Number.isFinite(hit.similarity) || hit.similarity < threshold) {
+        continue;
+      }
+      if (bestSimilarity == null || hit.similarity > bestSimilarity) {
+        bestSimilarity = hit.similarity;
+      }
     }
   }
 
-  return false;
+  if (bestSimilarity == null) {
+    return null;
+  }
+
+  return {
+    code: 'PROFANITY',
+    method: 'similarity',
+    similarity: bestSimilarity,
+  };
+};
+
+/**
+ * reasons로 action을 고른다. block > mask > allow.
+ * 욕설·계좌는 block, 전화만 있으면 mask.
+ */
+export const decideFilterAction = (reasons: FilterReason[]): FilterAction => {
+  if (reasons.length === 0) {
+    return 'allow';
+  }
+
+  const hasBlockReason = reasons.some(
+    (reason) =>
+      reason.code === 'PROFANITY' || reason.code === 'PERSONAL_INFO_ACCOUNT'
+  );
+  if (hasBlockReason) {
+    return 'block';
+  }
+
+  const hasPhone = reasons.some(
+    (reason) => reason.code === 'PERSONAL_INFO_PHONE'
+  );
+  if (hasPhone) {
+    return 'mask';
+  }
+
+  return 'allow';
+};
+
+/** action·reasons를 기존 고정 안내 문구로 매핑한다. 욕설이 있으면 욕설 문구를 우선한다. */
+const toMaskedContent = (
+  content: string,
+  action: FilterAction,
+  reasons: FilterReason[]
+): string => {
+  if (action === 'allow') {
+    return content;
+  }
+
+  const hasProfanity = reasons.some((reason) => reason.code === 'PROFANITY');
+  if (hasProfanity) {
+    return PROFANITY_FILTER_MESSAGE;
+  }
+
+  return PERSONAL_INFO_FILTER_MESSAGE;
 };
 
 /**
  * 사용자 입력 텍스트 클린 필터.
  * 전화/계좌는 정규식, 욕설은 Exact 후 Embedding 유사도. LLM은 호출하지 않는다.
- * 감지 시 메시지 전체를 유형별 안내 문구로 바꾼다. 욕설이 있으면 욕설 문구를 우선한다.
+ * 탐지 결과는 decision(action/reasons)으로 남기고, 화면 문구는 고정 템플릿으로 매핑한다.
  */
 export const filterUserText = async (
   content: string,
@@ -211,12 +295,7 @@ export const filterUserText = async (
   const maskProfanity = options.maskProfanity ?? true;
 
   const rawContent = content;
-
-  const hasPersonalInfo =
-    (maskPhone && matchesAnyPattern(content, PHONE_PATTERNS)) ||
-    (maskAccount && matchesAnyPattern(content, ACCOUNT_CARD_PATTERNS));
-
-  let hasProfanity = false;
+  const reasons: FilterReason[] = [];
 
   if (maskProfanity) {
     const findWords =
@@ -237,27 +316,37 @@ export const filterUserText = async (
       words = fallbackBannedWords();
     }
 
-    hasProfanity = containsExactProfanity(content, words);
-    if (!hasProfanity) {
-      hasProfanity = await hasSimilarityProfanity(
+    if (containsExactProfanity(content, words)) {
+      reasons.push({ code: 'PROFANITY', method: 'exact' });
+    } else {
+      const similarityReason = await findSimilarityProfanity(
         content,
         deps,
         resolveThreshold(deps)
       );
+      if (similarityReason) {
+        reasons.push(similarityReason);
+      }
     }
   }
 
-  let maskedContent = content;
-  if (hasProfanity) {
-    maskedContent = PROFANITY_FILTER_MESSAGE;
-  } else if (hasPersonalInfo) {
-    maskedContent = PERSONAL_INFO_FILTER_MESSAGE;
+  if (maskPhone && matchesAnyPattern(content, PHONE_PATTERNS)) {
+    reasons.push({ code: 'PERSONAL_INFO_PHONE', method: 'regex' });
   }
+
+  if (maskAccount && matchesAnyPattern(content, ACCOUNT_CARD_PATTERNS)) {
+    reasons.push({ code: 'PERSONAL_INFO_ACCOUNT', method: 'regex' });
+  }
+
+  const action = decideFilterAction(reasons);
+  const decision: FilterDecision = { action, reasons };
+  const maskedContent = toMaskedContent(content, action, reasons);
 
   return {
     rawContent,
     maskedContent,
-    isFiltered: maskedContent !== rawContent,
+    isFiltered: action !== 'allow',
+    decision,
   };
 };
 

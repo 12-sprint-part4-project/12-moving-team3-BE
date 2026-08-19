@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import * as customerProfileController from '../controllers/customer-profile.controller';
 import * as quoteController from '../controllers/quote.controller';
-import { allowUserTypes, requireAuth, requireAuthAllowSuspended } from '../middlewares/auth.middleware';
+import {
+  allowUserTypes,
+  requireAuth,
+  requireAuthAllowSuspended,
+} from '../middlewares/auth.middleware';
 import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';

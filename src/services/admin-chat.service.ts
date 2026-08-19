@@ -139,8 +139,7 @@ export const getAdminChatList = async (
 
   const roomIds = items.map((room) => room.id);
   // 페이지 내 방만 한 번에 조회해 방마다 findFirst 하는 N+1을 피한다.
-  const lastMessageByRoomId =
-    await findAdminChatLastMessagesByRoomIds(roomIds);
+  const lastMessageByRoomId = await findAdminChatLastMessagesByRoomIds(roomIds);
 
   return {
     items: items.map((row) =>
