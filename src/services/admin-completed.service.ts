@@ -64,7 +64,7 @@ export const getCompletedStatistics = async ({
 export const getCompletedList = async (
   query: AdminCompletedListQuery
 ): Promise<AdminCompletedListDto> => {
-  const { page, pageSize, moveType, search, startDate, endDate } = query;
+  const { page, pageSize, moveType, search, sort, startDate, endDate } = query;
   const dateRange = createDateRangeOnly(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
@@ -95,7 +95,9 @@ export const getCompletedList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      [{ moveDate: 'desc' }, { id: 'desc' }],
+      sort === 'moveDate_asc'
+        ? [{ moveDate: 'asc' }, { id: 'desc' }]
+        : [{ moveDate: 'desc' }, { id: 'desc' }],
       pageSize,
       skip,
       select

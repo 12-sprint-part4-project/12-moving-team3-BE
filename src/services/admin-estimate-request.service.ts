@@ -81,7 +81,7 @@ export const createEstimateRequestCommonWhere = ({
 export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
-  const { page, pageSize, status, search, startDate, endDate } = query;
+  const { page, pageSize, status, search, sort, startDate, endDate } = query;
   const dateRange = createDateRange(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
@@ -112,7 +112,9 @@ export const getEstimateRequestList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      [{ submittedAt: 'desc' }, { id: 'desc' }],
+      sort === 'submittedAt_asc'
+        ? [{ submittedAt: 'asc' }, { id: 'desc' }]
+        : [{ submittedAt: 'desc' }, { id: 'desc' }],
       pageSize,
       skip,
       select
