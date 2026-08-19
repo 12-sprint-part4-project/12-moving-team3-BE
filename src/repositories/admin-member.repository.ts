@@ -168,13 +168,14 @@ export const findAdminMembersWithCount = async (
 ): Promise<{ items: AdminMemberListRow[]; totalCount: number }> => {
   const where = buildAdminMemberListWhere(params);
   const skip = (params.page - 1) * params.pageSize;
+  const order = params.sortOrder === 'ASC' ? 'asc' : 'desc';
 
   const [items, totalCount] = await prisma.$transaction([
     prisma.user.findMany({
       where,
       select: adminMemberListSelect,
       // createdAt이 같으면 id로 tie-break해 offset 페이지네이션 순서를 안정화한다.
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: order }, { id: order }],
       skip,
       take: params.pageSize,
     }),
