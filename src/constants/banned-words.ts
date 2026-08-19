@@ -1,24 +1,123 @@
-/** 금칙어 시드·DB 비어 있을 때 Exact 폴백에 쓰는 욕설 목록. 주소는 포함하지 않는다. */
+/**
+ * 금칙어 시드·DB 비어 있을 때 Exact 폴백에 쓰는 욕설 목록.
+ * 주소는 포함하지 않는다. 한 글자·일상어(개, 놈 등)는 오탐을 피하기 위해 넣지 않는다.
+ */
 export const DEFAULT_BANNED_WORDS = [
   '시발',
+  '시이발',
+  '쉬발',
+  '시바',
   '씨발',
-  '병신',
-  '지랄',
+  '씨바',
+  '시팔',
+  '씨팔',
+  '시벌',
+  '씨벌',
+  '시부럴',
+  '씨부럴',
+  '시발놈',
+  '씨발놈',
+  '시발년',
+  '씨발년',
+  '시발새끼',
+  '씨발새끼',
+  '시발련',
+  '씨발련',
+  '시발롬',
+  '씨발롬',
+  '개씨발',
   '개새끼',
+  '개세끼',
+  '개색기',
+  '개색히',
+  '개자식',
+  '개지랄',
+  '개병신',
+  '개쓰레기',
+  '개돼지',
+  '개같네',
+  '개같은',
+  '병신',
+  '병쉰',
+  '븅신',
+  '빙신',
+  '지랄',
+  '지랄맞',
+  '미친놈',
+  '미친년',
+  '미친새끼',
+  '미친개',
+  '개미친',
+  '존나',
+  '존나게',
+  '졸라',
+  '좆같',
+  '좆나',
+  '좆밥',
+  '조까',
+  '꺼져',
+  '꺼져라',
+  '꺼지라고',
+  '닥쳐',
+  '닥쳐라',
+  '뒤져',
+  '디져',
+  '죽어라',
+  '염병',
+  '앰창',
+  '엠창',
+  '니미',
+  '니미럴',
+  '니기미',
+  '니애미',
+  '느금마',
+  '니엄마',
+  '니애비',
+  '호로',
+  '호로새끼',
+  '등신',
+  '또라이',
+  '빡대가리',
+  '씹새',
+  '씹새끼',
+  '씹년',
+  '쌍놈',
+  '쌍년',
+  '창녀',
+  '창년',
+  '쓰레기새끼',
+  '바보새끼',
+  '엿먹어',
   '미친',
   'ㅅㅂ',
+  'ㅅ1ㅂ',
   'ㅄ',
   'ㅂㅅ',
   'ㅈㄹ',
-  'ㅁㅊ'
+  'ㅁㅊ',
+  'ㅈㄴ',
+  'tlqkf',
+  'sibal',
+  'ssibal',
+  's1bal',
+  'fuck',
+  'fucking',
+  'shit',
+  'bitch',
 ] as const;
 
 export const BANNED_WORD_CATEGORY_PROFANITY = 'PROFANITY';
 
-export const DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD = 0.82; // 유사도 임계값
+export const DEFAULT_BANNED_WORD_SIMILARITY_THRESHOLD = 0.55;
 
-export const BANNED_WORD_SIMILARITY_TOP_K = 3; // 유사도 검색 결과 상위 K개
+export const BANNED_WORD_SIMILARITY_TOP_K = 3;
 
-export const BANNED_WORD_EMBED_BATCH_SIZE = 50; // 벡터 인덱싱 배치 크기
+export const BANNED_WORD_EMBED_BATCH_SIZE = 50;
 
-export const BANNED_WORD_MAX_SIMILARITY_CANDIDATES = 20; // 유사도 검색 후보 토큰 최대 개수
+export const BANNED_WORD_MAX_SIMILARITY_CANDIDATES = 20;
+
+export const PROFANITY_FILTER_MESSAGE =
+  '부적절한 언어 사용이 감지되었습니다. 반복될 경우 제재가 진행됩니다.';
+
+export const PERSONAL_INFO_FILTER_MESSAGE =
+  '민감한 개인정보가 감지되었습니다. 개인정보 보호를 위해 해당 내용이 가려집니다.';
