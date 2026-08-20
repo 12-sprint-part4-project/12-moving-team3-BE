@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn src/app.ts",
-    "build": "tsc",
+    "build": "tsc && npm run sentry:sourcemaps",
     "test": "npm run build && node --test dist/controllers/admin-auth.controller.test.js dist/repositories/admin-review.repository.test.js dist/schemas/admin-report.schema.test.js dist/schemas/admin-review.schema.test.js dist/services/admin-auth.service.test.js dist/services/admin-review.service.test.js",
     "start": "node dist/app.js",
     "format": "prettier --write .",
@@ -15,7 +15,8 @@
     "banned-words:index": "ts-node scripts/index-banned-words.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 5432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'"
+    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 5432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org irum-0d --project node-express ./dist && sentry-cli sourcemaps upload --org irum-0d --project node-express ./dist"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,8 @@
     "@aws-sdk/s3-request-presigner": "^3.1096.0",
     "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
+    "@sentry/cli": "^2.58.6",
+    "@sentry/node": "^10.70.0",
     "@types/sanitize-html": "^2.16.1",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
