@@ -188,7 +188,11 @@ interface ChatRoomPartnerSource {
   profileImageKey: string | null;
 }
 
-/** 채팅 응답용 partner. displayName은 roomType별 알림과 동일 규칙. (#299) */
+/**
+ * 채팅 응답용 partner.
+ * displayName은 roomType별 알림과 동일 규칙 (#299).
+ * COMMUNITY는 프로필 이미지를 노출하지 않는다 (#363).
+ */
 const toChatRoomPartner = (
   partner: ChatRoomPartnerSource,
   roomType: ChatRoomType
@@ -198,7 +202,10 @@ const toChatRoomPartner = (
   name: partner.name,
   nickname: partner.nickname,
   displayName: resolveChatCounterpartDisplayName(roomType, partner),
-  profileImageUrl: toPublicViewUrl(partner.profileImageKey),
+  profileImageUrl:
+    roomType === 'COMMUNITY'
+      ? null
+      : toPublicViewUrl(partner.profileImageKey),
 });
 
 /** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
