@@ -76,6 +76,7 @@ const router = Router();
  *                               profileImageUrl:
  *                                 type: string
  *                                 nullable: true
+ *                                 description: 프로필 이미지 URL. COMMUNITY는 항상 null(기본 아바타). GENERAL/DESIGNATED는 profileImageKey 변환값, 없으면 null (#363)
  *                           lastMessage:
  *                             type: object
  *                             nullable: true
@@ -597,6 +598,7 @@ router.post(
  *                         profileImageUrl:
  *                           type: string
  *                           nullable: true
+ *                           description: 프로필 이미지 URL. COMMUNITY는 항상 null(기본 아바타). GENERAL/DESIGNATED는 profileImageKey 변환값, 없으면 null (#363)
  *                     requestSummary:
  *                       type: object
  *                       nullable: true
