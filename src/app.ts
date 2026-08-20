@@ -40,8 +40,6 @@ import { initChatSocket } from './sockets';
 const app = express();
 const httpServer = http.createServer(app);
 
-app.set('env', env.nodeEnv);
-
 const corsOrigins = (env.corsOrigin ?? '')
   .split(',')
   .map((origin) => origin.trim())
