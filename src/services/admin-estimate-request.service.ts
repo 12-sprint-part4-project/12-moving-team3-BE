@@ -18,6 +18,7 @@ import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
 interface QuoteMover {
   name: string;
+  nickname: string;
 }
 
 interface QuoteResponseSource {
@@ -81,7 +82,7 @@ export const createEstimateRequestCommonWhere = ({
 export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
-  const { page, pageSize, status, search, startDate, endDate } = query;
+  const { page, pageSize, status, search, sort, startDate, endDate } = query;
   const dateRange = createDateRange(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
@@ -112,7 +113,9 @@ export const getEstimateRequestList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      [{ submittedAt: 'desc' }, { id: 'desc' }],
+      sort === 'ASC'
+        ? [{ submittedAt: 'asc' }, { id: 'desc' }]
+        : [{ submittedAt: 'desc' }, { id: 'desc' }],
       pageSize,
       skip,
       select
@@ -165,7 +168,7 @@ export const getEstimateRequestDetail = async (
 
   const select = {
     id: true,
-    user: { select: { name: true } },
+    user: { select: { name: true, nickname: true } },
     moveType: true,
     departureZipCode: true,
     departureAddress: true,
@@ -178,7 +181,7 @@ export const getEstimateRequestDetail = async (
     quotes: {
       select: {
         id: true,
-        mover: { select: { name: true } },
+        mover: { select: { name: true, nickname: true } },
         price: true,
         status: true,
         createdAt: true,
@@ -216,6 +219,7 @@ export const getEstimateRequestDetail = async (
   const toQuoteResponse = (quote: QuoteResponseSource) => ({
     id: quote.id,
     moverName: quote.mover?.name ?? null,
+    moverNickname: quote.mover?.nickname ?? null,
     price: quote.price ?? null,
     status: quote.status,
     createdAt: quote.createdAt,
@@ -233,6 +237,7 @@ export const getEstimateRequestDetail = async (
     data: {
       id: estimateRequest.id,
       userName: estimateRequest.user.name,
+      userNickname: estimateRequest.user.nickname,
       moveType,
       departureAddress,
       departureDetailAddress,

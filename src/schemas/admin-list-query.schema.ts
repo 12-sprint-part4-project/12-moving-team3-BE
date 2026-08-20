@@ -26,3 +26,10 @@ export const listQuerySchema = z.object({
 });
 
 export type ListQuery = z.infer<typeof listQuerySchema>;
+
+export const sortDirectionSchema = z
+  .enum(['ASC', 'DESC'])
+  .optional()
+  .default('DESC');
+
+export type SortDirection = z.infer<typeof sortDirectionSchema>;

@@ -64,7 +64,7 @@ export const getCompletedStatistics = async ({
 export const getCompletedList = async (
   query: AdminCompletedListQuery
 ): Promise<AdminCompletedListDto> => {
-  const { page, pageSize, moveType, search, startDate, endDate } = query;
+  const { page, pageSize, moveType, search, sort, startDate, endDate } = query;
   const dateRange = createDateRangeOnly(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
@@ -95,7 +95,9 @@ export const getCompletedList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      [{ moveDate: 'desc' }, { id: 'desc' }],
+      sort === 'ASC'
+        ? [{ moveDate: 'asc' }, { id: 'desc' }]
+        : [{ moveDate: 'desc' }, { id: 'desc' }],
       pageSize,
       skip,
       select
@@ -151,7 +153,7 @@ export const getCompletedRequestDetail = async (
 
   const select = {
     id: true,
-    user: { select: { name: true } },
+    user: { select: { name: true, nickname: true } },
     moveType: true,
     departureZipCode: true,
     departureAddress: true,
@@ -162,7 +164,7 @@ export const getCompletedRequestDetail = async (
     moveDate: true,
     confirmedQuote: {
       select: {
-        mover: { select: { name: true } },
+        mover: { select: { name: true, nickname: true } },
         price: true,
         comment: true,
         createdAt: true,
@@ -193,6 +195,7 @@ export const getCompletedRequestDetail = async (
       ? null
       : {
           moverName: estimateRequest.confirmedQuote.mover?.name ?? null,
+          moverNickname: estimateRequest.confirmedQuote.mover?.nickname ?? null,
           price: estimateRequest.confirmedQuote.price ?? null,
           comment: estimateRequest.confirmedQuote.comment ?? null,
           createdAt: estimateRequest.confirmedQuote.createdAt,
@@ -202,6 +205,7 @@ export const getCompletedRequestDetail = async (
     data: {
       id: estimateRequest.id,
       userName: estimateRequest.user.name,
+      userNickname: estimateRequest.user.nickname,
       moveType,
       departureZipCode,
       departureDetailAddress,
@@ -223,6 +227,7 @@ export const getCompletedRequestDetail = async (
         confirmedQuote,
         ...(confirmedQuote && {
           'confirmedQuote.moverName': confirmedQuote.moverName,
+          'confirmedQuote.moverNickname': confirmedQuote.moverNickname,
           'confirmedQuote.price': confirmedQuote.price,
           'confirmedQuote.createdAt': confirmedQuote.createdAt,
         }),
