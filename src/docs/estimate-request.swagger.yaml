@@ -183,10 +183,8 @@ paths:
                       required:
                         - departureZipCode
                         - departureAddress
-                        - departureDetailAddress
                         - arrivalZipCode
                         - arrivalAddress
-                        - arrivalDetailAddress
                       properties:
                         departureZipCode:
                           type: string
@@ -194,12 +192,14 @@ paths:
                           type: string
                         departureDetailAddress:
                           type: string
+                          description: 상세주소(동·호수) — 선택 입력
                         arrivalZipCode:
                           type: string
                         arrivalAddress:
                           type: string
                         arrivalDetailAddress:
                           type: string
+                          description: 상세주소(동·호수) — 선택 입력
             examples:
               step1:
                 value:
