@@ -97,7 +97,8 @@ const parseUserEmail = (value: unknown): string => {
   const labels = domain.split('.');
   if (
     labels.some(
-      (label) => label.length === 0 || label.length > EMAIL_DOMAIN_LABEL_MAX_LENGTH
+      (label) =>
+        label.length === 0 || label.length > EMAIL_DOMAIN_LABEL_MAX_LENGTH
     )
   ) {
     throw new AppError('INVALID_EMAIL_FORMAT');

@@ -80,7 +80,7 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
     });
 
     if (
-      nextProfileImageKey &&
+      nextProfileImageKey !== undefined &&
       previousProfileImageKey &&
       previousProfileImageKey !== nextProfileImageKey
     ) {

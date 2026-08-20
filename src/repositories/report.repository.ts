@@ -1,7 +1,4 @@
-import type {
-  UserReportCategory,
-  UserReportTarget,
-} from '@prisma/client';
+import type { UserReportCategory, UserReportTarget } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export interface CreateUserReportInput {

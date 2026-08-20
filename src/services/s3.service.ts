@@ -110,8 +110,7 @@ export const toPresignedViewUrl = async (
 /** 공개 조회용 베이스 URL (CDN 우선 → S3_PUBLIC_BASE_URL → 버킷 URL) */
 const resolvePublicBaseUrl = (): string => {
   const configured =
-    process.env.CDN_BASE_URL?.trim() ||
-    process.env.S3_PUBLIC_BASE_URL?.trim();
+    process.env.CDN_BASE_URL?.trim() || process.env.S3_PUBLIC_BASE_URL?.trim();
 
   if (configured) {
     return configured.replace(/\/$/, '');

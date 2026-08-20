@@ -41,7 +41,9 @@ export const runAuditedTransaction = async <T>(
  * Service가 createHistory를 직접 남길 때 사용한다.
  * skipAudit을 켠 스토어 복사본으로 콜백을 실행한다 (원본 mutate 없음).
  */
-export const runWithManualAudit = async <T>(fn: () => Promise<T>): Promise<T> => {
+export const runWithManualAudit = async <T>(
+  fn: () => Promise<T>
+): Promise<T> => {
   const existing = auditContextStorage.getStore() ?? {};
   return auditContextStorage.run({ ...existing, skipAudit: true }, fn);
 };

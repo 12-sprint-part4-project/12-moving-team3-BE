@@ -19,7 +19,10 @@ import { runAuditedTransaction } from '../lib/audit-context';
 import { prisma } from '../lib/prisma';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import * as chatRepository from '../repositories/chat.repository';
-import type { ChatDbClient, ChatRoomRecord } from '../repositories/chat.repository';
+import type {
+  ChatDbClient,
+  ChatRoomRecord,
+} from '../repositories/chat.repository';
 import type {
   CreateChatRoomBody,
   CreateCommunityChatRoomBody,
@@ -185,7 +188,11 @@ interface ChatRoomPartnerSource {
   profileImageKey: string | null;
 }
 
-/** 채팅 응답용 partner. displayName은 roomType별 알림과 동일 규칙. (#299) */
+/**
+ * 채팅 응답용 partner.
+ * displayName은 roomType별 알림과 동일 규칙 (#299).
+ * COMMUNITY는 프로필 이미지를 노출하지 않는다 (#363).
+ */
 const toChatRoomPartner = (
   partner: ChatRoomPartnerSource,
   roomType: ChatRoomType
@@ -195,7 +202,10 @@ const toChatRoomPartner = (
   name: partner.name,
   nickname: partner.nickname,
   displayName: resolveChatCounterpartDisplayName(roomType, partner),
-  profileImageUrl: toPublicViewUrl(partner.profileImageKey),
+  profileImageUrl:
+    roomType === 'COMMUNITY'
+      ? null
+      : toPublicViewUrl(partner.profileImageKey),
 });
 
 /** 비본인 참여자 중 활성(leftAt IS NULL) 참여자를 우선 선택한다. */
@@ -909,7 +919,8 @@ export const getChatRoomDetail = async (
 
   const isActiveParticipant = room.participants.some(
     (participant) =>
-      participant.participantId === authUser.userId && participant.leftAt === null
+      participant.participantId === authUser.userId &&
+      participant.leftAt === null
   );
 
   if (!isActiveParticipant) {
@@ -1028,7 +1039,7 @@ export const getChatMessages = async (
  * TEXT/IMAGE 메시지를 전송한다.
  * - 활성 참여자만 발송 가능
  * - isMessagingAllowed가 false이면 거부
- * - TEXT: 클린봇 마스킹 후 저장, 필터 시 rawLog 보관
+ * - TEXT: 필터 시 안내 문구로 저장, 원문은 rawLog 보관
  * - IMAGE: S3에 업로드된 fileKey(최대 5개)를 검증·저장
  * - 나간 상대는 재참여시켜 목록에 재노출
  */
@@ -1044,13 +1055,18 @@ export const sendChatMessage = async (
   return sendTextMessage(authUser, roomId, body.content);
 };
 
-/** TEXT 메시지 저장·마스킹·재참여 처리를 수행한다. */
+/** TEXT 메시지 저장·필터(전화·계좌·욕설 안내 문구)·재참여 처리를 수행한다. */
 const sendTextMessage = async (
   authUser: AuthenticatedUser,
   roomId: number,
   content: string
 ): Promise<ChatMessageItem> => {
-  const { maskedContent, isFiltered, rawContent } = filterChatContent(content);
+  const { maskedContent, isFiltered, rawContent, decision } =
+    await filterChatContent(content);
+
+  if (decision.action !== 'allow') {
+    console.info('[content-filter]', JSON.stringify(decision));
+  }
 
   const message = await prisma.$transaction(async (tx) => {
     await assertCanSendMessage(tx, roomId, authUser.userId);

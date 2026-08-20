@@ -76,6 +76,7 @@ const router = Router();
  *                               profileImageUrl:
  *                                 type: string
  *                                 nullable: true
+ *                                 description: 프로필 이미지 URL. COMMUNITY는 항상 null(기본 아바타). GENERAL/DESIGNATED는 profileImageKey 변환값, 없으면 null (#363)
  *                           lastMessage:
  *                             type: object
  *                             nullable: true
@@ -218,6 +219,7 @@ router.get(
  *                             type: string
  *                           isFiltered:
  *                             type: boolean
+ *                             description: 전화·계좌·욕설 필터로 안내 문구가 적용되었는지 여부
  *                           attachments:
  *                             type: array
  *                             items:
@@ -267,7 +269,7 @@ router.get(
  *     description: |
  *       채팅방에 TEXT 또는 IMAGE 메시지를 전송합니다.
  *       활성 참여자만 발송 가능하며, 견적 요청이 `EXPIRED`/`CANCELED`/`COMPLETED`이거나 연결된 견적이 `REJECTED`이면 `MESSAGING_NOT_ALLOWED`(403)로 거부됩니다.
- *       TEXT: 전화·계좌/카드·욕설은 서버에서 마스킹되며, 필터 시 원문은 rawLog에만 저장됩니다.
+ *       TEXT: 문장 안 전화·계좌 번호는 `[전화번호]`·`[계좌번호]`로 치환(mask)하고, 번호만 있는 메시지와 한글 숫자 우회 번호는 안내 문구로 대체(block)합니다. 필터 시 원문은 rawLog에만 저장됩니다. 욕설이 있으면 제재 안내를 우선합니다.
  *       IMAGE: 사전 `GET /api/presigned-upload-url?prefix=chat-attachments`로 업로드한 s3Key를 최대 5개까지 첨부합니다.
  *       상대가 나간 상태면 재참여시켜 목록에 다시 노출합니다.
  *       성공 시 Socket.IO로 `chat:message`·수신자 `chat:unread`를 emit합니다.
@@ -346,9 +348,10 @@ router.get(
  *                       enum: [TEXT, IMAGE]
  *                     content:
  *                       type: string
- *                       description: TEXT는 마스킹된 내용, IMAGE는 빈 문자열
+ *                       description: TEXT는 필터 시 안내 문구, 아니면 원문. IMAGE는 빈 문자열
  *                     isFiltered:
  *                       type: boolean
+ *                       description: 전화·계좌·욕설 필터로 안내 문구가 적용되었는지 여부
  *                     attachments:
  *                       type: array
  *                       items:
@@ -595,6 +598,7 @@ router.post(
  *                         profileImageUrl:
  *                           type: string
  *                           nullable: true
+ *                           description: 프로필 이미지 URL. COMMUNITY는 항상 null(기본 아바타). GENERAL/DESIGNATED는 profileImageKey 변환값, 없으면 null (#363)
  *                     requestSummary:
  *                       type: object
  *                       nullable: true

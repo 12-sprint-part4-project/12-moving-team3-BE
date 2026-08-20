@@ -113,9 +113,7 @@ export const getMoverListCursorValue = (
     return {
       sort,
       value:
-        mover.career === null
-          ? CAREER_NULL_CURSOR_VALUE
-          : String(mover.career),
+        mover.career === null ? CAREER_NULL_CURSOR_VALUE : String(mover.career),
       id: mover.id,
     };
   }

@@ -24,10 +24,7 @@ export const runEstimateRequestStatusChangeJob = async (): Promise<void> => {
       `[estimate-request-status-change] expired count=${expiredCount} (before ${beforeDate})`
     );
   } catch (error) {
-    console.error(
-      '[estimate-request-status-change] expire step failed',
-      error
-    );
+    console.error('[estimate-request-status-change] expire step failed', error);
   }
 
   try {

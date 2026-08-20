@@ -548,12 +548,12 @@ export const getQuoteDetail = async (
   }
 
   const designatedMoverId = quote.isDesignated
-    ? (
+    ? ((
         await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
           quote.estimateRequestId,
           input.moverId
         )
-      )?.id ?? null
+      )?.id ?? null)
     : null;
 
   return toQuoteDetailDto(quote, designatedMoverId);
@@ -973,12 +973,12 @@ export const getCustomerQuoteDetail = async (
 
   const designatedMoverId =
     quote.isDesignated && quote.moverId != null
-      ? (
+      ? ((
           await designatedEstimateRequestRepository.findByEstimateIdAndMoverId(
             quote.estimateRequestId,
             quote.moverId
           )
-        )?.id ?? null
+        )?.id ?? null)
       : null;
 
   return {

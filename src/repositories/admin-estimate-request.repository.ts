@@ -56,7 +56,8 @@ export const getRequestTrendRows = async ({
       DATE_TRUNC(${trunc}, submitted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' AS bucket,
       COUNT(*) AS count
     FROM estimate_requests
-    WHERE submitted_at BETWEEN ${start} AND ${end}
+    WHERE submitted_at >= ${start}
+      AND submitted_at < ${end}
     GROUP BY bucket
     ORDER BY bucket;
   `;

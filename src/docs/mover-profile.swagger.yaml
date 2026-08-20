@@ -246,7 +246,9 @@ paths:
         - `nickname`, `career`, `shortDescription`, `description`, `service`, `serviceRegions` 필수.
         - 전화번호는 `PATCH /api/users/movers/basic-info`에서 수정합니다.
         - `s3Key`는 선택값입니다. `GET /api/presigned-upload-url`로 업로드한 뒤 받은 key를 전달합니다.
-        - `s3Key`를 보내지 않으면 기존 프로필 이미지를 유지합니다.
+          - 생략: 기존 이미지 유지
+          - string: 새 이미지로 교체
+          - `null`: 프로필 이미지 삭제
       security:
         - bearerAuth: []
       requestBody:
@@ -321,7 +323,11 @@ paths:
                   example: [SEOUL, GYEONGGI]
                 s3Key:
                   type: string
-                  description: Presigned 업로드 후 받은 S3 key. 미전송 시 기존 이미지 유지
+                  nullable: true
+                  minLength: 1
+                  description: |
+                    Presigned 업로드 후 받은 S3 key.
+                    생략 시 유지, string이면 교체, null이면 삭제. 빈 문자열은 허용하지 않습니다.
                   example: uploads/1710000000000_profile.jpg
             examples:
               default:
@@ -334,6 +340,16 @@ paths:
                   service: [HOME, SMALL]
                   serviceRegions: [SEOUL, GYEONGGI]
                   s3Key: uploads/1710000000000_profile.jpg
+              removeProfileImage:
+                summary: 프로필 이미지 삭제 예시
+                value:
+                  nickname: 김코드
+                  career: 8
+                  shortDescription: 꼼꼼한이사
+                  description: 포장부터 정리까지 책임지고 진행합니다.
+                  service: [HOME, SMALL]
+                  serviceRegions: [SEOUL, GYEONGGI]
+                  s3Key: null
       responses:
         '200':
           description: 프로필 등록/수정 성공

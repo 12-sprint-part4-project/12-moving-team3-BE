@@ -57,9 +57,8 @@ const assertImageKeysNotReferenced = async (
     return;
   }
 
-  const referencedKeys = await postRepository.findReferencedPostImageKeys(
-    imageKeys
-  );
+  const referencedKeys =
+    await postRepository.findReferencedPostImageKeys(imageKeys);
 
   if (referencedKeys.length > 0) {
     throw new AppError('INVALID_REQUEST', '이미 사용 중인 imageKey입니다.');

@@ -1,8 +1,11 @@
+import './instrument';
+
+import * as Sentry from '@sentry/node';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
-import http from 'http';
 import helmet from 'helmet';
+import http from 'http';
 import swaggerUi from 'swagger-ui-express';
 import env from './config/env';
 import { swaggerSpec } from './config/swagger';
@@ -36,6 +39,8 @@ import reportRouter from './routes/report.route';
 import reviewRouter from './routes/review.route';
 import testRouter from './routes/test.route';
 import { initChatSocket } from './sockets';
+import { AppError } from './utils/app.error';
+import { toAppErrorFromPrisma } from './utils/prisma-error.util';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -109,6 +114,22 @@ app.use('/api/reports', reportRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api', presignedUrlRouter);
 
+// Sentry
+Sentry.setupExpressErrorHandler(app, {
+  shouldHandleError: (error) => {
+    if (error instanceof AppError) {
+      return error.status >= 500;
+    }
+
+    const prismaAppError = toAppErrorFromPrisma(error);
+
+    if (prismaAppError) {
+      return prismaAppError.status >= 500;
+    }
+
+    return true;
+  },
+});
 app.use(errorHandler);
 
 initChatSocket(httpServer);
