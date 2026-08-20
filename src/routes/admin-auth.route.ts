@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as adminAuthController from '../controllers/admin-auth.controller';
 import { requireAdmin } from '../middlewares/auth.middleware';
+import { loginRateLimit } from '../middlewares/rate-limit.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { adminLoginBodySchema } from '../schemas/admin-auth.schema';
 
@@ -9,6 +10,7 @@ const router = Router();
 // 관리자 로그인 (Swagger: src/docs/admin-auth.swagger.yaml)
 router.post(
   '/login',
+  loginRateLimit,
   validateRequest({
     body: adminLoginBodySchema,
     errorCode: 'ADMIN_INVALID_LOGIN_BODY',

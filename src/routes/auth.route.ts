@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as authController from '../controllers/auth.controller';
 import { requireAuthAllowSuspended } from '../middlewares/auth.middleware';
+import { loginRateLimit } from '../middlewares/rate-limit.middleware';
 
 const router = Router();
 
@@ -8,10 +9,10 @@ const router = Router();
 router.post('/signup', authController.signup);
 
 // 로그인
-router.post('/login', authController.login);
+router.post('/login', loginRateLimit, authController.login);
 
 // 카카오 로그인 (인가 코드 교환)
-router.post('/kakao', authController.kakaoLogin);
+router.post('/kakao', loginRateLimit, authController.kakaoLogin);
 
 // 현재 로그인 유저 조회
 router.get('/me', requireAuthAllowSuspended, authController.getMe);
