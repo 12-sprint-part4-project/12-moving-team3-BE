@@ -5,7 +5,7 @@ import type {
   MoverBasicInfoBody,
   MoverProfileBody,
 } from '../schemas/mover-profile.schema';
-import { resolvePasswordHashForUpdate } from '../utils/auth-password.util';
+import { resolvePasswordHashForUpdate } from '../utils/password.util';
 import { deleteImage, toPublicViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';

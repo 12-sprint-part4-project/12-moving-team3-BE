@@ -6,15 +6,15 @@ import {
   ADMIN_REFRESH_TOKEN_COOKIE_NAME,
   clearAdminRefreshTokenCookie,
   setAdminRefreshTokenCookie,
-} from '../utils/admin-cookie.util';
-import { resolveAdminDeviceType } from '../utils/admin-device.util';
+} from '../utils/cookie.util';
+import { resolveDeviceType } from '../utils/device.util';
 
 export const loginAdmin = async (req: Request, res: Response) => {
   const body = req.body as AdminLoginBody;
 
   const result = await adminAuthService.loginAdmin({
     ...body,
-    device: resolveAdminDeviceType(req.get('user-agent')),
+    device: resolveDeviceType(req.get('user-agent')),
   });
 
   setAdminRefreshTokenCookie(

@@ -13,7 +13,7 @@
     "admin:create": "ts-node scripts/create-admin.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 5432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'"
+    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 15432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'"
   },
   "repository": {
     "type": "git",

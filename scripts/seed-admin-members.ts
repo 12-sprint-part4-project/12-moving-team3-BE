@@ -20,7 +20,7 @@ import {
 } from '@prisma/client';
 
 import { prisma } from '../src/lib/prisma';
-import { hashAuthPassword } from '../src/utils/auth-password.util';
+import { hashAuthPassword } from '../src/utils/password.util';
 
 /**
  * 로컬 로그인 공통 비밀번호.

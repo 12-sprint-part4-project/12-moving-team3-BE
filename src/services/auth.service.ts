@@ -17,10 +17,10 @@ import {
 } from '../utils/auth-jwt.util';
 import {
   AUTH_PASSWORD_DUMMY_HASH,
-  compareAuthPassword,
+  comparePassword,
   hashAuthPassword,
-} from '../utils/auth-password.util';
-import { hashAuthRefreshToken } from '../utils/auth-token-hash.util';
+} from '../utils/password.util';
+import { hashRefreshToken } from '../utils/token-hash.util';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 import {
   exchangeKakaoAuthorizationCode,
@@ -130,7 +130,7 @@ const issueAuthSession = async (
     await authRepository.createRefreshTokenRecord(
       {
         userId: user.id,
-        tokenHash: hashAuthRefreshToken(refreshToken),
+        tokenHash: hashRefreshToken(refreshToken),
         device,
         expiresAt,
       },
@@ -228,7 +228,7 @@ const createKakaoUser = async (
     await authRepository.createRefreshTokenRecord(
       {
         userId: user.id,
-        tokenHash: hashAuthRefreshToken(refreshToken),
+        tokenHash: hashRefreshToken(refreshToken),
         device,
         expiresAt,
       },
@@ -291,7 +291,7 @@ const linkKakaoToExistingUser = async (
     await authRepository.createRefreshTokenRecord(
       {
         userId: user.id,
-        tokenHash: hashAuthRefreshToken(refreshToken),
+        tokenHash: hashRefreshToken(refreshToken),
         device,
         expiresAt,
       },
@@ -314,7 +314,7 @@ export const login = async (
   const localAuth = user?.authAccounts[0];
 
   // 계정 존재 여부를 응답/시간으로 구분하지 않기 위함
-  const isPasswordMatched = await compareAuthPassword(
+  const isPasswordMatched = await comparePassword(
     input.password,
     localAuth?.passwordHash ?? AUTH_PASSWORD_DUMMY_HASH
   );
@@ -345,7 +345,7 @@ export const login = async (
     await authRepository.createRefreshTokenRecord(
       {
         userId: user.id,
-        tokenHash: hashAuthRefreshToken(refreshToken),
+        tokenHash: hashRefreshToken(refreshToken),
         device: input.device,
         expiresAt,
       },
@@ -506,7 +506,7 @@ export const refreshAuthToken = async (
     throw error;
   }
 
-  const tokenHash = hashAuthRefreshToken(refreshToken);
+  const tokenHash = hashRefreshToken(refreshToken);
 
   return runAuditedTransaction(async (tx) => {
     const record = await authRepository.findRefreshTokenByHash(tokenHash, tx);
@@ -537,7 +537,7 @@ export const refreshAuthToken = async (
     await authRepository.createRefreshTokenRecord(
       {
         userId: record.user.id,
-        tokenHash: hashAuthRefreshToken(nextRefreshToken),
+        tokenHash: hashRefreshToken(nextRefreshToken),
         device: record.device,
         expiresAt,
       },
@@ -565,6 +565,6 @@ export const logout = async (
   }
 
   // 만료·위조 JWT여도 동일 문자열 해시로 DB에 남은 레코드를 제거할 수 있다.
-  const tokenHash = hashAuthRefreshToken(refreshToken);
+  const tokenHash = hashRefreshToken(refreshToken);
   await authRepository.deleteRefreshTokenByHash(tokenHash);
 };

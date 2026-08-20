@@ -1,7 +1,7 @@
 import * as authRepository from '../repositories/auth.repository';
 import * as customerProfileRepository from '../repositories/customer-profile.repository';
 import type { CustomerProfileBody } from '../schemas/customer-profile.schema';
-import { resolvePasswordHashForUpdate } from '../utils/auth-password.util';
+import { resolvePasswordHashForUpdate } from '../utils/password.util';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
 import { deleteImage, toPublicViewUrl } from './s3.service';

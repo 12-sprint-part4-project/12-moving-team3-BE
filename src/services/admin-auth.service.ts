@@ -11,9 +11,9 @@ import {
 } from '../utils/admin-jwt.util';
 import {
   ADMIN_PASSWORD_DUMMY_HASH,
-  compareAdminPassword,
-} from '../utils/admin-password.util';
-import { hashAdminRefreshToken } from '../utils/admin-token-hash.util';
+  comparePassword,
+} from '../utils/password.util';
+import { hashRefreshToken } from '../utils/token-hash.util';
 
 export interface AdminLoginServiceInput {
   email: string;
@@ -38,7 +38,7 @@ export const loginAdmin = async (
   const admin = await adminAuthRepository.findAdminByEmail(input.email);
 
   // 계정 존재 여부를 응답/시간으로 구분하지 않기 위함
-  const isPasswordMatched = await compareAdminPassword(
+  const isPasswordMatched = await comparePassword(
     input.password,
     admin?.passwordHash ?? ADMIN_PASSWORD_DUMMY_HASH
   );
@@ -54,7 +54,7 @@ export const loginAdmin = async (
   // 원문 대신 해시만 저장해 DB 유출 시에도 토큰 재사용을 어렵게 한다
   await adminAuthRepository.createAdminRefreshTokenRecord({
     adminId: admin.id,
-    tokenHash: hashAdminRefreshToken(refreshToken),
+    tokenHash: hashRefreshToken(refreshToken),
     device: input.device,
     expiresAt,
   });
@@ -134,7 +134,7 @@ export const validateAdminRefreshToken = async (
     throw error;
   }
 
-  const tokenHash = hashAdminRefreshToken(refreshToken);
+  const tokenHash = hashRefreshToken(refreshToken);
   const refreshTokenRecord =
     await adminAuthRepository.findAdminRefreshTokenByHash(tokenHash);
 
@@ -198,6 +198,6 @@ export const logoutAdmin = async (
   }
 
   // 만료·위조 JWT여도 동일 문자열 해시로 DB에 남은 레코드를 제거할 수 있다.
-  const tokenHash = hashAdminRefreshToken(refreshToken);
+  const tokenHash = hashRefreshToken(refreshToken);
   await adminAuthRepository.deleteAdminRefreshTokenByHash(tokenHash);
 };

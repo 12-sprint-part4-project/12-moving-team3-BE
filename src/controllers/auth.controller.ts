@@ -10,15 +10,15 @@ import {
   AUTH_REFRESH_TOKEN_COOKIE_NAME,
   clearAuthRefreshTokenCookie,
   setAuthRefreshTokenCookie,
-} from '../utils/auth-cookie.util';
-import { resolveAuthDeviceType } from '../utils/auth-device.util';
+} from '../utils/cookie.util';
+import { resolveDeviceType } from '../utils/device.util';
 
 export const login = async (req: Request, res: Response) => {
   const body = parseLoginBody(req.body);
 
   const result = await authService.login({
     ...body,
-    device: resolveAuthDeviceType(req.get('user-agent')),
+    device: resolveDeviceType(req.get('user-agent')),
   });
 
   setAuthRefreshTokenCookie(
@@ -83,7 +83,7 @@ export const kakaoLogin = async (req: Request, res: Response) => {
 
   const result = await authService.kakaoLogin({
     ...body,
-    device: resolveAuthDeviceType(req.get('user-agent')),
+    device: resolveDeviceType(req.get('user-agent')),
   });
 
   setAuthRefreshTokenCookie(

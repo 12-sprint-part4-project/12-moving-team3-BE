@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
 import type { Request, Response } from 'express';
 import * as adminAuthService from '../services/admin-auth.service';
-import * as adminCookieUtil from '../utils/admin-cookie.util';
+import * as adminCookieUtil from '../utils/cookie.util';
 import { refreshAdminToken } from './admin-auth.controller';
 
 describe('admin-auth.controller refreshAdminToken', () => {

@@ -8,7 +8,7 @@ import {
   getAdminRefreshTokenExpiry,
   verifyAdminAccessToken,
 } from '../utils/admin-jwt.util';
-import { hashAdminRefreshToken } from '../utils/admin-token-hash.util';
+import { hashRefreshToken } from '../utils/token-hash.util';
 
 interface Admin {
   id: number;
@@ -54,7 +54,7 @@ const saveRefreshToken = (
   device: DeviceType = 'DESKTOP'
 ): { token: string; record: RefreshTokenRecord } => {
   const token = createAdminRefreshToken(adminId);
-  const tokenHash = hashAdminRefreshToken(token);
+  const tokenHash = hashRefreshToken(token);
   const { expiresAt } = getAdminRefreshTokenExpiry(token);
   const record = {
     id: nextRecordId++,
