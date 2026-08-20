@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 import { prisma } from '../src/lib/prisma';
-import { hashAdminPassword } from '../src/utils/admin-password.util';
+import { hashAdminPassword } from '../src/utils/password.util';
 
 // 관리자 회원가입 API가 없으므로, 사전 등록용 부트스트랩 스크립트로 계정을 만든다.
 const getBootstrapEnv = () => {

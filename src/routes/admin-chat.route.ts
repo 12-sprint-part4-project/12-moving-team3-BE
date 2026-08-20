@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as adminChatController from '../controllers/admin-chat.controller';
-import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
+import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   adminChatListQuerySchema,
@@ -13,7 +13,7 @@ const router = Router();
 // 관리자 채팅방 목록 조회 (Swagger: src/docs/admin-chat.swagger.yaml)
 router.get(
   '/',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     query: adminChatListQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -25,7 +25,7 @@ router.get(
 // (Swagger: src/docs/admin-chat.swagger.yaml)
 router.get(
   '/:roomId/messages',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminChatRoomParamsSchema,
     query: adminChatMessagesQuerySchema,
@@ -37,7 +37,7 @@ router.get(
 // 관리자 채팅방 상세 조회 (Swagger: src/docs/admin-chat.swagger.yaml)
 router.get(
   '/:roomId',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminChatRoomParamsSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as adminAuthController from '../controllers/admin-auth.controller';
-import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
+import { requireAdmin } from '../middlewares/auth.middleware';
+import { adminLoginRateLimit } from '../middlewares/rate-limit.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { adminLoginBodySchema } from '../schemas/admin-auth.schema';
 
@@ -9,6 +10,7 @@ const router = Router();
 // 관리자 로그인 (Swagger: src/docs/admin-auth.swagger.yaml)
 router.post(
   '/login',
+  adminLoginRateLimit,
   validateRequest({
     body: adminLoginBodySchema,
     errorCode: 'ADMIN_INVALID_LOGIN_BODY',
@@ -23,6 +25,6 @@ router.post('/refresh', adminAuthController.refreshAdminToken);
 router.post('/logout', adminAuthController.logoutAdmin);
 
 // 관리자 내 인증 정보 조회 (Swagger: src/docs/admin-auth.swagger.yaml)
-router.get('/me', requireAdminAuth, adminAuthController.getAdminMe);
+router.get('/me', requireAdmin, adminAuthController.getAdminMe);
 
 export default router;

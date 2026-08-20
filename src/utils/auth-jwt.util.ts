@@ -1,5 +1,6 @@
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
+import { isUserAuthRole, type UserAuthRole } from './auth-role.util';
 
 export type AccessTokenTyp = 'access';
 export type RefreshTokenTyp = 'refresh';
@@ -7,7 +8,7 @@ export type RefreshTokenTyp = 'refresh';
 export interface AccessTokenPayload {
   sub: string;
   typ: AccessTokenTyp;
-  userType: 'CUSTOMER' | 'MOVER';
+  role: UserAuthRole;
 }
 
 export interface RefreshTokenPayload {
@@ -43,15 +44,14 @@ const getRefreshSignOptions = (): SignOptions => ({
   ) as SignOptions['expiresIn'],
 });
 
-// 관리자 JWT secret과 분리
 export const createAccessToken = (
   userId: string,
-  userType: 'CUSTOMER' | 'MOVER'
+  role: UserAuthRole
 ): string => {
   const payload: AccessTokenPayload = {
     sub: userId,
     typ: 'access',
-    userType,
+    role,
   };
 
   return jwt.sign(
@@ -61,7 +61,6 @@ export const createAccessToken = (
   );
 };
 
-// 관리자 JWT secret과 분리
 export const createRefreshToken = (userId: string): string => {
   const payload: RefreshTokenPayload = {
     sub: userId,
@@ -97,24 +96,6 @@ export const getAuthRefreshTokenExpiry = (
   };
 };
 
-const isVerifiedAccessTokenPayload = (
-  payload: unknown
-): payload is VerifiedAccessTokenPayload => {
-  if (!payload || typeof payload !== 'object') {
-    return false;
-  }
-
-  const candidate = payload as Record<string, unknown>;
-
-  return (
-    typeof candidate.sub === 'string' &&
-    candidate.typ === 'access' &&
-    (candidate.userType === 'CUSTOMER' || candidate.userType === 'MOVER') &&
-    typeof candidate.iat === 'number' &&
-    typeof candidate.exp === 'number'
-  );
-};
-
 export const verifyAccessToken = (
   accessToken: string
 ): VerifiedAccessTokenPayload => {
@@ -122,11 +103,29 @@ export const verifyAccessToken = (
     algorithms: ['HS256'],
   });
 
-  if (!isVerifiedAccessTokenPayload(decoded)) {
+  if (!decoded || typeof decoded !== 'object') {
     throw new Error('Invalid access token payload');
   }
 
-  return decoded;
+  const candidate = decoded as Record<string, unknown>;
+
+  if (
+    typeof candidate.sub !== 'string' ||
+    candidate.typ !== 'access' ||
+    !isUserAuthRole(candidate.role) ||
+    typeof candidate.iat !== 'number' ||
+    typeof candidate.exp !== 'number'
+  ) {
+    throw new Error('Invalid access token payload');
+  }
+
+  return {
+    sub: candidate.sub,
+    typ: 'access',
+    role: candidate.role,
+    iat: candidate.iat,
+    exp: candidate.exp,
+  };
 };
 
 const isRefreshTokenPayload = (

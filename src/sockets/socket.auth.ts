@@ -2,6 +2,7 @@ import { UserStatus } from '@prisma/client';
 import type { ExtendedError } from 'socket.io';
 import * as authRepository from '../repositories/auth.repository';
 import { verifyAccessToken } from '../utils/auth-jwt.util';
+import { isUserAuthRole } from '../utils/auth-role.util';
 import type { ChatSocket } from './socket.types';
 
 /**
@@ -33,6 +34,12 @@ export const socketAuthMiddleware = async (
     }
 
     const payload = verifyAccessToken(token);
+
+    if (!isUserAuthRole(payload.role)) {
+      next(new Error('UNAUTHORIZED'));
+      return;
+    }
+
     const userStatus = await authRepository.findUserStatusByUserId(payload.sub);
 
     if (userStatus?.status === UserStatus.SUSPENDED) {
@@ -42,7 +49,7 @@ export const socketAuthMiddleware = async (
 
     socket.data.user = {
       userId: payload.sub,
-      userType: payload.userType,
+      userType: payload.role,
     };
 
     next();
