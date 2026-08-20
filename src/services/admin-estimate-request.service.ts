@@ -112,7 +112,7 @@ export const getEstimateRequestList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      sort === 'submittedAt_asc'
+      sort === 'ASC'
         ? [{ submittedAt: 'asc' }, { id: 'desc' }]
         : [{ submittedAt: 'desc' }, { id: 'desc' }],
       pageSize,
@@ -167,7 +167,7 @@ export const getEstimateRequestDetail = async (
 
   const select = {
     id: true,
-    user: { select: { name: true } },
+    user: { select: { name: true, nickname: true } },
     moveType: true,
     departureZipCode: true,
     departureAddress: true,

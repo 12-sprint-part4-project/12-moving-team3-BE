@@ -95,7 +95,7 @@ export const getCompletedList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      sort === 'moveDate_asc'
+      sort === 'ASC'
         ? [{ moveDate: 'asc' }, { id: 'desc' }]
         : [{ moveDate: 'desc' }, { id: 'desc' }],
       pageSize,
