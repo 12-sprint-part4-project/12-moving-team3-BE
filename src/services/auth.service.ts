@@ -1,6 +1,7 @@
 import { UserStatus, UserType, type DeviceType } from '@prisma/client';
 import { JsonWebTokenError } from 'jsonwebtoken';
 import { runAuditedTransaction } from '../lib/audit-context';
+import * as adminAuthRepository from '../repositories/admin-auth.repository';
 import * as authRepository from '../repositories/auth.repository';
 import type {
   ApiUserType,
@@ -8,6 +9,13 @@ import type {
   LoginBody,
   SignupBody,
 } from '../schemas/auth.schema';
+import {
+  createAdminAccessToken,
+  createAdminRefreshToken,
+  getAdminRefreshTokenExpiry,
+  verifyAdminRefreshToken,
+  type AdminRefreshTokenPayload,
+} from '../utils/admin-jwt.util';
 import { AppError } from '../utils/app.error';
 import {
   createAccessToken,
@@ -16,6 +24,7 @@ import {
   verifyRefreshToken,
 } from '../utils/auth-jwt.util';
 import {
+  ADMIN_PASSWORD_DUMMY_HASH,
   AUTH_PASSWORD_DUMMY_HASH,
   comparePassword,
   hashAuthPassword,
@@ -31,9 +40,19 @@ import { resolveIsProfileCompleted } from '../utils/profile.util';
 
 export type ApiUserStatus = 'ACTIVE' | 'SUSPENDED';
 
-export interface LoginServiceInput extends LoginBody {
+export interface UserLoginServiceInput extends LoginBody {
+  audience: 'user';
   device: DeviceType;
 }
+
+export interface AdminLoginServiceInput {
+  audience: 'admin';
+  email: string;
+  password: string;
+  device: DeviceType;
+}
+
+export type LoginServiceInput = UserLoginServiceInput;
 
 export interface KakaoLoginServiceInput extends KakaoLoginBody {
   device: DeviceType;
@@ -67,6 +86,23 @@ export interface LoginServiceResult {
   accessToken: string;
   refreshToken: string;
   refreshTokenMaxAgeMs: number;
+}
+
+export interface AdminLoginServiceResult {
+  accessToken: string;
+  refreshToken: string;
+  refreshTokenMaxAgeMs: number;
+  admin: {
+    id: number;
+    email: string;
+    name: string;
+  };
+}
+
+export interface AdminMeServiceResult {
+  id: number;
+  email: string;
+  name: string;
 }
 
 export interface KakaoLoginServiceResult extends LoginServiceResult {
@@ -307,8 +343,8 @@ const linkKakaoToExistingUser = async (
   };
 };
 
-export const login = async (
-  input: LoginServiceInput
+const authenticateUser = async (
+  input: UserLoginServiceInput
 ): Promise<LoginServiceResult> => {
   const user = await authRepository.findUserWithLocalAuthByEmail(input.email);
   const localAuth = user?.authAccounts[0];
@@ -359,6 +395,172 @@ export const login = async (
     refreshToken,
     refreshTokenMaxAgeMs: maxAgeMs,
   };
+};
+
+const authenticateAdmin = async (
+  input: AdminLoginServiceInput
+): Promise<AdminLoginServiceResult> => {
+  const admin = await adminAuthRepository.findAdminByEmail(input.email);
+
+  const isPasswordMatched = await comparePassword(
+    input.password,
+    admin?.passwordHash ?? ADMIN_PASSWORD_DUMMY_HASH
+  );
+
+  if (!admin || !isPasswordMatched) {
+    throw new AppError('ADMIN_INVALID_CREDENTIALS');
+  }
+
+  const accessToken = createAdminAccessToken(admin.id);
+  const refreshToken = createAdminRefreshToken(admin.id);
+  const { expiresAt, maxAgeMs } = getAdminRefreshTokenExpiry(refreshToken);
+
+  await adminAuthRepository.createAdminRefreshTokenRecord({
+    adminId: admin.id,
+    tokenHash: hashRefreshToken(refreshToken),
+    device: input.device,
+    expiresAt,
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    refreshTokenMaxAgeMs: maxAgeMs,
+    admin: {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+    },
+  };
+};
+
+/**
+ * 일반/관리자 로그인의 공통 진입점.
+ * 조회·비밀번호 검증·role JWT 발급은 audience에 따라 나뉜다.
+ */
+export function login(
+  input: UserLoginServiceInput
+): Promise<LoginServiceResult>;
+export function login(
+  input: AdminLoginServiceInput
+): Promise<AdminLoginServiceResult>;
+export function login(
+  input: UserLoginServiceInput | AdminLoginServiceInput
+): Promise<LoginServiceResult | AdminLoginServiceResult> {
+  if (input.audience === 'admin') {
+    return authenticateAdmin(input);
+  }
+
+  return authenticateUser(input);
+}
+
+export const loginAdmin = async (
+  input: Omit<AdminLoginServiceInput, 'audience'>
+): Promise<AdminLoginServiceResult> => {
+  return login({ audience: 'admin', ...input });
+};
+
+export const getAdminMe = async (
+  adminId: number
+): Promise<AdminMeServiceResult> => {
+  const admin = await adminAuthRepository.findAdminById(adminId);
+
+  if (!admin) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  return admin;
+};
+
+export interface AdminRefreshTokenRecord {
+  id: number;
+  adminId: number;
+  tokenHash: string;
+  device: DeviceType;
+  expiresAt: Date;
+}
+
+export interface ValidateAdminRefreshTokenResult {
+  admin: {
+    id: number;
+    email: string;
+    name: string;
+  };
+  refreshTokenRecord: AdminRefreshTokenRecord;
+  payload: AdminRefreshTokenPayload;
+}
+
+export const validateAdminRefreshToken = async (
+  refreshToken: string | undefined
+): Promise<ValidateAdminRefreshTokenResult> => {
+  if (!refreshToken) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  let payload: AdminRefreshTokenPayload;
+
+  try {
+    payload = verifyAdminRefreshToken(refreshToken);
+  } catch (error) {
+    if (error instanceof JsonWebTokenError) {
+      throw new AppError('ADMIN_UNAUTHORIZED');
+    }
+
+    throw error;
+  }
+
+  const tokenHash = hashRefreshToken(refreshToken);
+  const refreshTokenRecord =
+    await adminAuthRepository.findAdminRefreshTokenByHash(tokenHash);
+
+  if (!refreshTokenRecord) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  if (refreshTokenRecord.expiresAt.getTime() <= Date.now()) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  if (payload.sub !== refreshTokenRecord.adminId) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  const admin = await adminAuthRepository.findAdminById(
+    refreshTokenRecord.adminId
+  );
+
+  if (!admin) {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  return {
+    admin,
+    refreshTokenRecord,
+    payload,
+  };
+};
+
+export interface RefreshAdminTokenResult {
+  accessToken: string;
+}
+
+export const refreshAdminToken = async (
+  refreshToken: string | undefined
+): Promise<RefreshAdminTokenResult> => {
+  const { admin } = await validateAdminRefreshToken(refreshToken);
+
+  return { accessToken: createAdminAccessToken(admin.id) };
+};
+
+export const logoutAdmin = async (
+  refreshToken: string | undefined
+): Promise<void> => {
+  if (!refreshToken) {
+    return;
+  }
+
+  const tokenHash = hashRefreshToken(refreshToken);
+  await adminAuthRepository.deleteAdminRefreshTokenByHash(tokenHash);
 };
 
 /** 계정만 생성한다. Access/Refresh Token은 발급하지 않는다(로그인 필요). */

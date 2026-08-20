@@ -17,6 +17,7 @@ export const login = async (req: Request, res: Response) => {
   const body = parseLoginBody(req.body);
 
   const result = await authService.login({
+    audience: 'user',
     ...body,
     device: resolveDeviceType(req.get('user-agent')),
   });
