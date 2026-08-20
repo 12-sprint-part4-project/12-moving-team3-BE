@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as adminReportController from '../controllers/admin-report.controller';
-import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
+import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   adminReportDetailParamsSchema,
@@ -14,7 +14,7 @@ const router = Router();
 // 신고 목록 조회 (Swagger: src/docs/admin-report.swagger.yaml)
 router.get(
   '/',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     query: adminReportListQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -26,7 +26,7 @@ router.get(
 // `/:reportId`보다 먼저 등록해 "statistics"가 reportId로 잡히지 않게 한다.
 router.get(
   '/statistics',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     query: adminStatisticsFilterSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -37,7 +37,7 @@ router.get(
 // 신고 처리 / 반려 (Swagger: src/docs/admin-report.swagger.yaml)
 router.post(
   '/:reportId/resolve',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminReportDetailParamsSchema,
     body: adminReportProcessBodySchema,
@@ -49,7 +49,7 @@ router.post(
 // 신고 반려 — body 없음. Action 스키마를 연결하지 않는다.
 router.post(
   '/:reportId/reject',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminReportDetailParamsSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -60,7 +60,7 @@ router.post(
 // 신고 상세 조회 (Swagger: src/docs/admin-report.swagger.yaml)
 router.get(
   '/:reportId',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminReportDetailParamsSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',

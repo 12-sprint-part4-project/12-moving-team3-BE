@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as adminMemberController from '../controllers/admin-member.controller';
-import { requireAdminAuth } from '../middlewares/admin-auth.middleware';
+import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   adminMemberDetailParamsSchema,
@@ -13,7 +13,7 @@ const router = Router();
 // 관리자 회원 목록 조회 (Swagger: src/docs/admin-member.swagger.yaml)
 router.get(
   '/',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     query: adminMemberListQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -24,7 +24,7 @@ router.get(
 // 관리자 회원 정지 — `/:memberId`보다 먼저 등록해 경로가 상세 조회로 잡히지 않게 한다
 router.patch(
   '/:memberId/suspend',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminMemberStatusParamsSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -35,7 +35,7 @@ router.patch(
 // 관리자 회원 활성화 — `/:memberId`보다 먼저 등록해 경로가 상세 조회로 잡히지 않게 한다
 router.patch(
   '/:memberId/activate',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminMemberStatusParamsSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
@@ -46,7 +46,7 @@ router.patch(
 // 관리자 회원 상세 조회
 router.get(
   '/:memberId',
-  requireAdminAuth,
+  requireAdmin,
   validateRequest({
     params: adminMemberDetailParamsSchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
