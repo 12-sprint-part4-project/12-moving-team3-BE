@@ -7,12 +7,11 @@ import type { ApiUserType } from '../schemas/auth.schema';
 import { verifyAdminAccessToken } from '../utils/admin-jwt.util';
 import { AppError } from '../utils/app.error';
 import { verifyAccessToken } from '../utils/auth-jwt.util';
-import { isUserAuthRole, type UserAuthRole } from '../utils/auth-role.util';
+import { isUserAuthRole } from '../utils/auth-role.util';
 
 export interface AuthenticatedUser {
   userId: string;
   userType: ApiUserType;
-  role: UserAuthRole;
 }
 
 export interface AuthenticatedAdmin {
@@ -70,7 +69,6 @@ const authenticateUserAccessToken = (
   return {
     userId: payload.sub,
     userType: payload.role,
-    role: payload.role,
   };
 };
 
@@ -196,6 +194,16 @@ export const getAuthenticatedUser = (res: Response): AuthenticatedUser => {
   return user;
 };
 
+export const getAuthenticatedAdmin = (res: Response): AuthenticatedAdmin => {
+  const admin = res.locals.admin as AuthenticatedAdmin | undefined;
+
+  if (!admin || typeof admin.adminId !== 'number' || admin.role !== 'ADMIN') {
+    throw new AppError('ADMIN_UNAUTHORIZED');
+  }
+
+  return admin;
+};
+
 /**
  * Access Token 선택. 토큰이 없거나 유효하지 않으면 비로그인으로 통과하고,
  * 유효한 토큰이 있으면 검증 후 res.locals.user에 저장한다.
@@ -220,7 +228,6 @@ export const optionalAuth: RequestHandler = (req, res, next) => {
     res.locals.user = {
       userId: payload.sub,
       userType: payload.role,
-      role: payload.role,
     } satisfies AuthenticatedUser;
     setAuditUserId(payload.sub);
   } catch {

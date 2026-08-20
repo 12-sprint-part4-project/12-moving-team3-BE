@@ -2,14 +2,12 @@ import type { CookieOptions, Response } from 'express';
 import env from '../config/env';
 
 export const AUTH_REFRESH_TOKEN_COOKIE_NAME = 'refreshToken';
-export const AUTH_REFRESH_TOKEN_COOKIE_PATH = '/api/auth';
+const AUTH_REFRESH_TOKEN_COOKIE_PATH = '/api/auth';
 
 export const ADMIN_REFRESH_TOKEN_COOKIE_NAME = 'adminRefreshToken';
-export const ADMIN_REFRESH_TOKEN_COOKIE_PATH = '/api/admin/auth';
+const ADMIN_REFRESH_TOKEN_COOKIE_PATH = '/api/admin/auth';
 
-export const createRefreshTokenCookieOptions = (
-  path: string
-): CookieOptions =>
+const createRefreshTokenCookieOptions = (path: string): CookieOptions =>
   ({
     httpOnly: true, // XSS로 스크립트에서 토큰 읽기 방지
     secure: env.nodeEnv === 'production',
@@ -17,13 +15,7 @@ export const createRefreshTokenCookieOptions = (
     path,
   }) satisfies CookieOptions;
 
-export const AUTH_REFRESH_TOKEN_COOKIE_OPTIONS =
-  createRefreshTokenCookieOptions(AUTH_REFRESH_TOKEN_COOKIE_PATH);
-
-export const ADMIN_REFRESH_TOKEN_COOKIE_OPTIONS =
-  createRefreshTokenCookieOptions(ADMIN_REFRESH_TOKEN_COOKIE_PATH);
-
-export const setRefreshTokenCookie = (
+const setRefreshTokenCookie = (
   res: Response,
   cookieName: string,
   path: string,
@@ -37,7 +29,7 @@ export const setRefreshTokenCookie = (
 };
 
 /** set과 동일한 path·옵션으로 지워야 브라우저가 쿠키를 실제로 제거한다. */
-export const clearRefreshTokenCookie = (
+const clearRefreshTokenCookie = (
   res: Response,
   cookieName: string,
   path: string

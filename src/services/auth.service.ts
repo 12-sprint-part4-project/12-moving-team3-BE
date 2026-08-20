@@ -454,12 +454,6 @@ export function login(
   return authenticateUser(input);
 }
 
-export const loginAdmin = async (
-  input: Omit<AdminLoginServiceInput, 'audience'>
-): Promise<AdminLoginServiceResult> => {
-  return login({ audience: 'admin', ...input });
-};
-
 export const getAdminMe = async (
   adminId: number
 ): Promise<AdminMeServiceResult> => {
@@ -472,7 +466,7 @@ export const getAdminMe = async (
   return admin;
 };
 
-export interface AdminRefreshTokenRecord {
+interface AdminRefreshTokenRecord {
   id: number;
   adminId: number;
   tokenHash: string;
@@ -480,7 +474,7 @@ export interface AdminRefreshTokenRecord {
   expiresAt: Date;
 }
 
-export interface ValidateAdminRefreshTokenResult {
+interface ValidateAdminRefreshTokenResult {
   admin: {
     id: number;
     email: string;
@@ -490,7 +484,7 @@ export interface ValidateAdminRefreshTokenResult {
   payload: AdminRefreshTokenPayload;
 }
 
-export const validateAdminRefreshToken = async (
+const validateAdminRefreshToken = async (
   refreshToken: string | undefined
 ): Promise<ValidateAdminRefreshTokenResult> => {
   if (!refreshToken) {

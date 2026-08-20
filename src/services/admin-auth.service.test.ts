@@ -97,7 +97,7 @@ describe('admin-auth service refresh', () => {
       records.delete(tokenHash);
     };
 
-    adminAuthService = await import('./admin-auth.service');
+    adminAuthService = await import('./auth.service');
   });
 
   beforeEach(() => {

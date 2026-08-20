@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
 import type { Request, Response } from 'express';
-import * as adminAuthService from '../services/admin-auth.service';
+import * as authService from '../services/auth.service';
 import * as adminCookieUtil from '../utils/cookie.util';
 import { refreshAdminToken } from './admin-auth.controller';
 
@@ -12,7 +12,7 @@ describe('admin-auth.controller refreshAdminToken', () => {
 
   it('재발급 성공 시 accessToken만 응답하고 Set-Cookie를 호출하지 않는다', async () => {
     const refreshMock = mock.method(
-      adminAuthService,
+      authService,
       'refreshAdminToken',
       async () => ({ accessToken: 'new-access-token' })
     );

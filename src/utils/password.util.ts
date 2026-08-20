@@ -14,7 +14,7 @@ export const AUTH_PASSWORD_DUMMY_HASH =
 export const ADMIN_PASSWORD_DUMMY_HASH =
   '$2b$12$5XzC4R7gBVyzjBc5z4kmYODwFEKf/J/ur6ABvfTALn6f0kyiV9fRm';
 
-export const hashPassword = async (
+const hashPassword = async (
   password: string,
   saltRounds: number
 ): Promise<string> => {
