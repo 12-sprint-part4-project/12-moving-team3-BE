@@ -9,7 +9,6 @@ export interface AccessTokenPayload {
   sub: string;
   typ: AccessTokenTyp;
   role: UserAuthRole;
-  userType: UserAuthRole;
 }
 
 export interface RefreshTokenPayload {
@@ -45,28 +44,14 @@ const getRefreshSignOptions = (): SignOptions => ({
   ) as SignOptions['expiresIn'],
 });
 
-const resolveUserAuthRole = (payload: Record<string, unknown>): UserAuthRole | null => {
-  if (isUserAuthRole(payload.role)) {
-    return payload.role;
-  }
-
-  if (isUserAuthRole(payload.userType)) {
-    return payload.userType;
-  }
-
-  return null;
-};
-
-// 관리자 JWT secret과 분리
 export const createAccessToken = (
   userId: string,
-  userType: UserAuthRole
+  role: UserAuthRole
 ): string => {
   const payload: AccessTokenPayload = {
     sub: userId,
     typ: 'access',
-    role: userType,
-    userType,
+    role,
   };
 
   return jwt.sign(
@@ -76,7 +61,6 @@ export const createAccessToken = (
   );
 };
 
-// 관리자 JWT secret과 분리
 export const createRefreshToken = (userId: string): string => {
   const payload: RefreshTokenPayload = {
     sub: userId,
@@ -124,12 +108,11 @@ export const verifyAccessToken = (
   }
 
   const candidate = decoded as Record<string, unknown>;
-  const role = resolveUserAuthRole(candidate);
 
   if (
     typeof candidate.sub !== 'string' ||
     candidate.typ !== 'access' ||
-    role === null ||
+    !isUserAuthRole(candidate.role) ||
     typeof candidate.iat !== 'number' ||
     typeof candidate.exp !== 'number'
   ) {
@@ -139,8 +122,7 @@ export const verifyAccessToken = (
   return {
     sub: candidate.sub,
     typ: 'access',
-    role,
-    userType: role,
+    role: candidate.role,
     iat: candidate.iat,
     exp: candidate.exp,
   };

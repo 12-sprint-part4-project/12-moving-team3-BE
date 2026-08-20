@@ -39,13 +39,6 @@ const getAdminRefreshSignOptions = (): SignOptions => ({
   ) as SignOptions['expiresIn'],
 });
 
-const isLegacyAdminAccessToken = (payload: Record<string, unknown>): boolean =>
-  payload.typ === 'admin_access';
-
-const isLegacyAdminRefreshToken = (payload: Record<string, unknown>): boolean =>
-  payload.typ === 'admin_refresh';
-
-// 일반 유저 JWT secret과 분리
 export const createAdminAccessToken = (adminId: number): string => {
   const payload = {
     sub: toAdminTokenSub(adminId),
@@ -65,27 +58,19 @@ const toAdminAccessTokenPayload = (
 ): AdminAccessTokenPayload | null => {
   const adminId = parseAdminTokenSub(payload.sub);
 
-  if (adminId == null) {
+  if (
+    adminId == null ||
+    payload.typ !== 'access' ||
+    payload.role !== 'ADMIN'
+  ) {
     return null;
   }
 
-  if (payload.typ === 'access' && payload.role === 'ADMIN') {
-    return {
-      sub: adminId,
-      typ: 'access',
-      role: 'ADMIN',
-    };
-  }
-
-  if (isLegacyAdminAccessToken(payload)) {
-    return {
-      sub: adminId,
-      typ: 'access',
-      role: 'ADMIN',
-    };
-  }
-
-  return null;
+  return {
+    sub: adminId,
+    typ: 'access',
+    role: 'ADMIN',
+  };
 };
 
 export const verifyAdminAccessToken = (
@@ -117,23 +102,20 @@ const toAdminRefreshTokenPayload = (
 ): AdminRefreshTokenPayload | null => {
   const adminId = parseAdminTokenSub(payload.sub);
 
-  if (adminId == null) {
+  if (
+    adminId == null ||
+    payload.typ !== 'refresh' ||
+    typeof payload.jti !== 'string' ||
+    payload.jti.length === 0
+  ) {
     return null;
   }
 
-  if (typeof payload.jti !== 'string' || payload.jti.length === 0) {
-    return null;
-  }
-
-  if (payload.typ === 'refresh' || isLegacyAdminRefreshToken(payload)) {
-    return {
-      sub: adminId,
-      typ: 'refresh',
-      jti: payload.jti,
-    };
-  }
-
-  return null;
+  return {
+    sub: adminId,
+    typ: 'refresh',
+    jti: payload.jti,
+  };
 };
 
 export const verifyAdminRefreshToken = (
@@ -162,7 +144,6 @@ export const verifyAdminRefreshToken = (
   return payload;
 };
 
-// 일반 유저 JWT secret과 분리
 export const createAdminRefreshToken = (adminId: number): string => {
   const payload = {
     sub: toAdminTokenSub(adminId),

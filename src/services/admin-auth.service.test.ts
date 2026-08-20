@@ -183,7 +183,7 @@ describe('admin-auth service refresh', () => {
 
   it('만료된 Refresh Token은 거부한다', async () => {
     const token = jwt.sign(
-      { sub: 1, typ: 'admin_refresh', jti: 'expired-token' },
+      { sub: 'admin:1', typ: 'refresh', jti: 'expired-token' },
       process.env.ADMIN_JWT_REFRESH_SECRET!,
       { expiresIn: -1 }
     );
