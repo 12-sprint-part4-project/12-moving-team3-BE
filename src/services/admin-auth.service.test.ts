@@ -128,8 +128,10 @@ describe('admin-auth service refresh', () => {
     const { token } = saveRefreshToken(1);
 
     const result = await adminAuthService.refreshAdminToken(token);
+    const payload = verifyAdminAccessToken(result.accessToken);
 
-    assert.equal(verifyAdminAccessToken(result.accessToken).sub, 1);
+    assert.equal(payload.sub, 1);
+    assert.equal(payload.role, 'ADMIN');
   });
 
   it('동일한 Refresh Token으로 연속 재발급해도 모두 성공한다', async () => {

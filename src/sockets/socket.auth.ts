@@ -42,7 +42,7 @@ export const socketAuthMiddleware = async (
 
     socket.data.user = {
       userId: payload.sub,
-      userType: payload.userType,
+      userType: payload.role,
     };
 
     next();

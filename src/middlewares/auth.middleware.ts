@@ -36,7 +36,7 @@ const authenticateAccessToken = (req: Parameters<RequestHandler>[0]): Authentica
 
   return {
     userId: payload.sub,
-    userType: payload.userType,
+    userType: payload.role,
   };
 };
 
@@ -134,7 +134,7 @@ export const optionalAuth: RequestHandler = (req, res, next) => {
 
     res.locals.user = {
       userId: payload.sub,
-      userType: payload.userType,
+      userType: payload.role,
     } satisfies AuthenticatedUser;
     setAuditUserId(payload.sub);
   } catch {
