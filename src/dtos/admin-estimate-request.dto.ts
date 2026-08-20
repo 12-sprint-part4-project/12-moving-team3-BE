@@ -40,6 +40,7 @@ export interface AdminCompletedListDto {
 }
 
 export interface AdminEstimateRequestDetailResponse extends AdminEstimateRequestBaseResponse {
+  userNickname: string;
   submittedAt: Date | null;
   status: EstimateRequestStatus;
   departureZipCode: string | null;
@@ -52,10 +53,11 @@ export interface AdminEstimateRequestDetailResponse extends AdminEstimateRequest
   deletedQuotes: AdminEstimateQuoteResponse[];
 }
 
-// 반려 된 견적은 가격이 없을 수 있음. mover가 없으면 moverName은 null
+// 반려 된 견적은 가격이 없을 수 있음. mover가 없으면 moverName·moverNickname은 null
 export interface AdminEstimateQuoteResponse {
   id: number;
   moverName: string | null;
+  moverNickname: string | null;
   price: number | null;
   status: QuoteStatus;
   createdAt: Date;
@@ -67,12 +69,14 @@ export interface AdminEstimateRequestDetailDto {
 
 export interface AdminConfirmedQuoteResponse {
   moverName: string | null;
+  moverNickname: string | null;
   price: number | null;
   comment: string | null;
   createdAt: Date | null;
 }
 
 export interface AdminCompletedRequestDetailResponse extends AdminEstimateRequestBaseResponse {
+  userNickname: string;
   departureZipCode: string | null;
   departureDetailAddress: string | null;
   arrivalZipCode: string | null;

@@ -347,8 +347,9 @@ paths:
         각각 생성일 최신순(createdAt desc, id desc)으로 정렬됩니다.
         삭제된 견적 UI 표시는 deletedQuotes 배열 소속으로 판별하며, deletedAt은 응답에 포함하지 않습니다.
         반려(REJECTED) 견적은 price가 null일 수 있습니다.
+        요청자 닉네임(userNickname)과 각 견적의 기사 닉네임(moverNickname)을 함께 반환합니다.
         필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
-        missingFields에 누락 필드명을 담아 반환합니다. mover가 없으면 moverName은 null입니다.
+        missingFields에 누락 필드명을 담아 반환합니다. mover가 없으면 moverName·moverNickname은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -375,6 +376,7 @@ paths:
                     required:
                       - id
                       - userName
+                      - userNickname
                       - moveType
                       - departureAddress
                       - departureDetailAddress
@@ -396,6 +398,10 @@ paths:
                       userName:
                         type: string
                         example: 홍길동
+                      userNickname:
+                        type: string
+                        description: 요청자 닉네임
+                        example: 길동이
                       moveType:
                         type: string
                         nullable: true
@@ -453,6 +459,7 @@ paths:
                           required:
                             - id
                             - moverName
+                            - moverNickname
                             - price
                             - status
                             - createdAt
@@ -465,6 +472,11 @@ paths:
                               nullable: true
                               description: 기사 정보가 없으면 null
                               example: 안전이사
+                            moverNickname:
+                              type: string
+                              nullable: true
+                              description: 기사 닉네임. 기사 정보가 없으면 null
+                              example: 안전맨
                             price:
                               type: integer
                               nullable: true
@@ -489,6 +501,7 @@ paths:
                           required:
                             - id
                             - moverName
+                            - moverNickname
                             - price
                             - status
                             - createdAt
@@ -501,6 +514,11 @@ paths:
                               nullable: true
                               description: 기사 정보가 없으면 null
                               example: 빠른이사
+                            moverNickname:
+                              type: string
+                              nullable: true
+                              description: 기사 닉네임. 기사 정보가 없으면 null
+                              example: 빠른이사맨
                             price:
                               type: integer
                               nullable: true
@@ -525,6 +543,7 @@ paths:
                 data:
                   id: 123
                   userName: 홍길동
+                  userNickname: 길동이
                   moveType: HOME
                   departureAddress: 서울특별시 강남구 테헤란로 123
                   departureDetailAddress: 101동 1001호
@@ -539,17 +558,20 @@ paths:
                   activeQuotes:
                     - id: 11
                       moverName: 안전이사
+                      moverNickname: 안전맨
                       price: 180000
                       status: PENDING
                       createdAt: '2026-07-16T14:00:00.000Z'
                     - id: 12
                       moverName: 빠른이사
+                      moverNickname: 빠른이사맨
                       price: null
                       status: REJECTED
                       createdAt: '2026-07-16T11:00:00.000Z'
                   deletedQuotes:
                     - id: 10
                       moverName: 든든이사
+                      moverNickname: 든든맨
                       price: 160000
                       status: PENDING
                       createdAt: '2026-07-16T10:00:00.000Z'

@@ -326,6 +326,7 @@ paths:
       description: |
         견적 요청 ID로 COMPLETED 상태의 완료 건 상세 정보를 조회합니다.
         존재하지 않거나 COMPLETED가 아닌 상태면 404를 반환합니다.
+        요청자 닉네임(userNickname)과 확정 견적의 기사 닉네임(confirmedQuote.moverNickname)을 함께 반환합니다.
         출발지·도착지 주소 상세(우편번호, 상세주소)와 확정 견적(confirmedQuote) 정보를 함께 반환합니다.
         필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
         missingFields에 누락 필드명을 담아 반환합니다. confirmedQuote 자체가 없으면 null입니다.
@@ -355,6 +356,7 @@ paths:
                     required:
                       - id
                       - userName
+                      - userNickname
                       - moveType
                       - departureAddress
                       - departureDetailAddress
@@ -372,6 +374,10 @@ paths:
                       userName:
                         type: string
                         example: 홍길동
+                      userNickname:
+                        type: string
+                        description: 요청자 닉네임
+                        example: 길동이
                       moveType:
                         type: string
                         nullable: true
@@ -410,13 +416,18 @@ paths:
                       confirmedQuote:
                         type: object
                         nullable: true
-                        required: [moverName, price, comment, createdAt]
+                        required: [moverName, moverNickname, price, comment, createdAt]
                         description: 확정 견적 정보. 없으면 null
                         properties:
                           moverName:
                             type: string
                             nullable: true
                             example: 빠른이사
+                          moverNickname:
+                            type: string
+                            nullable: true
+                            description: 확정 견적 기사 닉네임. 기사 정보가 없으면 null
+                            example: 빠른이사맨
                           price:
                             type: integer
                             nullable: true
@@ -437,7 +448,7 @@ paths:
                         type: array
                         description: |
                           상태 불변식상 있어야 하지만 null인 응답 필드명.
-                          confirmedQuote 하위 누락은 confirmedQuote.moverName 형태로 표시.
+                          confirmedQuote 하위 누락은 confirmedQuote.moverName, confirmedQuote.moverNickname 형태로 표시.
                           정상 데이터면 빈 배열
                         items:
                           type: string
@@ -446,6 +457,7 @@ paths:
                 data:
                   id: 123
                   userName: 홍길동
+                  userNickname: 길동이
                   moveType: HOME
                   departureAddress: 서울특별시 강남구 테헤란로 123
                   departureDetailAddress: 101동 1001호
@@ -456,6 +468,7 @@ paths:
                   moveDate: '2026-07-15T00:00:00.000Z'
                   confirmedQuote:
                     moverName: 빠른이사
+                    moverNickname: 빠른이사맨
                     price: 250000
                     comment: 안전하게 모시겠습니다.
                     createdAt: '2026-07-10T11:00:00.000Z'

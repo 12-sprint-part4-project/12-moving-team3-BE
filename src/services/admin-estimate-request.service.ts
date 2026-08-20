@@ -18,6 +18,7 @@ import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
 interface QuoteMover {
   name: string;
+  nickname: string;
 }
 
 interface QuoteResponseSource {
@@ -180,7 +181,7 @@ export const getEstimateRequestDetail = async (
     quotes: {
       select: {
         id: true,
-        mover: { select: { name: true } },
+        mover: { select: { name: true, nickname: true } },
         price: true,
         status: true,
         createdAt: true,
@@ -218,6 +219,7 @@ export const getEstimateRequestDetail = async (
   const toQuoteResponse = (quote: QuoteResponseSource) => ({
     id: quote.id,
     moverName: quote.mover?.name ?? null,
+    moverNickname: quote.mover?.nickname ?? null,
     price: quote.price ?? null,
     status: quote.status,
     createdAt: quote.createdAt,
@@ -235,6 +237,7 @@ export const getEstimateRequestDetail = async (
     data: {
       id: estimateRequest.id,
       userName: estimateRequest.user.name,
+      userNickname: estimateRequest.user.nickname,
       moveType,
       departureAddress,
       departureDetailAddress,
