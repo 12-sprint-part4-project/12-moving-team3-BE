@@ -32,7 +32,8 @@ const CARD_LIKE_EXCLUSION_PATTERNS: RegExp[] = [
   /\b\d{4}[-\s]\d{4}[-\s]\d{4}[-\s]\d{4}\b/g,
 ];
 
-const SIMILARITY_TOKEN_PATTERN = /[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9]{2,12}/g;
+/** Embedding 유사도 후보 토큰. 완성형 한글·영숫자만 (자모-only ㅋㅋ·ㅎㅎ 등 제외). */
+const SIMILARITY_TOKEN_PATTERN = /[가-힣a-zA-Z0-9]{2,12}/g;
 
 /** Exact에서 글자 사이에 허용하는 우회 구분자 (! ~ 포함) */
 const PROFANITY_SEPARATOR_CLASS = '[\\s._@#$%^&*()!~\\-]*';
@@ -373,7 +374,7 @@ export const containsExactProfanity = (
   });
 };
 
-/** 유사도 검사 후보 토큰. 숫자·한 글자는 제외한다. */
+/** 유사도 검사 후보 토큰. 자모-only·한 글자는 패턴에서 제외된다. */
 export const collectSimilarityCandidates = (text: string): string[] => {
   const matches = text.match(SIMILARITY_TOKEN_PATTERN) ?? [];
   const unique = uniqueNonEmpty(matches);
