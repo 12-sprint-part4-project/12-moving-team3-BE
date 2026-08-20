@@ -16,6 +16,7 @@ const env = {
   bannedWordSimilarityThreshold: Number(
     process.env.BANNED_WORD_SIMILARITY_THRESHOLD
   ),
+  sentryDsn: process.env.SENTRY_DSN ?? '',
 };
 
 export default env;
