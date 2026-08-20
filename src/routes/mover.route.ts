@@ -20,6 +20,7 @@ import {
   requireAuthAllowSuspended,
 } from '../middlewares/auth.middleware';
 import { requireCompletedMoverProfile } from '../middlewares/profile.middleware';
+import { passwordChangeRateLimit } from '../middlewares/rate-limit.middleware';
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router.patch(
     body: moverBasicInfoBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',
   }),
+  passwordChangeRateLimit,
   moverProfileController.updateMoverBasicInfo
 );
 

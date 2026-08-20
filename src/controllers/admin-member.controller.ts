@@ -5,7 +5,7 @@ import type {
   AdminMemberStatusParams,
 } from '../schemas/admin-member.schema';
 import * as adminMemberService from '../services/admin-member.service';
-import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
+import { getAuthenticatedAdmin } from '../middlewares/auth.middleware';
 import { getValidated } from '../utils/validated.util';
 
 /** 관리자 회원 목록 조회 */

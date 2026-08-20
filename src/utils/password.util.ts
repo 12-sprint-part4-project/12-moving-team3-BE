@@ -1,7 +1,8 @@
 import bcrypt from 'bcrypt';
 import { AppError } from './app.error';
 
-const PASSWORD_SALT_ROUNDS = 10;
+const AUTH_PASSWORD_SALT_ROUNDS = 10;
+const ADMIN_PASSWORD_SALT_ROUNDS = 12;
 
 // INVALID_NEW_PASSWORD와 동일 정책 (8~20자, 영문·숫자·특수문자)
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
@@ -10,15 +11,29 @@ const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
 export const AUTH_PASSWORD_DUMMY_HASH =
   '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 
-export const hashAuthPassword = async (password: string): Promise<string> => {
-  return bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
+export const ADMIN_PASSWORD_DUMMY_HASH =
+  '$2b$12$5XzC4R7gBVyzjBc5z4kmYODwFEKf/J/ur6ABvfTALn6f0kyiV9fRm';
+
+const hashPassword = async (
+  password: string,
+  saltRounds: number
+): Promise<string> => {
+  return bcrypt.hash(password, saltRounds);
 };
 
-export const compareAuthPassword = async (
+export const comparePassword = async (
   password: string,
   passwordHash: string
 ): Promise<boolean> => {
   return bcrypt.compare(password, passwordHash);
+};
+
+export const hashAuthPassword = async (password: string): Promise<string> => {
+  return hashPassword(password, AUTH_PASSWORD_SALT_ROUNDS);
+};
+
+export const hashAdminPassword = async (password: string): Promise<string> => {
+  return hashPassword(password, ADMIN_PASSWORD_SALT_ROUNDS);
 };
 
 export interface ResolvePasswordHashForUpdateInput {
@@ -58,7 +73,7 @@ export const resolvePasswordHashForUpdate = async (
 
   const localAuth = await input.findLocalPasswordHash();
 
-  const isPasswordMatched = await compareAuthPassword(
+  const isPasswordMatched = await comparePassword(
     input.currentPassword,
     localAuth?.passwordHash ?? AUTH_PASSWORD_DUMMY_HASH
   );

@@ -7,6 +7,7 @@ import {
   requireAuthAllowSuspended,
 } from '../middlewares/auth.middleware';
 import { requireCompletedCustomerProfile } from '../middlewares/profile.middleware';
+import { passwordChangeRateLimit } from '../middlewares/rate-limit.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import { customerProfileBodySchema } from '../schemas/customer-profile.schema';
 import {
@@ -35,6 +36,7 @@ router.patch(
     body: customerProfileBodySchema,
     errorCode: 'INVALID_REQUEST_BODY',
   }),
+  passwordChangeRateLimit,
   customerProfileController.registerCustomerProfile
 );
 

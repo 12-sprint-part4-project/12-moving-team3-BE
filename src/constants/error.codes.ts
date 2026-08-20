@@ -27,6 +27,10 @@ export const ERROR_CODES = {
     status: 400,
     message: '요청 형식이 올바르지 않습니다.',
   },
+  TOO_MANY_REQUESTS: {
+    status: 429,
+    message: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+  },
   UNAUTHORIZED: {
     status: 401,
     message: '로그인이 필요한 기능입니다.',

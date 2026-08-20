@@ -5,7 +5,7 @@ import type {
   AdminReportProcessBody,
 } from '../schemas/admin-report.schema';
 import * as adminReportService from '../services/admin-report.service';
-import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
+import { getAuthenticatedAdmin } from '../middlewares/auth.middleware';
 import { getValidated } from '../utils/validated.util';
 
 export const getReportStatistics = async (

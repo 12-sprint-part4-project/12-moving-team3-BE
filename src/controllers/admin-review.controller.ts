@@ -4,7 +4,7 @@ import type {
   AdminReviewParams,
 } from '../schemas/admin-review.schema';
 import * as adminReviewService from '../services/admin-review.service';
-import { getAuthenticatedAdmin } from '../utils/admin-auth.util';
+import { getAuthenticatedAdmin } from '../middlewares/auth.middleware';
 import { getValidated } from '../utils/validated.util';
 
 export const getReviewStatistics = async (

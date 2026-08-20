@@ -8,7 +8,7 @@ import {
   getAdminRefreshTokenExpiry,
   verifyAdminAccessToken,
 } from '../utils/admin-jwt.util';
-import { hashAdminRefreshToken } from '../utils/admin-token-hash.util';
+import { hashRefreshToken } from '../utils/token-hash.util';
 
 interface Admin {
   id: number;
@@ -54,7 +54,7 @@ const saveRefreshToken = (
   device: DeviceType = 'DESKTOP'
 ): { token: string; record: RefreshTokenRecord } => {
   const token = createAdminRefreshToken(adminId);
-  const tokenHash = hashAdminRefreshToken(token);
+  const tokenHash = hashRefreshToken(token);
   const { expiresAt } = getAdminRefreshTokenExpiry(token);
   const record = {
     id: nextRecordId++,
@@ -97,7 +97,7 @@ describe('admin-auth service refresh', () => {
       records.delete(tokenHash);
     };
 
-    adminAuthService = await import('./admin-auth.service');
+    adminAuthService = await import('./auth.service');
   });
 
   beforeEach(() => {
@@ -128,8 +128,10 @@ describe('admin-auth service refresh', () => {
     const { token } = saveRefreshToken(1);
 
     const result = await adminAuthService.refreshAdminToken(token);
+    const payload = verifyAdminAccessToken(result.accessToken);
 
-    assert.equal(verifyAdminAccessToken(result.accessToken).sub, 1);
+    assert.equal(payload.sub, 1);
+    assert.equal(payload.role, 'ADMIN');
   });
 
   it('동일한 Refresh Token으로 연속 재발급해도 모두 성공한다', async () => {
@@ -181,7 +183,7 @@ describe('admin-auth service refresh', () => {
 
   it('만료된 Refresh Token은 거부한다', async () => {
     const token = jwt.sign(
-      { sub: 1, typ: 'admin_refresh', jti: 'expired-token' },
+      { sub: 'admin:1', typ: 'refresh', jti: 'expired-token' },
       process.env.ADMIN_JWT_REFRESH_SECRET!,
       { expiresIn: -1 }
     );
