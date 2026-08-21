@@ -1,5 +1,11 @@
 import { PostsCategory } from '@prisma/client';
 import type {
+  PostDetailDto,
+  PostIdResultDto,
+  PostListResultDto,
+  PostNeighborsResultDto,
+} from '../dtos/post.dto';
+import type {
   CreatePostBody,
   PostListQuery,
   PostNeighborsQuery,
@@ -164,7 +170,7 @@ const getPostListFilterParams = (query: {
 });
 
 /** 게시글 목록 조회 */
-export const getPosts = async (query: PostListQuery, userId?: string) => {
+export const getPosts = async (query: PostListQuery, userId?: string): Promise<PostListResultDto> => {
   const { sort, limit } = query;
   const cursor = query.cursor ? decodeCursor(query.cursor, sort) : undefined;
   const listFilter = getPostListFilterParams(query);
@@ -197,7 +203,7 @@ export const getPosts = async (query: PostListQuery, userId?: string) => {
 export const getPostNeighbors = async (
   postId: number,
   query: PostNeighborsQuery
-) => {
+): Promise<PostNeighborsResultDto> => {
   const { sort } = query;
   const result = await postRepository.findPostNeighbors({
     postId,
@@ -216,7 +222,7 @@ export const getPostNeighbors = async (
 };
 
 /** 게시글 상세 조회 */
-export const getPostById = async (postId: number, userId?: string) => {
+export const getPostById = async (postId: number, userId?: string): Promise<PostDetailDto> => {
   const post = await postRepository.findPostById(postId, userId);
 
   if (!post) {
@@ -250,7 +256,7 @@ export const getPostById = async (postId: number, userId?: string) => {
 };
 
 /** 게시글 생성 */
-export const createPost = async (userId: string, body: CreatePostBody) => {
+export const createPost = async (userId: string, body: CreatePostBody): Promise<PostIdResultDto> => {
   if (
     body.category === PostsCategory.FURNITURE_SHARE &&
     body.region === undefined
@@ -300,7 +306,7 @@ export const updatePost = async (
   postId: number,
   userId: string,
   body: UpdatePostBody
-) => {
+): Promise<PostIdResultDto> => {
   await assertPostOwner(postId, userId);
 
   const previousImageKeys =
@@ -360,7 +366,7 @@ export const updatePost = async (
 };
 
 /** 가구 나눔 게시글 나눔 완료 (작성자만, FURNITURE_SHARE) */
-export const completePost = async (postId: number, userId: string) => {
+export const completePost = async (postId: number, userId: string): Promise<PostIdResultDto> => {
   const post = await postRepository.findPostForComplete(postId);
 
   if (!post) {

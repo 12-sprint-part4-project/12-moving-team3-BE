@@ -1,3 +1,7 @@
+import type {
+  CommentIdResultDto,
+  CommentListResultDto,
+} from '../dtos/post.dto';
 import type { CommentListQuery } from '../schemas/post.schema';
 import * as commentRepository from '../repositories/comment.repository';
 import type { CommentCursor } from '../repositories/comment.repository';
@@ -84,7 +88,7 @@ export const getComments = async (
   postId: number,
   query: CommentListQuery,
   userId?: string
-) => {
+): Promise<CommentListResultDto> => {
   const post = await postRepository.findPostOwner(postId);
 
   if (!post) {
@@ -155,7 +159,7 @@ export const createComment = async (
   postId: number,
   userId: string,
   content: string
-) => {
+): Promise<CommentIdResultDto> => {
   const post = await postRepository.findPostOwner(postId);
 
   if (!post) {
@@ -193,7 +197,7 @@ export const createReply = async (
   commentId: number,
   userId: string,
   content: string
-) => {
+): Promise<CommentIdResultDto> => {
   const post = await postRepository.findPostOwner(postId);
 
   if (!post) {
