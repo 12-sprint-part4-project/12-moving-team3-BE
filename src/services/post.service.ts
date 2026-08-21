@@ -145,7 +145,6 @@ const mapPostListItem = (
   author: {
     id: post.user.id,
     nickname: post.user.nickname,
-    profileImageUrl: toPublicViewUrl(post.user.profileImageKey),
   },
   likeCount: post.likeCount,
   commentCount: post.commentCount,
@@ -242,7 +241,6 @@ export const getPostById = async (postId: number, userId?: string): Promise<Post
     author: {
       id: post.user.id,
       nickname: post.user.nickname,
-      profileImageUrl: toPublicViewUrl(post.user.profileImageKey),
     },
     likeCount: post.likeCount,
     commentCount: post.commentCount,

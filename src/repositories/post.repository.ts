@@ -152,7 +152,7 @@ export const findPosts = async ({
       isCompleted: true,
       createdAt: true,
       user: {
-        select: { id: true, nickname: true, profileImageKey: true },
+        select: { id: true, nickname: true },
       },
       // 썸네일용 첫 번째 이미지만 조회
       images: {
@@ -341,7 +341,7 @@ export const findPostById = async (postId: number, userId?: string) => {
       createdAt: true,
       updatedAt: true,
       user: {
-        select: { id: true, nickname: true, profileImageKey: true },
+        select: { id: true, nickname: true },
       },
       // 전체 이미지 조회
       images: {

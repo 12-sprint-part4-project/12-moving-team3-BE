@@ -7,7 +7,6 @@ import type { PostsCategory, Region } from '@prisma/client';
 export interface PostAuthorDto {
   id: string;
   nickname: string;
-  profileImageUrl: string | null;
 }
 
 export interface CursorMetaDto {

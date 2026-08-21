@@ -100,9 +100,6 @@ paths:
                                   format: uuid
                                 nickname:
                                   type: string
-                                profileImageUrl:
-                                  type: string
-                                  nullable: true
                             likeCount:
                               type: integer
                             commentCount:
@@ -254,9 +251,6 @@ paths:
                             format: uuid
                           nickname:
                             type: string
-                          profileImageUrl:
-                            type: string
-                            nullable: true
                       likeCount:
                         type: integer
                       commentCount:
@@ -643,9 +637,6 @@ paths:
                                   format: uuid
                                 nickname:
                                   type: string
-                                profileImageUrl:
-                                  type: string
-                                  nullable: true
                             isMine:
                               type: boolean
                               nullable: true
@@ -669,9 +660,6 @@ paths:
                                         format: uuid
                                       nickname:
                                         type: string
-                                      profileImageUrl:
-                                        type: string
-                                        nullable: true
                                   isMine:
                                     type: boolean
                                     nullable: true
