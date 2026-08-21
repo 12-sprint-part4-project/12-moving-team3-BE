@@ -64,12 +64,24 @@ export const getCompletedStatistics = async ({
 export const getCompletedList = async (
   query: AdminCompletedListQuery
 ): Promise<AdminCompletedListDto> => {
-  const { page, pageSize, moveType, search, sort, startDate, endDate } = query;
+  const {
+    page,
+    pageSize,
+    moveType,
+    id,
+    userName,
+    phoneNumber,
+    sort,
+    startDate,
+    endDate,
+  } = query;
   const dateRange = createDateRangeOnly(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
     ...createEstimateRequestCommonWhere({
-      search,
+      id,
+      userName,
+      phoneNumber,
     }),
     ...(moveType && { moveType }),
     ...(dateRange && { moveDate: dateRange }),

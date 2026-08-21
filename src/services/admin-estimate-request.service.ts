@@ -41,53 +41,57 @@ export const getEstimateRequestStatistics = async ({
 };
 
 export const createEstimateRequestCommonWhere = ({
-  search,
+  id,
+  userName,
+  phoneNumber,
 }: {
-  search?: string;
+  id?: number;
+  userName?: string;
+  phoneNumber?: string;
 }): Prisma.EstimateRequestWhereInput => {
-  const orConditions: Prisma.EstimateRequestWhereInput[] = [];
-  const normalizedPhoneNumber = search?.replace(/\D/g, '');
+  const normalizedPhoneNumber = phoneNumber?.replace(/\D/g, '');
 
-  if (search) {
-    const id = Number(search);
+  return {
+    ...(id !== undefined && { id }),
 
-    if (Number.isInteger(id) && id >= -2147483648 && id <= 2147483647) {
-      orConditions.push({ id });
-    }
-
-    orConditions.push({
+    ...((userName || normalizedPhoneNumber) && {
       user: {
-        name: {
-          contains: search,
-        },
-      },
-    });
-
-    if (normalizedPhoneNumber) {
-      orConditions.push({
-        user: {
+        ...(userName && {
+          name: {
+            contains: userName,
+          },
+        }),
+        ...(normalizedPhoneNumber && {
           phoneNumber: {
             contains: normalizedPhoneNumber,
           },
-        },
-      });
-    }
-  }
-
-  return {
-    ...(orConditions.length > 0 && { OR: orConditions }),
+        }),
+      },
+    }),
   };
 };
 
 export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
-  const { page, pageSize, status, search, sort, startDate, endDate } = query;
+  const {
+    page,
+    pageSize,
+    status,
+    id,
+    userName,
+    phoneNumber,
+    sort,
+    startDate,
+    endDate,
+  } = query;
   const dateRange = createDateRange(startDate, endDate);
 
   const where: Prisma.EstimateRequestWhereInput = {
     ...createEstimateRequestCommonWhere({
-      search,
+      id,
+      userName,
+      phoneNumber,
     }),
     status: status ?? {
       not: {
