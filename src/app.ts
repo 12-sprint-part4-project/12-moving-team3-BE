@@ -45,6 +45,9 @@ import { toAppErrorFromPrisma } from './utils/prisma-error.util';
 const app = express();
 const httpServer = http.createServer(app);
 
+// ALB 1홉만 신뢰한다. 없으면 req.ip가 로드밸런서 주소가 되어 코어 로그인 rate limit이 전 사용자 공용이 된다.
+app.set('trust proxy', 1);
+
 const corsOrigins = (env.corsOrigin ?? '')
   .split(',')
   .map((origin) => origin.trim())
