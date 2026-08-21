@@ -5,6 +5,7 @@ import type {
   QuoteStatus,
   UserType,
 } from '@prisma/client';
+import { toDateStringKst } from '../utils/date.util';
 import {
   CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES,
   CHAT_ATTACHMENT_MAX_SIZE,
@@ -226,8 +227,8 @@ const selectPartnerParticipant = <
   );
 };
 
-/** Date를 YYYY-MM-DD 형식으로 변환한다. */
-const toDateString = (date: Date) => date.toISOString().slice(0, 10);
+/** Date를 KST 기준 YYYY-MM-DD 형식으로 변환한다. */
+const toDateString = (date: Date) => toDateStringKst(date);
 
 /** 첨부 fileKey 목록을 조회용 Presigned URL로 변환한다. */
 const toAttachmentViewUrls = async (

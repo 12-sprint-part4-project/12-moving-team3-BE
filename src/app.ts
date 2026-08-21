@@ -26,7 +26,9 @@ import adminReportRouter from './routes/admin-report.route';
 import adminReviewRouter from './routes/admin-review.route';
 import authRouter from './routes/auth.route';
 import chatRouter from './routes/chat.route';
-import communityRouter from './routes/community.route';
+import commentRouter from './routes/comment.route';
+import likeRouter from './routes/like.route';
+import postRouter from './routes/post.route';
 import customerRouter from './routes/customer.route';
 import designatedEstimateRequestRouter from './routes/designated-estimate-request.route';
 import estimateRequestRouter from './routes/estimate-request.route';
@@ -96,7 +98,9 @@ if (env.nodeEnv !== 'production') {
 
 app.use('/', testRouter);
 app.use('/api/auth', authRouter);
-app.use('/api/posts', communityRouter);
+app.use('/api/posts', postRouter);
+app.use('/api/posts', commentRouter);
+app.use('/api/posts', likeRouter);
 app.use('/api/admin/auth', adminAuthRouter);
 app.use('/api/admin/dashboard', adminDashboardRouter);
 app.use('/api/admin/estimate-requests', adminEstimateRequestRouter);

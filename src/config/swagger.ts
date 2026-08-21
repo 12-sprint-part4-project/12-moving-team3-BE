@@ -548,6 +548,14 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        Conflict: {
+          description: '이미 존재하거나 충돌하는 리소스입니다.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
+          },
+        },
         InternalServerError: {
           description: '서버 내부 오류',
           content: {
