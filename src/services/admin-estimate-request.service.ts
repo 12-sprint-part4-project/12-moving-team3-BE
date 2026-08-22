@@ -8,9 +8,16 @@ import {
   getEstimateRequestCount,
   getEstimateRequestStatusStatistics,
 } from '../repositories/admin-estimate-request.repository';
-import { AdminEstimateRequestListQuery } from '../schemas/admin-estimate-request.schema';
+import {
+  AdminEstimateRequestDetailQuery,
+  AdminEstimateRequestListQuery,
+} from '../schemas/admin-estimate-request.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
+import {
+  createDateSortOrderBy,
+  findNeighborIds,
+} from '../utils/admin-date-sort.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import { AppError } from '../utils/app.error';
 import { collectMissingFields } from '../utils/admin-missing-fields.util';
@@ -73,6 +80,40 @@ export const createEstimateRequestCommonWhere = ({
   };
 };
 
+interface EstimateRequestListFilter {
+  id?: number;
+  userName?: string;
+  phoneNumber?: string;
+  status?: AdminEstimateRequestListQuery['status'];
+  startDate?: Date;
+  endDate?: Date;
+}
+
+const createEstimateRequestListWhere = ({
+  id,
+  userName,
+  phoneNumber,
+  status,
+  startDate,
+  endDate,
+}: EstimateRequestListFilter): Prisma.EstimateRequestWhereInput => {
+  const dateRange = createDateRange(startDate, endDate);
+
+  return {
+    ...createEstimateRequestCommonWhere({
+      id,
+      userName,
+      phoneNumber,
+    }),
+    status: status ?? {
+      not: {
+        in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.COMPLETED],
+      },
+    },
+    ...(dateRange && { submittedAt: dateRange }),
+  };
+};
+
 export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
@@ -87,21 +128,15 @@ export const getEstimateRequestList = async (
     startDate,
     endDate,
   } = query;
-  const dateRange = createDateRange(startDate, endDate);
 
-  const where: Prisma.EstimateRequestWhereInput = {
-    ...createEstimateRequestCommonWhere({
-      id,
-      userName,
-      phoneNumber,
-    }),
-    status: status ?? {
-      not: {
-        in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.COMPLETED],
-      },
-    },
-    ...(dateRange && { submittedAt: dateRange }),
-  };
+  const where = createEstimateRequestListWhere({
+    id,
+    userName,
+    phoneNumber,
+    status,
+    startDate,
+    endDate,
+  });
 
   const select = {
     id: true,
@@ -119,9 +154,7 @@ export const getEstimateRequestList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      sort === 'ASC'
-        ? [{ submittedAt: 'asc' }, { id: 'desc' }]
-        : [{ submittedAt: 'desc' }, { id: 'desc' }],
+      createDateSortOrderBy('submittedAt', sort),
       pageSize,
       skip,
       select
@@ -168,7 +201,8 @@ export const getEstimateRequestList = async (
 };
 
 export const getEstimateRequestDetail = async (
-  params: EstimateRequestIdParams
+  params: EstimateRequestIdParams,
+  query: AdminEstimateRequestDetailQuery
 ): Promise<AdminEstimateRequestDetailDto> => {
   const { estimateRequestId } = params;
 
@@ -239,6 +273,22 @@ export const getEstimateRequestDetail = async (
     .filter((q) => q.deletedAt != null)
     .map(toQuoteResponse);
 
+  const listWhere = createEstimateRequestListWhere({
+    id: query.id,
+    userName: query.userName,
+    phoneNumber: query.phoneNumber,
+    status: query.status,
+    startDate: query.startDate,
+    endDate: query.endDate,
+  });
+
+  const { prevId, nextId } = await findNeighborIds(
+    'submittedAt',
+    listWhere,
+    { id: estimateRequest.id, date: submittedAt },
+    query.sort
+  );
+
   return {
     data: {
       id: estimateRequest.id,
@@ -257,6 +307,8 @@ export const getEstimateRequestDetail = async (
       activeQuotesCount: activeQuotes.length,
       deletedQuotes,
       activeQuotes,
+      prevId,
+      nextId,
       missingFields: collectMissingFields({
         moveType,
         departureAddress,

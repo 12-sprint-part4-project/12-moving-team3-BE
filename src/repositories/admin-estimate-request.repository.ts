@@ -118,3 +118,14 @@ export const findEstimateRequestDetailById = async <
     select,
   });
 };
+
+export const findEstimateRequestFirst = async (
+  where: Prisma.EstimateRequestWhereInput,
+  orderBy: Prisma.EstimateRequestOrderByWithRelationInput[]
+): Promise<{ id: number } | null> => {
+  return prisma.estimateRequest.findFirst({
+    where,
+    orderBy,
+    select: { id: true },
+  });
+};
