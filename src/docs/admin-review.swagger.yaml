@@ -8,7 +8,7 @@ paths:
         sort로 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 작성일은 id desc로 보조 정렬합니다.
         id·userName·moverName·rating·deletionStatus·작성일(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
-        id는 리뷰 ID 정확 일치, userName은 작성자 이름 또는 닉네임,
+        id는 리뷰 ID 정확 일치, userName은 작성자 이름 또는 닉네임 부분 일치,
         moverName은 기사 이름 또는 닉네임 부분 일치입니다.
         여러 조건을 함께 보내면 AND로 적용됩니다.
 

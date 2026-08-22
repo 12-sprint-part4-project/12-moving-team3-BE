@@ -47,4 +47,16 @@ describe('adminReviewListQuerySchema', () => {
     assert.equal(result.userName, '홍길동');
     assert.equal(result.moverName, '김기사');
   });
+
+  it('userName이 공백만 있으면 검증에 실패한다', () => {
+    const result = adminReviewListQuerySchema.safeParse({ userName: '   ' });
+
+    assert.equal(result.success, false);
+  });
+
+  it('moverName이 공백만 있으면 검증에 실패한다', () => {
+    const result = adminReviewListQuerySchema.safeParse({ moverName: '   ' });
+
+    assert.equal(result.success, false);
+  });
 });
