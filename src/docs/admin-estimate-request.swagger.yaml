@@ -371,6 +371,10 @@ paths:
         요청자 닉네임(userNickname)과 각 견적의 기사 닉네임(moverNickname)을 함께 반환합니다.
         필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
         missingFields에 누락 필드명을 담아 반환합니다. mover가 없으면 moverName·moverNickname은 null입니다.
+        목록과 동일한 status, id, userName, phoneNumber, startDate, endDate, sort 쿼리를 받으면
+        그 목록 기준으로 이전(prevId)·다음(nextId) 견적 요청 ID를 함께 반환합니다.
+        쿼리를 생략하면 DRAFT·COMPLETED를 제외한 전체 관리 목록·제출일 최신순 기준입니다.
+        현재 건이 해당 필터에 없거나 맨 앞·맨 뒤이거나 submittedAt이 없으면 해당 방향은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -383,6 +387,67 @@ paths:
             type: integer
             minimum: 1
             example: 123
+        - name: status
+          in: query
+          required: false
+          description: |
+            앞뒤 조회에 사용할 견적 요청 상태 필터
+            (미입력 시 DRAFT·COMPLETED 제외 — SUBMITTED, CONFIRMED, EXPIRED, CANCELED)
+          schema:
+            type: string
+            enum: [SUBMITTED, CONFIRMED, EXPIRED, CANCELED]
+            example: SUBMITTED
+        - name: id
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 견적 요청 ID 정확 일치
+          schema:
+            type: integer
+            minimum: 1
+            example: 26
+        - name: userName
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 요청자 이름 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: phoneNumber
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 요청자 전화번호 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: '010-1234'
+        - name: startDate
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 제출일 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 제출일 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+        - name: sort
+          in: query
+          required: false
+          description: |
+            앞뒤 조회에 사용할 제출일 정렬 (미입력 시 DESC).
+            동일 제출일은 id desc로 보조 정렬합니다.
+            prevId는 목록에서 위, nextId는 아래입니다.
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            example: DESC
       responses:
         '200':
           description: 견적 요청 상세 조회 성공
@@ -411,6 +476,8 @@ paths:
                       - deletedQuotesCount
                       - activeQuotes
                       - deletedQuotes
+                      - prevId
+                      - nextId
                       - missingFields
                     properties:
                       id:
@@ -554,6 +621,20 @@ paths:
                               type: string
                               format: date-time
                               example: '2026-07-16T11:00:00.000Z'
+                      prevId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          전달한 목록 필터·정렬 기준 이전 견적 요청 ID.
+                          맨 앞이거나 현재 건이 필터에 없으면 null
+                        example: 122
+                      nextId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          전달한 목록 필터·정렬 기준 다음 견적 요청 ID.
+                          맨 뒤이거나 현재 건이 필터에 없으면 null
+                        example: 124
                       missingFields:
                         type: array
                         description: 상태 불변식상 있어야 하지만 null인 응답 필드명. 정상 데이터면 빈 배열
@@ -596,9 +677,11 @@ paths:
                       price: 160000
                       status: PENDING
                       createdAt: '2026-07-16T10:00:00.000Z'
+                  prevId: 122
+                  nextId: 124
                   missingFields: []
         '400':
-          description: Path Parameter(estimateRequestId) 유효성 검사 실패
+          description: Path Parameter 또는 Query Parameter 유효성 검사 실패
           content:
             application/json:
               schema:

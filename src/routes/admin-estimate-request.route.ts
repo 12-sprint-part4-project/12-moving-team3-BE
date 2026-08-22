@@ -3,7 +3,10 @@ import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import * as adminEstimateRequestController from '../controllers/admin-estimate-request.controller';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
-import { adminEstimateRequestListQuerySchema } from '../schemas/admin-estimate-request.schema';
+import {
+  adminEstimateRequestDetailQuerySchema,
+  adminEstimateRequestListQuerySchema,
+} from '../schemas/admin-estimate-request.schema';
 import { estimateRequestIdParamsSchema } from '../schemas/estimate-request.schema';
 
 const router = Router();
@@ -36,6 +39,7 @@ router.get(
   requireAdmin,
   validateRequest({
     params: estimateRequestIdParamsSchema,
+    query: adminEstimateRequestDetailQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminEstimateRequestController.getEstimateRequestDetail

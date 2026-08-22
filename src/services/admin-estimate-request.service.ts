@@ -7,8 +7,13 @@ import {
   findEstimateRequestDetailById,
   getEstimateRequestCount,
   getEstimateRequestStatusStatistics,
+  findEstimateRequestFirst,
 } from '../repositories/admin-estimate-request.repository';
-import { AdminEstimateRequestListQuery } from '../schemas/admin-estimate-request.schema';
+import {
+  AdminEstimateRequestDetailQuery,
+  AdminEstimateRequestListQuery,
+} from '../schemas/admin-estimate-request.schema';
+import type { SortDirection } from '../schemas/admin-list-query.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
@@ -73,6 +78,102 @@ export const createEstimateRequestCommonWhere = ({
   };
 };
 
+interface EstimateRequestListFilter {
+  id?: number;
+  userName?: string;
+  phoneNumber?: string;
+  status?: AdminEstimateRequestListQuery['status'];
+  startDate?: Date;
+  endDate?: Date;
+}
+
+const createEstimateRequestListWhere = ({
+  id,
+  userName,
+  phoneNumber,
+  status,
+  startDate,
+  endDate,
+}: EstimateRequestListFilter): Prisma.EstimateRequestWhereInput => {
+  const dateRange = createDateRange(startDate, endDate);
+
+  return {
+    ...createEstimateRequestCommonWhere({
+      id,
+      userName,
+      phoneNumber,
+    }),
+    status: status ?? {
+      not: {
+        in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.COMPLETED],
+      },
+    },
+    ...(dateRange && { submittedAt: dateRange }),
+  };
+};
+
+const findNeighborIds = async (
+  listWhere: Prisma.EstimateRequestWhereInput,
+  current: { id: number; submittedAt: Date },
+  sort: SortDirection
+): Promise<{ prevId: number | null; nextId: number | null }> => {
+  const isAsc = sort === 'ASC';
+  const { id: currentId, submittedAt } = current;
+
+  const inFilter = await findEstimateRequestFirst(
+    { AND: [listWhere, { id: currentId }] },
+    [{ id: 'desc' }]
+  );
+
+  if (inFilter == null) {
+    return { prevId: null, nextId: null };
+  }
+
+  const [prev, next] = await Promise.all([
+    findEstimateRequestFirst(
+      {
+        AND: [
+          listWhere,
+          {
+            OR: [
+              {
+                submittedAt: isAsc ? { lt: submittedAt } : { gt: submittedAt },
+              },
+              { submittedAt, id: { gt: currentId } },
+            ],
+          },
+        ],
+      },
+      isAsc
+        ? [{ submittedAt: 'desc' }, { id: 'asc' }]
+        : [{ submittedAt: 'asc' }, { id: 'asc' }]
+    ),
+    findEstimateRequestFirst(
+      {
+        AND: [
+          listWhere,
+          {
+            OR: [
+              {
+                submittedAt: isAsc ? { gt: submittedAt } : { lt: submittedAt },
+              },
+              { submittedAt, id: { lt: currentId } },
+            ],
+          },
+        ],
+      },
+      isAsc
+        ? [{ submittedAt: 'asc' }, { id: 'desc' }]
+        : [{ submittedAt: 'desc' }, { id: 'desc' }]
+    ),
+  ]);
+
+  return {
+    prevId: prev?.id ?? null,
+    nextId: next?.id ?? null,
+  };
+};
+
 export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
@@ -87,21 +188,15 @@ export const getEstimateRequestList = async (
     startDate,
     endDate,
   } = query;
-  const dateRange = createDateRange(startDate, endDate);
 
-  const where: Prisma.EstimateRequestWhereInput = {
-    ...createEstimateRequestCommonWhere({
-      id,
-      userName,
-      phoneNumber,
-    }),
-    status: status ?? {
-      not: {
-        in: [EstimateRequestStatus.DRAFT, EstimateRequestStatus.COMPLETED],
-      },
-    },
-    ...(dateRange && { submittedAt: dateRange }),
-  };
+  const where = createEstimateRequestListWhere({
+    id,
+    userName,
+    phoneNumber,
+    status,
+    startDate,
+    endDate,
+  });
 
   const select = {
     id: true,
@@ -168,7 +263,8 @@ export const getEstimateRequestList = async (
 };
 
 export const getEstimateRequestDetail = async (
-  params: EstimateRequestIdParams
+  params: EstimateRequestIdParams,
+  query: AdminEstimateRequestDetailQuery
 ): Promise<AdminEstimateRequestDetailDto> => {
   const { estimateRequestId } = params;
 
@@ -239,6 +335,24 @@ export const getEstimateRequestDetail = async (
     .filter((q) => q.deletedAt != null)
     .map(toQuoteResponse);
 
+  const listWhere = createEstimateRequestListWhere({
+    id: query.id,
+    userName: query.userName,
+    phoneNumber: query.phoneNumber,
+    status: query.status,
+    startDate: query.startDate,
+    endDate: query.endDate,
+  });
+
+  const { prevId, nextId } =
+    submittedAt == null
+      ? { prevId: null, nextId: null }
+      : await findNeighborIds(
+          listWhere,
+          { id: estimateRequest.id, submittedAt },
+          query.sort ?? 'DESC'
+        );
+
   return {
     data: {
       id: estimateRequest.id,
@@ -257,6 +371,8 @@ export const getEstimateRequestDetail = async (
       activeQuotesCount: activeQuotes.length,
       deletedQuotes,
       activeQuotes,
+      prevId,
+      nextId,
       missingFields: collectMissingFields({
         moveType,
         departureAddress,
