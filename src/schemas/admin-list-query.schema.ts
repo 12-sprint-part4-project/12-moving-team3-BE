@@ -9,10 +9,8 @@ const DEFAULT_LIST_PAGE_SIZE = 10;
  */
 const MAX_LIST_PAGE_SIZE = 50;
 
-/** 공통 목록 조회 Query (search + page/pageSize) */
+/** 공통 목록 조회 Query (page/pageSize) */
 export const listQuerySchema = z.object({
-  // 검색어는 앞뒤 공백을 제거하고, 빈 문자열은 조건으로 쓰지 않는다.
-  search: z.string().trim().min(1).optional(),
   // URL query는 문자열이므로 coerce로 숫자 변환하고, 1페이지부터만 허용한다.
   page: z.coerce.number().int().min(1).optional().default(1),
   // 과도한 조회를 막기 위해 상한을 두고, 미전달 시 기본 pageSize를 적용한다.
