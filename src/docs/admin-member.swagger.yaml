@@ -6,7 +6,7 @@ paths:
       description: |
         삭제되지 않은 회원 목록을 가입일(createdAt) 기준으로 조회합니다.
         sort로 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
-        동일 가입일은 id로 보조 정렬합니다.
+        동일 가입일은 id desc로 보조 정렬합니다.
         userType·status·search·가입 기간(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
         가입 기간 필터는 User.createdAt 조회 조건만 변경하며, 응답 items/pagination 구조와 필드에는 영향을 주지 않습니다.
         startDate가 없으면 전체 기간을 조회합니다.
@@ -67,7 +67,7 @@ paths:
           required: false
           description: |
             가입일 정렬 조건 (미입력 시 DESC).
-            동일 가입일은 id로 보조 정렬합니다.
+            동일 가입일은 id desc로 보조 정렬합니다.
           schema:
             type: string
             enum: [ASC, DESC]
