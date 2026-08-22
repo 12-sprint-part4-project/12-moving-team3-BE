@@ -17,7 +17,7 @@ export const estimateRequestManageStatusSchema = z.enum([
 
 export const adminEstimateRequestListQuerySchema = listQuerySchema
   .extend({
-    id: z.coerce.number().int().min(1).optional(),
+    id: z.coerce.number().int().min(1).max(2147483647).optional(),
     userName: z.string().trim().min(1).optional(),
     phoneNumber: z
       .string()

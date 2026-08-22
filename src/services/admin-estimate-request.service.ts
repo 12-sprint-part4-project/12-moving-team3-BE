@@ -40,15 +40,17 @@ export const getEstimateRequestStatistics = async ({
   return { submitted, confirmed, expired, canceled };
 };
 
+interface EstimateRequestCommonWhere {
+  id?: number;
+  userName?: string;
+  phoneNumber?: string;
+}
+
 export const createEstimateRequestCommonWhere = ({
   id,
   userName,
   phoneNumber,
-}: {
-  id?: number;
-  userName?: string;
-  phoneNumber?: string;
-}): Prisma.EstimateRequestWhereInput => {
+}: EstimateRequestCommonWhere): Prisma.EstimateRequestWhereInput => {
   const normalizedPhoneNumber = phoneNumber?.replace(/\D/g, '');
 
   return {
