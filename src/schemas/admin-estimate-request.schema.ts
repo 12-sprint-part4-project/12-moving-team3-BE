@@ -17,6 +17,14 @@ export const estimateRequestManageStatusSchema = z.enum([
 
 export const adminEstimateRequestListQuerySchema = listQuerySchema
   .extend({
+    id: z.coerce.number().int().min(1).max(2147483647).optional(),
+    userName: z.string().trim().min(1).optional(),
+    phoneNumber: z
+      .string()
+      .trim()
+      .min(1)
+      .refine((value) => value.replace(/\D/g, '').length > 0)
+      .optional(),
     status: estimateRequestManageStatusSchema.optional(),
     sort: sortDirectionSchema.optional(),
   })
@@ -28,6 +36,14 @@ export type AdminEstimateRequestListQuery = z.infer<
 
 export const adminCompletedListQuerySchema = listQuerySchema
   .extend({
+    id: z.coerce.number().int().min(1).max(2147483647).optional(),
+    userName: z.string().trim().min(1).optional(),
+    phoneNumber: z
+      .string()
+      .trim()
+      .min(1)
+      .refine((value) => value.replace(/\D/g, '').length > 0)
+      .optional(),
     moveType: moveTypeSchema.optional(),
     sort: sortDirectionSchema.optional(),
   })
