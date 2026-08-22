@@ -116,6 +116,11 @@ export const findMoverProfileIdsByKeywordHybrid = async (
        OR strpos(lower(COALESCE(mp.short_description, '')), lower($1)) > 0
        OR (
          mp.embedding IS NOT NULL
+         -- 소개(한줄/상세)가 비어 있으면 벡터 매칭 제외
+         AND (
+           NULLIF(BTRIM(mp.short_description), '') IS NOT NULL
+           OR NULLIF(BTRIM(mp.description), '') IS NOT NULL
+         )
          AND 1 - (mp.embedding <=> $2::vector) >= $3
        )`,
     keyword,
