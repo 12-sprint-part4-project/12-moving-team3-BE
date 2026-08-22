@@ -35,4 +35,16 @@ describe('adminReviewListQuerySchema', () => {
       'DELETED'
     );
   });
+
+  it('id를 숫자로 변환하고 userName·moverName을 trim한다', () => {
+    const result = adminReviewListQuerySchema.parse({
+      id: '12',
+      userName: '  홍길동  ',
+      moverName: '  김기사  ',
+    });
+
+    assert.equal(result.id, 12);
+    assert.equal(result.userName, '홍길동');
+    assert.equal(result.moverName, '김기사');
+  });
 });

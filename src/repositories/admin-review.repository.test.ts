@@ -20,4 +20,28 @@ describe('buildAdminReviewListWhere', () => {
 
     assert.deepEqual(where, { deletedAt: { not: null } });
   });
+
+  it('userName과 moverName을 작성자·기사 조건으로 AND 결합한다', () => {
+    const where = buildAdminReviewListWhere({
+      id: 12,
+      userName: '홍길동',
+      moverName: '김기사',
+    });
+
+    assert.equal(where.id, 12);
+    assert.deepEqual(where.user, {
+      OR: [
+        { name: { contains: '홍길동', mode: 'insensitive' } },
+        { nickname: { contains: '홍길동', mode: 'insensitive' } },
+      ],
+    });
+    assert.deepEqual(where.quote, {
+      mover: {
+        OR: [
+          { name: { contains: '김기사', mode: 'insensitive' } },
+          { nickname: { contains: '김기사', mode: 'insensitive' } },
+        ],
+      },
+    });
+  });
 });

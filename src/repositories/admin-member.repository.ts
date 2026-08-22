@@ -109,7 +109,13 @@ export type AdminMemberDetailRow = Prisma.UserGetPayload<{
 const buildAdminMemberListWhere = (
   params: Pick<
     AdminMemberListQuery,
-    'userType' | 'status' | 'search' | 'startDate' | 'endDate'
+    | 'userType'
+    | 'status'
+    | 'userName'
+    | 'email'
+    | 'phoneNumber'
+    | 'startDate'
+    | 'endDate'
   >
 ): Prisma.UserWhereInput => {
   // 통계 API와 동일: startDate가 없으면 기간 필터를 두지 않는다.
@@ -124,7 +130,7 @@ const buildAdminMemberListWhere = (
     where.userType = params.userType;
   }
 
-  // search OR와 status OR가 섞이지 않도록 AND로 묶는다.
+  // 상태 OR와 검색 조건이 섞이지 않도록 AND로 묶는다.
   const andConditions: Prisma.UserWhereInput[] = [];
 
   if (params.status === UserStatus.ACTIVE) {
@@ -144,14 +150,22 @@ const buildAdminMemberListWhere = (
     });
   }
 
-  if (params.search) {
+  if (params.userName) {
     andConditions.push({
-      OR: [
-        { name: { contains: params.search, mode: 'insensitive' } },
-        { nickname: { contains: params.search, mode: 'insensitive' } },
-        { email: { contains: params.search, mode: 'insensitive' } },
-        { phoneNumber: { contains: params.search, mode: 'insensitive' } },
-      ],
+      name: { contains: params.userName, mode: 'insensitive' },
+    });
+  }
+
+  if (params.email) {
+    andConditions.push({
+      email: { contains: params.email, mode: 'insensitive' },
+    });
+  }
+
+  const normalizedPhoneNumber = params.phoneNumber?.replace(/\D/g, '');
+  if (normalizedPhoneNumber) {
+    andConditions.push({
+      phoneNumber: { contains: normalizedPhoneNumber },
     });
   }
 

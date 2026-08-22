@@ -7,7 +7,10 @@ paths:
         삭제되지 않은 회원 목록을 가입일(createdAt) 기준으로 조회합니다.
         sort로 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 가입일은 id desc로 보조 정렬합니다.
-        userType·status·search·가입 기간(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
+        userType·status·userName·email·phoneNumber·가입 기간(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
+        userName은 이름 부분 일치, email은 이메일 부분 일치,
+        phoneNumber는 숫자만 추출해 전화번호 부분 일치로 필터합니다.
+        여러 조건을 함께 보내면 AND로 적용됩니다.
         가입 기간 필터는 User.createdAt 조회 조건만 변경하며, 응답 items/pagination 구조와 필드에는 영향을 주지 않습니다.
         startDate가 없으면 전체 기간을 조회합니다.
         startDate만 있으면 해당 일(KST 00:00:00 ~ 23:59:59.999), endDate까지 있으면 그 기간으로 조회합니다.
@@ -36,14 +39,33 @@ paths:
             type: string
             enum: [ACTIVE, SUSPENDED]
             example: ACTIVE
-        - name: search
+        - name: userName
           in: query
           required: false
-          description: name, nickname, email, phoneNumber 통합 검색 (대소문자 비구분)
+          description: 회원 이름 부분 검색 (대소문자 비구분, 앞뒤 공백 제거, 빈 문자열 불가)
           schema:
             type: string
             minLength: 1
             example: 홍길동
+        - name: email
+          in: query
+          required: false
+          description: 회원 이메일 부분 검색 (대소문자 비구분, 앞뒤 공백 제거, 빈 문자열 불가)
+          schema:
+            type: string
+            minLength: 1
+            example: user@example.com
+        - name: phoneNumber
+          in: query
+          required: false
+          description: |
+            회원 전화번호 부분 검색.
+            하이픈 등 비숫자는 무시하고, 숫자만 남겨 매칭합니다.
+            숫자만 추출했을 때 길이가 1 이상이어야 합니다.
+          schema:
+            type: string
+            minLength: 1
+            example: '010-1234'
         - name: startDate
           in: query
           required: false

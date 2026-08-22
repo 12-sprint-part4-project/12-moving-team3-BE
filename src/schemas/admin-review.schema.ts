@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { listQuerySchema, sortDirectionSchema } from './admin-list-query.schema';
+import {
+  listQuerySchema,
+  sortDirectionSchema,
+} from './admin-list-query.schema';
 import { adminStatisticsFilterSchema } from './admin-statistics.schema';
 
 /** Prisma Int 최대값 — Review.id(Int PK) 범위를 스키마에서 맞춘다. */
@@ -19,6 +22,11 @@ export const adminReviewDeletionStatusSchema = z.enum(['ACTIVE', 'DELETED']);
  */
 export const adminReviewListQuerySchema = listQuerySchema
   .extend({
+    id: z.coerce.number().int().min(1).max(PRISMA_INT_MAX).optional(),
+    // 작성자 이름 또는 닉네임 부분 일치. 빈 문자열은 조건으로 쓰지 않는다.
+    userName: z.string().trim().min(1).optional(),
+    // 기사 이름 또는 닉네임 부분 일치. 빈 문자열은 조건으로 쓰지 않는다.
+    moverName: z.string().trim().min(1).optional(),
     rating: z.coerce.number().int().min(1).max(5).optional(),
     deletionStatus: adminReviewDeletionStatusSchema.optional(),
     // 미전달 시 DESC. 기존 최신 작성순 목록 호출과 호환된다.
