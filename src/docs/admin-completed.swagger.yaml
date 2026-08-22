@@ -104,7 +104,9 @@ paths:
         COMPLETED 상태의 견적 요청을 조회합니다.
         sort로 이사일 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 이사일은 id desc로 보조 정렬합니다.
-        search는 견적 요청 ID(정수), 요청자 이름 또는 전화번호를 대상으로 검색합니다.
+        id는 견적 요청 ID 정확 일치, userName은 요청자 이름 부분 일치,
+        phoneNumber는 숫자만 추출해 전화번호 부분 일치로 필터합니다.
+        여러 조건을 함께 보내면 AND로 적용됩니다.
         moveType은 하나의 이사 유형만 선택할 수 있습니다.
         startDate가 없으면 전체 기간을 조회하며, 이 경우 endDate는 적용되지 않습니다.
         startDate만 입력하면 해당 일의 이사 완료 요청을 조회하고, endDate도 입력하면 두 날짜 사이의 이사일을 기준으로 조회합니다.
@@ -122,14 +124,34 @@ paths:
             type: string
             enum: [SMALL, HOME, OFFICE]
             example: HOME
-        - name: search
+        - name: id
           in: query
           required: false
-          description: 견적 요청 ID, 요청자 이름 또는 전화번호 검색어
+          description: 견적 요청 ID (1 이상, Prisma Int 상한 이하)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            example: 26
+        - name: userName
+          in: query
+          required: false
+          description: 요청자 이름 부분 검색 (앞뒤 공백 제거, 빈 문자열 불가)
           schema:
             type: string
             minLength: 1
             example: 홍길동
+        - name: phoneNumber
+          in: query
+          required: false
+          description: |
+            요청자 전화번호 부분 검색.
+            하이픈 등 비숫자는 무시하고, 숫자만 남겨 매칭합니다.
+            숫자만 추출했을 때 길이가 1 이상이어야 합니다.
+          schema:
+            type: string
+            minLength: 1
+            example: '010-1234'
         - name: startDate
           in: query
           required: false
