@@ -1,6 +1,25 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { adminReportProcessBodySchema } from './admin-report.schema';
+import {
+  adminReportListQuerySchema,
+  adminReportProcessBodySchema,
+} from './admin-report.schema';
+
+describe('adminReportListQuerySchema', () => {
+  it('sort가 없으면 DESC를 기본값으로 둔다', () => {
+    const result = adminReportListQuerySchema.parse({});
+
+    assert.equal(result.sort, 'DESC');
+  });
+
+  it('sort ASC와 DESC를 그대로 보존한다', () => {
+    assert.equal(adminReportListQuerySchema.parse({ sort: 'ASC' }).sort, 'ASC');
+    assert.equal(
+      adminReportListQuerySchema.parse({ sort: 'DESC' }).sort,
+      'DESC'
+    );
+  });
+});
 
 describe('adminReportProcessBodySchema', () => {
   it('정지 Action 하나를 전달하면 성공한다', () => {

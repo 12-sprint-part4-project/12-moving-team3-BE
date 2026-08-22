@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { listQuerySchema } from './admin-list-query.schema';
+import { listQuerySchema, sortDirectionSchema } from './admin-list-query.schema';
 import { adminStatisticsFilterSchema } from './admin-statistics.schema';
 
 /** Prisma Int 최대값 — Review.id(Int PK) 범위를 스키마에서 맞춘다. */
@@ -21,6 +21,8 @@ export const adminReviewListQuerySchema = listQuerySchema
   .extend({
     rating: z.coerce.number().int().min(1).max(5).optional(),
     deletionStatus: adminReviewDeletionStatusSchema.optional(),
+    // 미전달 시 DESC. 기존 최신 작성순 목록 호출과 호환된다.
+    sort: sortDirectionSchema.optional(),
   })
   .and(adminStatisticsFilterSchema);
 
