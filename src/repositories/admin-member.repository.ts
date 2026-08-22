@@ -168,7 +168,7 @@ export const findAdminMembersWithCount = async (
 ): Promise<{ items: AdminMemberListRow[]; totalCount: number }> => {
   const where = buildAdminMemberListWhere(params);
   const skip = (params.page - 1) * params.pageSize;
-  const order = params.sortOrder === 'ASC' ? 'asc' : 'desc';
+  const order = params.sort === 'ASC' ? 'asc' : 'desc';
 
   const [items, totalCount] = await prisma.$transaction([
     prisma.user.findMany({

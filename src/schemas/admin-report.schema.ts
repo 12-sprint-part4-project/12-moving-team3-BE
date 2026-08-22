@@ -1,7 +1,7 @@
 import { UserReportStatus } from '@prisma/client';
 import { z } from 'zod';
 import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target.constants';
-import { listQuerySchema } from './admin-list-query.schema';
+import { listQuerySchema, sortDirectionSchema } from './admin-list-query.schema';
 
 /**
  * 신고일 필터용 YYYY-MM-DD → UTC 자정 Date 변환.
@@ -28,6 +28,8 @@ export const adminReportListQuerySchema = listQuerySchema
     // UserReport.createdAt 범위 필터. optional이라 기존 목록 호출과 호환된다.
     reportedFrom: reportedDateSchema.optional(),
     reportedTo: reportedDateSchema.optional(),
+    // 미전달 시 DESC. 기존 최신순 목록 호출과 호환된다.
+    sort: sortDirectionSchema.optional(),
   })
   // end만 오면 시작이 모호해지므로 statistics와 같이 from 없는 to를 거부한다.
   .refine(({ reportedFrom, reportedTo }) => !(reportedTo && !reportedFrom))

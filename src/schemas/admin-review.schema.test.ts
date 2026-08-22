@@ -9,6 +9,20 @@ describe('adminReviewListQuerySchema', () => {
     assert.equal(result.deletionStatus, undefined);
   });
 
+  it('sort가 없으면 DESC를 기본값으로 둔다', () => {
+    const result = adminReviewListQuerySchema.parse({});
+
+    assert.equal(result.sort, 'DESC');
+  });
+
+  it('sort ASC와 DESC를 그대로 보존한다', () => {
+    assert.equal(adminReviewListQuerySchema.parse({ sort: 'ASC' }).sort, 'ASC');
+    assert.equal(
+      adminReviewListQuerySchema.parse({ sort: 'DESC' }).sort,
+      'DESC'
+    );
+  });
+
   it('ACTIVE와 DELETED 필터 값을 그대로 보존한다', () => {
     assert.equal(
       adminReviewListQuerySchema.parse({ deletionStatus: 'ACTIVE' })
