@@ -1,10 +1,13 @@
+import type {
+  CommentIdResultDto,
+  CommentListResultDto,
+} from '../dtos/post.dto';
 import type { CommentListQuery } from '../schemas/post.schema';
 import * as commentRepository from '../repositories/comment.repository';
 import type { CommentCursor } from '../repositories/comment.repository';
 import * as postRepository from '../repositories/post.repository';
 import { AppError } from '../utils/app.error';
 import * as notificationService from './notification.service';
-import { toPublicViewUrl } from './s3.service';
 
 const isCommentCursor = (value: unknown): value is CommentCursor => {
   if (typeof value !== 'object' || value === null) {
@@ -53,16 +56,14 @@ const decodeCursor = (cursor: string): CommentCursor => {
 interface CommentAuthor {
   id: string;
   nickname: string;
-  profileImageKey: string | null;
 }
 
-const mapAuthor = async (user: CommentAuthor) => ({
+const mapAuthor = (user: CommentAuthor) => ({
   id: user.id,
   nickname: user.nickname,
-  profileImageUrl: toPublicViewUrl(user.profileImageKey),
 });
 
-const mapCommentItem = async (
+const mapCommentItem = (
   comment: {
     id: number;
     userId: string;
@@ -74,7 +75,7 @@ const mapCommentItem = async (
 ) => ({
   id: comment.id,
   content: comment.content,
-  author: await mapAuthor(comment.user),
+  author: mapAuthor(comment.user),
   isMine: userId ? comment.userId === userId : null,
   createdAt: comment.createdAt,
 });
@@ -84,7 +85,7 @@ export const getComments = async (
   postId: number,
   query: CommentListQuery,
   userId?: string
-) => {
+): Promise<CommentListResultDto> => {
   const post = await postRepository.findPostOwner(postId);
 
   if (!post) {
@@ -121,16 +122,12 @@ export const getComments = async (
     repliesByParentId.set(reply.parentId, existing);
   }
 
-  const items = await Promise.all(
-    topLevel.map(async (comment) => ({
-      ...(await mapCommentItem(comment, userId)),
-      replies: await Promise.all(
-        (repliesByParentId.get(comment.id) ?? []).map((reply) =>
-          mapCommentItem(reply, userId)
-        )
-      ),
-    }))
-  );
+  const items = topLevel.map((comment) => ({
+    ...mapCommentItem(comment, userId),
+    replies: (repliesByParentId.get(comment.id) ?? []).map((reply) =>
+      mapCommentItem(reply, userId)
+    ),
+  }));
 
   const lastRow =
     topLevel.length > 0 ? topLevel[topLevel.length - 1] : undefined;
@@ -155,7 +152,7 @@ export const createComment = async (
   postId: number,
   userId: string,
   content: string
-) => {
+): Promise<CommentIdResultDto> => {
   const post = await postRepository.findPostOwner(postId);
 
   if (!post) {
@@ -193,7 +190,7 @@ export const createReply = async (
   commentId: number,
   userId: string,
   content: string
-) => {
+): Promise<CommentIdResultDto> => {
   const post = await postRepository.findPostOwner(postId);
 
   if (!post) {

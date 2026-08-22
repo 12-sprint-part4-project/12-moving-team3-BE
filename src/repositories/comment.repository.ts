@@ -18,7 +18,6 @@ export const findCommentById = async (commentId: number) => {
 const commentAuthorSelect = {
   id: true,
   nickname: true,
-  profileImageKey: true,
 } as const;
 
 type CommentRow = Prisma.CommentGetPayload<{
