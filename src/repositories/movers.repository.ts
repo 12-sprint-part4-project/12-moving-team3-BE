@@ -12,6 +12,7 @@ import {
   type FavoriteListCursor,
   type MoverListCursor,
 } from '../utils/movers-cursor.util';
+import { findMoverProfileIdsByKeywordHybrid } from './mover-embedding.repository';
 
 /** 기사 목록 정렬 — 모두 내림차순(많은/높은 순). SSOT: MOVER_SORT_FIELDS */
 export type MoverListSort = (typeof MOVER_SORT_FIELDS)[number];
@@ -21,6 +22,8 @@ const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'reviewCount';
 /** service → repository로 넘기는 목록 조회 조건 (Prisma 문법 없음) */
 export interface FindMoversFilters {
   keyword?: string;
+  /** keyword 하이브리드(벡터)용. 있으면 ILIKE∪유사도 id로 좁힌다 */
+  queryEmbedding?: number[];
   regions?: Region[];
   moveTypes?: MoveType[];
   sort?: MoverListSort;
@@ -112,7 +115,7 @@ const buildActiveMoverUserWhere = (): Prisma.UserWhereInput => ({
 });
 
 const buildMoverListWhere = (
-  filters: FindMoversFilters
+  filters: FindMoversFilters & { profileIds?: number[] }
 ): Prisma.MoverProfileWhereInput => {
   const conditions: Prisma.MoverProfileWhereInput[] = [];
 
@@ -120,7 +123,10 @@ const buildMoverListWhere = (
     conditions.push({ user: buildActiveMoverUserWhere() });
   }
 
-  if (filters.keyword) {
+  // 하이브리드 검색 결과 id가 있으면 그걸로 좁히고, 없으면 기존 keyword ILIKE
+  if (filters.profileIds) {
+    conditions.push({ id: { in: filters.profileIds } });
+  } else if (filters.keyword) {
     conditions.push({
       OR: [
         {
@@ -153,6 +159,34 @@ const buildMoverListWhere = (
   }
 
   return conditions.length > 0 ? { AND: conditions } : {};
+};
+
+/** keyword+임베딩이 있으면 하이브리드 id로 치환. 매칭 0건이면 null */
+const resolveFiltersForKeywordSearch = async (
+  filters: FindMoversFilters
+): Promise<(FindMoversFilters & { profileIds?: number[] }) | null> => {
+  // 임베딩 없으면 기존 ILIKE 경로 유지
+  if (!filters.keyword || !filters.queryEmbedding) {
+    return filters;
+  }
+
+  const profileIds = await findMoverProfileIdsByKeywordHybrid({
+    keyword: filters.keyword,
+    queryEmbedding: filters.queryEmbedding,
+  });
+
+  // 후보 없음 → 빈 목록
+  if (profileIds.length === 0) {
+    return null;
+  }
+
+  // Prisma where는 profileIds만 쓰고 keyword/embedding은 제거
+  return {
+    ...filters,
+    keyword: undefined,
+    queryEmbedding: undefined,
+    profileIds,
+  };
 };
 
 const buildMoverDetailWhere = (
@@ -331,7 +365,7 @@ const loadAggregateSortValuesByMoverIds = async (
 };
 
 const findMoversByAggregateSort = async (
-  filters: FindMoversFilters,
+  filters: FindMoversFilters & { profileIds?: number[] },
   sort: Exclude<MoverListSort, 'career'>,
   limit: number,
   dbClient: Prisma.TransactionClient | typeof prisma
@@ -408,9 +442,15 @@ const moversRepository = {
     const sort = filters.sort ?? DEFAULT_MOVER_LIST_SORT;
     const limit = filters.limit ?? 10;
 
+    const resolvedFilters = await resolveFiltersForKeywordSearch(filters);
+    // 하이브리드 매칭 0건
+    if (resolvedFilters === null) {
+      return { items: [], hasNextPage: false, sort };
+    }
+
     if (isAggregateSort(sort)) {
       const { items, hasNextPage } = await findMoversByAggregateSort(
-        filters,
+        resolvedFilters,
         sort,
         limit,
         dbClient
@@ -420,10 +460,10 @@ const moversRepository = {
     }
 
     // career — MoverProfile 컬럼이므로 DB orderBy + 키셋 커서
-    const baseWhere = buildMoverListWhere(filters);
-    const where: Prisma.MoverProfileWhereInput = filters.cursor
+    const baseWhere = buildMoverListWhere(resolvedFilters);
+    const where: Prisma.MoverProfileWhereInput = resolvedFilters.cursor
       ? {
-          AND: [baseWhere, buildCareerCursorCondition(filters.cursor)],
+          AND: [baseWhere, buildCareerCursorCondition(resolvedFilters.cursor)],
         }
       : baseWhere;
 

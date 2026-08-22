@@ -19,7 +19,7 @@ const getClient = (): OpenAI => {
 
 /**
  * 텍스트를 text-embedding-3-small 벡터로 변환한다.
- * 인덱싱(금칙어)과 검색(입력 토큰)에 같은 모델을 쓴다.
+ * 금칙어 인덱싱/검색, 기사 임베딩 등에 같은 모델을 쓴다.
  */
 export const embed = async (texts: string | string[]): Promise<number[][]> => {
   const input = Array.isArray(texts) ? texts : [texts];
