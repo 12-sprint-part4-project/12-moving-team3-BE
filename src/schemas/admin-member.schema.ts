@@ -9,7 +9,7 @@ import { adminStatisticsFilterSchema } from './admin-statistics.schema';
 /** 관리자 회원 목록 조회 Query 스키마 */
 export const adminMemberListQuerySchema = listQuerySchema
   .extend({
-    // 이름 부분 일치. 빈 문자열은 조건으로 쓰지 않는다.
+    // 이름 또는 닉네임 부분 일치. 빈 문자열은 조건으로 쓰지 않는다.
     userName: z.string().trim().min(1).optional(),
     // 이메일 부분 일치. 형식 검증은 하지 않아 일부 문자열 검색을 허용한다.
     email: z.string().trim().min(1).optional(),

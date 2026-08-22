@@ -8,7 +8,7 @@ paths:
         sort로 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 가입일은 id desc로 보조 정렬합니다.
         userType·status·userName·email·phoneNumber·가입 기간(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
-        userName은 이름 부분 일치, email은 이메일 부분 일치,
+        userName은 이름 또는 닉네임 부분 일치, email은 이메일 부분 일치,
         phoneNumber는 숫자만 추출해 전화번호 부분 일치로 필터합니다.
         여러 조건을 함께 보내면 AND로 적용됩니다.
         가입 기간 필터는 User.createdAt 조회 조건만 변경하며, 응답 items/pagination 구조와 필드에는 영향을 주지 않습니다.
@@ -42,7 +42,7 @@ paths:
         - name: userName
           in: query
           required: false
-          description: 회원 이름 부분 검색 (대소문자 비구분, 앞뒤 공백 제거, 빈 문자열 불가)
+          description: 회원 이름 또는 닉네임 부분 검색 (대소문자 비구분, 앞뒤 공백 제거, 빈 문자열 불가)
           schema:
             type: string
             minLength: 1

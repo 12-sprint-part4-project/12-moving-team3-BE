@@ -152,7 +152,10 @@ const buildAdminMemberListWhere = (
 
   if (params.userName) {
     andConditions.push({
-      name: { contains: params.userName, mode: 'insensitive' },
+      OR: [
+        { name: { contains: params.userName, mode: 'insensitive' } },
+        { nickname: { contains: params.userName, mode: 'insensitive' } },
+      ],
     });
   }
 
