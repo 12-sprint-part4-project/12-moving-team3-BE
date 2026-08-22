@@ -3,8 +3,14 @@ import { z } from 'zod';
 import { listQuerySchema } from './admin-list-query.schema';
 import { chatMessagesQuerySchema } from './chat-messages-query.schema';
 
+/** Prisma Int 최대값 — ChatRoom.id(Int PK) 범위를 스키마에서 맞춘다. */
+const PRISMA_INT_MAX = 2_147_483_647;
+
 /** 관리자 채팅방 목록 조회 Query 스키마 */
 export const adminChatListQuerySchema = listQuerySchema.extend({
+  id: z.coerce.number().int().min(1).max(PRISMA_INT_MAX).optional(),
+  // 참여자 이름 또는 닉네임 부분 일치. 빈 문자열은 조건으로 쓰지 않는다.
+  userName: z.string().trim().min(1).optional(),
   // ChatRoom.roomType과 동일한 Prisma enum만 허용해 잘못된 필터 값이 DB 조회까지 내려가지 않게 한다.
   roomType: z.enum(ChatRoomType).optional(),
 });

@@ -7,12 +7,10 @@ paths:
         리뷰 목록을 작성일(createdAt) 기준으로 조회합니다.
         sort로 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 작성일은 id desc로 보조 정렬합니다.
-        search·rating·deletionStatus·작성일(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
-
-        검색(search)은 다음 필드를 대상으로 대소문자 구분 없이 부분 일치합니다.
-        - 리뷰 content
-        - 작성자(user) name, nickname, email, phoneNumber
-        - 기사(quote.mover) name, nickname, email, phoneNumber
+        id·userName·moverName·rating·deletionStatus·작성일(startDate/endDate) 필터와 page/pageSize 페이지네이션을 지원합니다.
+        id는 리뷰 ID 정확 일치, userName은 작성자 이름 또는 닉네임 부분 일치,
+        moverName은 기사 이름 또는 닉네임 부분 일치입니다.
+        여러 조건을 함께 보내면 AND로 적용됩니다.
 
         deletionStatus 미전달 시 활성·삭제된 리뷰를 모두 조회합니다.
         ACTIVE는 미삭제, DELETED는 soft delete된 리뷰만 조회합니다.
@@ -24,16 +22,30 @@ paths:
       security:
         - adminBearerAuth: []
       parameters:
-        - name: search
+        - name: id
           in: query
           required: false
-          description: |
-            리뷰 content, 작성자/기사 name·nickname·email·phoneNumber 통합 검색.
-            앞뒤 공백은 제거되며, 빈 문자열은 검색 조건으로 사용하지 않습니다.
+          description: 리뷰 ID (1 이상)
+          schema:
+            type: integer
+            minimum: 1
+            example: 26
+        - name: userName
+          in: query
+          required: false
+          description: 작성자 이름 또는 닉네임 부분 검색 (대소문자 비구분)
           schema:
             type: string
             minLength: 1
-            example: 친절
+            example: 홍길동
+        - name: moverName
+          in: query
+          required: false
+          description: 기사 이름 또는 닉네임 부분 검색 (대소문자 비구분)
+          schema:
+            type: string
+            minLength: 1
+            example: 김기사
         - name: rating
           in: query
           required: false
