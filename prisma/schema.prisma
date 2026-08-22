@@ -91,16 +91,18 @@ model CustomerProfile {
   @@map("customer_profiles")
 }
 
+/// embedding은 pgvector(raw SQL 전용, Prisma Client 미지원) — 금칙어 BannedWord와 동일 패턴
 model MoverProfile {
-  id               Int                  @id @default(autoincrement())
-  userId           String               @unique @map("user_id") @db.Uuid
-  service          MoveType[]           @default([])
+  id               Int                         @id @default(autoincrement())
+  userId           String                      @unique @map("user_id") @db.Uuid
+  service          MoveType[]                  @default([])
   career           Int?
   description      String?
-  shortDescription String?              @map("short_description") @db.VarChar(500)
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
-  user             User                 @relation(fields: [userId], references: [id])
+  shortDescription String?                     @map("short_description") @db.VarChar(500)
+  embedding        Unsupported("vector(1536)")?
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+  user             User                        @relation(fields: [userId], references: [id])
   serviceRegions   MoverServiceRegion[]
 
   @@map("mover_profiles")
