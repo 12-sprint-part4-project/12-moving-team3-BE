@@ -3,7 +3,10 @@ import * as adminCompletedController from '../controllers/admin-completed.contro
 import { requireAdmin } from '../middlewares/auth.middleware';
 import { adminStatisticsFilterSchema } from '../schemas/admin-statistics.schema';
 import { validateRequest } from '../middlewares/validate.middleware';
-import { adminCompletedListQuerySchema } from '../schemas/admin-estimate-request.schema';
+import {
+  adminCompletedDetailQuerySchema,
+  adminCompletedListQuerySchema,
+} from '../schemas/admin-estimate-request.schema';
 import { estimateRequestIdParamsSchema } from '../schemas/estimate-request.schema';
 
 const router = Router();
@@ -36,6 +39,7 @@ router.get(
   requireAdmin,
   validateRequest({
     params: estimateRequestIdParamsSchema,
+    query: adminCompletedDetailQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminCompletedController.getCompletedRequestDetail

@@ -1,6 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import * as adminEstimateRequestService from '../services/admin-estimate-request.service';
-import { AdminEstimateRequestListQuery } from '../schemas/admin-estimate-request.schema';
+import {
+  AdminEstimateRequestDetailQuery,
+  AdminEstimateRequestListQuery,
+} from '../schemas/admin-estimate-request.schema';
 import { getValidated } from '../utils/validated.util';
 import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
@@ -52,8 +55,11 @@ export const getEstimateRequestDetail = async (
 ) => {
   try {
     const params = getValidated<EstimateRequestIdParams>(res, 'params');
-    const result =
-      await adminEstimateRequestService.getEstimateRequestDetail(params);
+    const query = getValidated<AdminEstimateRequestDetailQuery>(res, 'query');
+    const result = await adminEstimateRequestService.getEstimateRequestDetail(
+      params,
+      query
+    );
 
     res.status(200).json(result);
   } catch (error) {

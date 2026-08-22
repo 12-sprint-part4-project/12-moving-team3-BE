@@ -51,6 +51,10 @@ export interface AdminEstimateRequestDetailResponse extends AdminEstimateRequest
   deletedQuotesCount: number;
   activeQuotes: AdminEstimateQuoteResponse[];
   deletedQuotes: AdminEstimateQuoteResponse[];
+  /** 목록 필터·정렬 기준 이전 건. 없으면 null */
+  prevId: number | null;
+  /** 목록 필터·정렬 기준 다음 건. 없으면 null */
+  nextId: number | null;
 }
 
 // 반려 된 견적은 가격이 없을 수 있음. mover가 없으면 moverName·moverNickname은 null
@@ -83,6 +87,10 @@ export interface AdminCompletedRequestDetailResponse extends AdminEstimateReques
   arrivalDetailAddress: string | null;
   moveDate: Date | null;
   confirmedQuote: AdminConfirmedQuoteResponse | null;
+  /** 목록 필터·정렬 기준 이전 건. 없으면 null */
+  prevId: number | null;
+  /** 목록 필터·정렬 기준 다음 건. 없으면 null */
+  nextId: number | null;
 }
 
 export interface AdminCompletedRequestDetailDto {

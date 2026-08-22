@@ -104,6 +104,7 @@ paths:
         COMPLETED 상태의 견적 요청을 조회합니다.
         sort로 이사일 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 이사일은 id desc로 보조 정렬합니다.
+        이사일이 없는 항목은 DESC에서 맨 앞, ASC에서 맨 뒤에 두고 같은 그룹은 id desc입니다.
         id는 견적 요청 ID 정확 일치, userName은 요청자 이름 부분 일치,
         phoneNumber는 숫자만 추출해 전화번호 부분 일치로 필터합니다.
         여러 조건을 함께 보내면 AND로 적용됩니다.
@@ -174,6 +175,7 @@ paths:
           description: |
             이사일 정렬 조건 (미입력 시 DESC).
             동일 이사일은 id desc로 보조 정렬합니다.
+            이사일이 없으면 DESC는 맨 앞, ASC는 맨 뒤입니다.
           schema:
             type: string
             enum: [ASC, DESC]
@@ -352,6 +354,11 @@ paths:
         출발지·도착지 주소 상세(우편번호, 상세주소)와 확정 견적(confirmedQuote) 정보를 함께 반환합니다.
         필수값이 누락된 불완전 데이터는 500 대신 해당 필드를 null로 내리고
         missingFields에 누락 필드명을 담아 반환합니다. confirmedQuote 자체가 없으면 null입니다.
+        목록과 동일한 moveType, id, userName, phoneNumber, startDate, endDate, sort 쿼리를 받으면
+        그 목록 기준으로 이전(prevId)·다음(nextId) 완료 건 ID를 함께 반환합니다.
+        쿼리를 생략하면 COMPLETED 전체·이사일 최신순 기준입니다.
+        이사일이 없는 항목도 목록과 같은 정렬(DESC는 null 먼저, ASC는 null 나중, 동일 값은 id desc)으로 앞뒤를 찾습니다.
+        현재 건이 해당 필터에 없거나 맨 앞·맨 뒤이면 해당 방향은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -364,6 +371,67 @@ paths:
             type: integer
             minimum: 1
             example: 123
+        - name: moveType
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 이사 유형 필터
+          schema:
+            type: string
+            enum: [SMALL, HOME, OFFICE]
+            example: HOME
+        - name: id
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 견적 요청 ID 정확 일치
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            example: 26
+        - name: userName
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 요청자 이름 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: phoneNumber
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 요청자 전화번호 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: '010-1234'
+        - name: startDate
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 이사일 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 이사일 종료일 (startDate 미입력 시 적용되지 않음)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-30'
+        - name: sort
+          in: query
+          required: false
+          description: |
+            앞뒤 조회에 사용할 이사일 정렬 (미입력 시 DESC).
+            동일 이사일은 id desc로 보조 정렬합니다.
+            이사일이 없으면 DESC는 맨 앞, ASC는 맨 뒤입니다.
+            prevId는 목록에서 위, nextId는 아래입니다.
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            example: DESC
       responses:
         '200':
           description: 완료 견적 요청 상세 조회 성공
@@ -388,6 +456,8 @@ paths:
                       - arrivalZipCode
                       - moveDate
                       - confirmedQuote
+                      - prevId
+                      - nextId
                       - missingFields
                     properties:
                       id:
@@ -466,6 +536,20 @@ paths:
                             nullable: true
                             description: 견적 생성 일시
                             example: '2026-07-10T11:00:00.000Z'
+                      prevId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          전달한 목록 필터·정렬 기준 이전 완료 건 ID.
+                          맨 앞이거나 현재 건이 필터에 없으면 null
+                        example: 122
+                      nextId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          전달한 목록 필터·정렬 기준 다음 완료 건 ID.
+                          맨 뒤이거나 현재 건이 필터에 없으면 null
+                        example: 124
                       missingFields:
                         type: array
                         description: |
@@ -494,9 +578,11 @@ paths:
                     price: 250000
                     comment: 안전하게 모시겠습니다.
                     createdAt: '2026-07-10T11:00:00.000Z'
+                  prevId: 122
+                  nextId: 124
                   missingFields: []
         '400':
-          description: Path Parameter(estimateRequestId) 유효성 검사 실패
+          description: Path Parameter 또는 Query Parameter 유효성 검사 실패
           content:
             application/json:
               schema:
