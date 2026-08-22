@@ -1,7 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as adminCompletedService from '../services/admin-completed.service';
 import { getValidated } from '../utils/validated.util';
-import { AdminCompletedListQuery } from '../schemas/admin-estimate-request.schema';
+import {
+  AdminCompletedDetailQuery,
+  AdminCompletedListQuery,
+} from '../schemas/admin-estimate-request.schema';
 import { EstimateRequestIdParams } from '../schemas/estimate-request.schema';
 
 export const getCompletedStatistics = async (
@@ -47,8 +50,11 @@ export const getCompletedRequestDetail = async (
 ) => {
   try {
     const params = getValidated<EstimateRequestIdParams>(res, 'params');
-    const result =
-      await adminCompletedService.getCompletedRequestDetail(params);
+    const query = getValidated<AdminCompletedDetailQuery>(res, 'query');
+    const result = await adminCompletedService.getCompletedRequestDetail(
+      params,
+      query
+    );
     res.status(200).json(result);
   } catch (error) {
     next(error);

@@ -87,6 +87,10 @@ export interface AdminCompletedRequestDetailResponse extends AdminEstimateReques
   arrivalDetailAddress: string | null;
   moveDate: Date | null;
   confirmedQuote: AdminConfirmedQuoteResponse | null;
+  /** 목록 필터·정렬 기준 이전 건. 없으면 null */
+  prevId: number | null;
+  /** 목록 필터·정렬 기준 다음 건. 없으면 null */
+  nextId: number | null;
 }
 
 export interface AdminCompletedRequestDetailDto {

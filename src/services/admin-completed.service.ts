@@ -1,5 +1,6 @@
 import {
   findEstimateRequestDetailById,
+  findEstimateRequestFirst,
   findEstimateRequestList,
   getEstimateRequestCount,
 } from '../repositories/admin-estimate-request.repository';
@@ -7,7 +8,11 @@ import {
   averageCompletedQuotePrice,
   totalCompletedQuotePrice,
 } from '../repositories/admin-quote.repository';
-import { AdminCompletedListQuery } from '../schemas/admin-estimate-request.schema';
+import {
+  AdminCompletedDetailQuery,
+  AdminCompletedListQuery,
+} from '../schemas/admin-estimate-request.schema';
+import type { SortDirection } from '../schemas/admin-list-query.schema';
 import { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRangeOnly } from '../utils/admin-date-range.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
@@ -61,6 +66,95 @@ export const getCompletedStatistics = async ({
   };
 };
 
+interface CompletedListFilter {
+  id?: number;
+  userName?: string;
+  phoneNumber?: string;
+  moveType?: AdminCompletedListQuery['moveType'];
+  startDate?: Date;
+  endDate?: Date;
+}
+
+const createCompletedListWhere = ({
+  id,
+  userName,
+  phoneNumber,
+  moveType,
+  startDate,
+  endDate,
+}: CompletedListFilter): Prisma.EstimateRequestWhereInput => {
+  const dateRange = createDateRangeOnly(startDate, endDate);
+
+  return {
+    ...createEstimateRequestCommonWhere({
+      id,
+      userName,
+      phoneNumber,
+    }),
+    ...(moveType && { moveType }),
+    ...(dateRange && { moveDate: dateRange }),
+    status: EstimateRequestStatus.COMPLETED,
+  };
+};
+
+const findNeighborIds = async (
+  listWhere: Prisma.EstimateRequestWhereInput,
+  current: { id: number; moveDate: Date },
+  sort: SortDirection
+): Promise<{ prevId: number | null; nextId: number | null }> => {
+  const isAsc = sort === 'ASC';
+  const { id: currentId, moveDate } = current;
+
+  const inFilter = await findEstimateRequestFirst(
+    { AND: [listWhere, { id: currentId }] },
+    [{ id: 'desc' }]
+  );
+
+  if (inFilter == null) {
+    return { prevId: null, nextId: null };
+  }
+
+  const [prev, next] = await Promise.all([
+    findEstimateRequestFirst(
+      {
+        AND: [
+          listWhere,
+          {
+            OR: [
+              { moveDate: isAsc ? { lt: moveDate } : { gt: moveDate } },
+              { moveDate, id: { gt: currentId } },
+            ],
+          },
+        ],
+      },
+      isAsc
+        ? [{ moveDate: 'desc' }, { id: 'asc' }]
+        : [{ moveDate: 'asc' }, { id: 'asc' }]
+    ),
+    findEstimateRequestFirst(
+      {
+        AND: [
+          listWhere,
+          {
+            OR: [
+              { moveDate: isAsc ? { gt: moveDate } : { lt: moveDate } },
+              { moveDate, id: { lt: currentId } },
+            ],
+          },
+        ],
+      },
+      isAsc
+        ? [{ moveDate: 'asc' }, { id: 'desc' }]
+        : [{ moveDate: 'desc' }, { id: 'desc' }]
+    ),
+  ]);
+
+  return {
+    prevId: prev?.id ?? null,
+    nextId: next?.id ?? null,
+  };
+};
+
 export const getCompletedList = async (
   query: AdminCompletedListQuery
 ): Promise<AdminCompletedListDto> => {
@@ -75,18 +169,15 @@ export const getCompletedList = async (
     startDate,
     endDate,
   } = query;
-  const dateRange = createDateRangeOnly(startDate, endDate);
 
-  const where: Prisma.EstimateRequestWhereInput = {
-    ...createEstimateRequestCommonWhere({
-      id,
-      userName,
-      phoneNumber,
-    }),
-    ...(moveType && { moveType }),
-    ...(dateRange && { moveDate: dateRange }),
-    status: EstimateRequestStatus.COMPLETED,
-  };
+  const where = createCompletedListWhere({
+    id,
+    userName,
+    phoneNumber,
+    moveType,
+    startDate,
+    endDate,
+  });
 
   const select = {
     id: true,
@@ -159,7 +250,8 @@ export const getCompletedList = async (
 };
 
 export const getCompletedRequestDetail = async (
-  params: EstimateRequestIdParams
+  params: EstimateRequestIdParams,
+  query: AdminCompletedDetailQuery
 ): Promise<AdminCompletedRequestDetailDto> => {
   const { estimateRequestId } = params;
 
@@ -213,6 +305,24 @@ export const getCompletedRequestDetail = async (
           createdAt: estimateRequest.confirmedQuote.createdAt,
         };
 
+  const listWhere = createCompletedListWhere({
+    id: query.id,
+    userName: query.userName,
+    phoneNumber: query.phoneNumber,
+    moveType: query.moveType,
+    startDate: query.startDate,
+    endDate: query.endDate,
+  });
+
+  const { prevId, nextId } =
+    moveDate == null
+      ? { prevId: null, nextId: null }
+      : await findNeighborIds(
+          listWhere,
+          { id: estimateRequest.id, moveDate },
+          query.sort ?? 'DESC'
+        );
+
   return {
     data: {
       id: estimateRequest.id,
@@ -227,6 +337,8 @@ export const getCompletedRequestDetail = async (
       arrivalAddress,
       moveDate,
       confirmedQuote,
+      prevId,
+      nextId,
       missingFields: collectMissingFields({
         moveType,
         departureAddress,
