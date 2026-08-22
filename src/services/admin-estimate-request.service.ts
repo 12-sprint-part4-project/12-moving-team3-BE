@@ -7,15 +7,17 @@ import {
   findEstimateRequestDetailById,
   getEstimateRequestCount,
   getEstimateRequestStatusStatistics,
-  findEstimateRequestFirst,
 } from '../repositories/admin-estimate-request.repository';
 import {
   AdminEstimateRequestDetailQuery,
   AdminEstimateRequestListQuery,
 } from '../schemas/admin-estimate-request.schema';
-import type { SortDirection } from '../schemas/admin-list-query.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRange } from '../utils/admin-date-range.util';
+import {
+  createDateSortOrderBy,
+  findNeighborIds,
+} from '../utils/admin-date-sort.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import { AppError } from '../utils/app.error';
 import { collectMissingFields } from '../utils/admin-missing-fields.util';
@@ -112,68 +114,6 @@ const createEstimateRequestListWhere = ({
   };
 };
 
-const findNeighborIds = async (
-  listWhere: Prisma.EstimateRequestWhereInput,
-  current: { id: number; submittedAt: Date },
-  sort: SortDirection
-): Promise<{ prevId: number | null; nextId: number | null }> => {
-  const isAsc = sort === 'ASC';
-  const { id: currentId, submittedAt } = current;
-
-  const inFilter = await findEstimateRequestFirst(
-    { AND: [listWhere, { id: currentId }] },
-    [{ id: 'desc' }]
-  );
-
-  if (inFilter == null) {
-    return { prevId: null, nextId: null };
-  }
-
-  const [prev, next] = await Promise.all([
-    findEstimateRequestFirst(
-      {
-        AND: [
-          listWhere,
-          {
-            OR: [
-              {
-                submittedAt: isAsc ? { lt: submittedAt } : { gt: submittedAt },
-              },
-              { submittedAt, id: { gt: currentId } },
-            ],
-          },
-        ],
-      },
-      isAsc
-        ? [{ submittedAt: 'desc' }, { id: 'asc' }]
-        : [{ submittedAt: 'asc' }, { id: 'asc' }]
-    ),
-    findEstimateRequestFirst(
-      {
-        AND: [
-          listWhere,
-          {
-            OR: [
-              {
-                submittedAt: isAsc ? { gt: submittedAt } : { lt: submittedAt },
-              },
-              { submittedAt, id: { lt: currentId } },
-            ],
-          },
-        ],
-      },
-      isAsc
-        ? [{ submittedAt: 'asc' }, { id: 'desc' }]
-        : [{ submittedAt: 'desc' }, { id: 'desc' }]
-    ),
-  ]);
-
-  return {
-    prevId: prev?.id ?? null,
-    nextId: next?.id ?? null,
-  };
-};
-
 export const getEstimateRequestList = async (
   query: AdminEstimateRequestListQuery
 ): Promise<AdminEstimateRequestListDto> => {
@@ -214,9 +154,7 @@ export const getEstimateRequestList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      sort === 'ASC'
-        ? [{ submittedAt: 'asc' }, { id: 'desc' }]
-        : [{ submittedAt: 'desc' }, { id: 'desc' }],
+      createDateSortOrderBy('submittedAt', sort),
       pageSize,
       skip,
       select
@@ -344,14 +282,12 @@ export const getEstimateRequestDetail = async (
     endDate: query.endDate,
   });
 
-  const { prevId, nextId } =
-    submittedAt == null
-      ? { prevId: null, nextId: null }
-      : await findNeighborIds(
-          listWhere,
-          { id: estimateRequest.id, submittedAt },
-          query.sort ?? 'DESC'
-        );
+  const { prevId, nextId } = await findNeighborIds(
+    'submittedAt',
+    listWhere,
+    { id: estimateRequest.id, date: submittedAt },
+    query.sort
+  );
 
   return {
     data: {

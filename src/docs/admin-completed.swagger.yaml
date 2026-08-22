@@ -104,6 +104,7 @@ paths:
         COMPLETED 상태의 견적 요청을 조회합니다.
         sort로 이사일 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 이사일은 id desc로 보조 정렬합니다.
+        이사일이 없는 항목은 DESC에서 맨 앞, ASC에서 맨 뒤에 두고 같은 그룹은 id desc입니다.
         id는 견적 요청 ID 정확 일치, userName은 요청자 이름 부분 일치,
         phoneNumber는 숫자만 추출해 전화번호 부분 일치로 필터합니다.
         여러 조건을 함께 보내면 AND로 적용됩니다.
@@ -174,6 +175,7 @@ paths:
           description: |
             이사일 정렬 조건 (미입력 시 DESC).
             동일 이사일은 id desc로 보조 정렬합니다.
+            이사일이 없으면 DESC는 맨 앞, ASC는 맨 뒤입니다.
           schema:
             type: string
             enum: [ASC, DESC]
@@ -355,7 +357,8 @@ paths:
         목록과 동일한 moveType, id, userName, phoneNumber, startDate, endDate, sort 쿼리를 받으면
         그 목록 기준으로 이전(prevId)·다음(nextId) 완료 건 ID를 함께 반환합니다.
         쿼리를 생략하면 COMPLETED 전체·이사일 최신순 기준입니다.
-        현재 건이 해당 필터에 없거나 맨 앞·맨 뒤이거나 moveDate가 없으면 해당 방향은 null입니다.
+        이사일이 없는 항목도 목록과 같은 정렬(DESC는 null 먼저, ASC는 null 나중, 동일 값은 id desc)으로 앞뒤를 찾습니다.
+        현재 건이 해당 필터에 없거나 맨 앞·맨 뒤이면 해당 방향은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -423,6 +426,7 @@ paths:
           description: |
             앞뒤 조회에 사용할 이사일 정렬 (미입력 시 DESC).
             동일 이사일은 id desc로 보조 정렬합니다.
+            이사일이 없으면 DESC는 맨 앞, ASC는 맨 뒤입니다.
             prevId는 목록에서 위, nextId는 아래입니다.
           schema:
             type: string

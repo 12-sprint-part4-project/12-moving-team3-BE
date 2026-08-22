@@ -15,8 +15,8 @@ export const estimateRequestManageStatusSchema = z.enum([
   EstimateRequestStatus.CANCELED,
 ]);
 
-/** 견적 요청 목록·상세 공통 필터 필드 (page/pageSize·기간 제외) */
-const adminEstimateRequestFilterObjectSchema = z.object({
+/** 견적 요청·완료 건 목록·상세 공통 필터 필드 (page/pageSize·기간 제외) */
+const adminEstimateRequestCommonFilterSchema = z.object({
   id: z.coerce.number().int().min(1).max(2147483647).optional(),
   userName: z.string().trim().min(1).optional(),
   phoneNumber: z
@@ -25,9 +25,13 @@ const adminEstimateRequestFilterObjectSchema = z.object({
     .min(1)
     .refine((value) => value.replace(/\D/g, '').length > 0)
     .optional(),
-  status: estimateRequestManageStatusSchema.optional(),
-  sort: sortDirectionSchema.optional(),
+  sort: sortDirectionSchema,
 });
+
+const adminEstimateRequestFilterObjectSchema =
+  adminEstimateRequestCommonFilterSchema.extend({
+    status: estimateRequestManageStatusSchema.optional(),
+  });
 
 export const adminEstimateRequestListQuerySchema = listQuerySchema
   .extend(adminEstimateRequestFilterObjectSchema.shape)
@@ -46,18 +50,10 @@ export type AdminEstimateRequestDetailQuery = z.infer<
 >;
 
 /** 완료 건 목록·상세 공통 필터 필드 (page/pageSize·기간 제외) */
-const adminCompletedFilterObjectSchema = z.object({
-  id: z.coerce.number().int().min(1).max(2147483647).optional(),
-  userName: z.string().trim().min(1).optional(),
-  phoneNumber: z
-    .string()
-    .trim()
-    .min(1)
-    .refine((value) => value.replace(/\D/g, '').length > 0)
-    .optional(),
-  moveType: moveTypeSchema.optional(),
-  sort: sortDirectionSchema.optional(),
-});
+const adminCompletedFilterObjectSchema =
+  adminEstimateRequestCommonFilterSchema.extend({
+    moveType: moveTypeSchema.optional(),
+  });
 
 export const adminCompletedListQuerySchema = listQuerySchema
   .extend(adminCompletedFilterObjectSchema.shape)

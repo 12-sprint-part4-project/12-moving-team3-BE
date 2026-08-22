@@ -1,6 +1,5 @@
 import {
   findEstimateRequestDetailById,
-  findEstimateRequestFirst,
   findEstimateRequestList,
   getEstimateRequestCount,
 } from '../repositories/admin-estimate-request.repository';
@@ -12,9 +11,12 @@ import {
   AdminCompletedDetailQuery,
   AdminCompletedListQuery,
 } from '../schemas/admin-estimate-request.schema';
-import type { SortDirection } from '../schemas/admin-list-query.schema';
 import { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { createDateRangeOnly } from '../utils/admin-date-range.util';
+import {
+  createDateSortOrderBy,
+  findNeighborIds,
+} from '../utils/admin-date-sort.util';
 import { EstimateRequestStatus, Prisma, QuoteStatus } from '@prisma/client';
 import { createEstimateRequestCommonWhere } from './admin-estimate-request.service';
 import {
@@ -97,64 +99,6 @@ const createCompletedListWhere = ({
   };
 };
 
-const findNeighborIds = async (
-  listWhere: Prisma.EstimateRequestWhereInput,
-  current: { id: number; moveDate: Date },
-  sort: SortDirection
-): Promise<{ prevId: number | null; nextId: number | null }> => {
-  const isAsc = sort === 'ASC';
-  const { id: currentId, moveDate } = current;
-
-  const inFilter = await findEstimateRequestFirst(
-    { AND: [listWhere, { id: currentId }] },
-    [{ id: 'desc' }]
-  );
-
-  if (inFilter == null) {
-    return { prevId: null, nextId: null };
-  }
-
-  const [prev, next] = await Promise.all([
-    findEstimateRequestFirst(
-      {
-        AND: [
-          listWhere,
-          {
-            OR: [
-              { moveDate: isAsc ? { lt: moveDate } : { gt: moveDate } },
-              { moveDate, id: { gt: currentId } },
-            ],
-          },
-        ],
-      },
-      isAsc
-        ? [{ moveDate: 'desc' }, { id: 'asc' }]
-        : [{ moveDate: 'asc' }, { id: 'asc' }]
-    ),
-    findEstimateRequestFirst(
-      {
-        AND: [
-          listWhere,
-          {
-            OR: [
-              { moveDate: isAsc ? { gt: moveDate } : { lt: moveDate } },
-              { moveDate, id: { lt: currentId } },
-            ],
-          },
-        ],
-      },
-      isAsc
-        ? [{ moveDate: 'asc' }, { id: 'desc' }]
-        : [{ moveDate: 'desc' }, { id: 'desc' }]
-    ),
-  ]);
-
-  return {
-    prevId: prev?.id ?? null,
-    nextId: next?.id ?? null,
-  };
-};
-
 export const getCompletedList = async (
   query: AdminCompletedListQuery
 ): Promise<AdminCompletedListDto> => {
@@ -198,9 +142,7 @@ export const getCompletedList = async (
   const [estimateRequests, totalCount] = await Promise.all([
     findEstimateRequestList(
       where,
-      sort === 'ASC'
-        ? [{ moveDate: 'asc' }, { id: 'desc' }]
-        : [{ moveDate: 'desc' }, { id: 'desc' }],
+      createDateSortOrderBy('moveDate', sort),
       pageSize,
       skip,
       select
@@ -314,14 +256,12 @@ export const getCompletedRequestDetail = async (
     endDate: query.endDate,
   });
 
-  const { prevId, nextId } =
-    moveDate == null
-      ? { prevId: null, nextId: null }
-      : await findNeighborIds(
-          listWhere,
-          { id: estimateRequest.id, moveDate },
-          query.sort ?? 'DESC'
-        );
+  const { prevId, nextId } = await findNeighborIds(
+    'moveDate',
+    listWhere,
+    { id: estimateRequest.id, date: moveDate },
+    query.sort
+  );
 
   return {
     data: {
