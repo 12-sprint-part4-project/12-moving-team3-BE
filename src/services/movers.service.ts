@@ -14,12 +14,14 @@ import {
   countConfirmedQuotesByMoverIds,
 } from '../repositories/quote.repository';
 import reviewRepository from '../repositories/review.repository';
+import env from '../config/env';
 import * as reviewService from './review.service';
 import type {
   FavoriteMoversQuery,
   MoversListQuery,
 } from '../schemas/movers.schema';
 import { AppError } from '../utils/app.error';
+import { embed } from '../utils/embeddings.util';
 import { toPublicViewUrl } from './s3.service';
 import {
   decodeFavoriteListCursor,
@@ -32,10 +34,12 @@ import {
 
 const DEFAULT_MOVER_LIST_SORT: MoverListSort = 'reviewCount';
 
-const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
+const toFindMoversFilters = async (
+  query: MoversListQuery
+): Promise<FindMoversFilters> => {
   const sort = query.sort ?? DEFAULT_MOVER_LIST_SORT;
 
-  return {
+  const filters: FindMoversFilters = {
     keyword: query.keyword,
     regions: query.region,
     moveTypes: query.moveType,
@@ -46,6 +50,23 @@ const toFindMoversFilters = (query: MoversListQuery): FindMoversFilters => {
     limit: query.limit,
     onlyActiveMovers: true,
   };
+
+  // keyword가 있고 API 키가 있으면 검색어 임베딩 생성 (실패 시 ILIKE만 사용)
+  if (filters.keyword && env.openaiApiKey) {
+    try {
+      const [queryEmbedding] = await embed(filters.keyword);
+      if (queryEmbedding) {
+        filters.queryEmbedding = queryEmbedding;
+      }
+    } catch (error) {
+      console.error(
+        '[movers] keyword embedding failed; fallback to ILIKE only',
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+
+  return filters;
 };
 
 const EMPTY_REVIEW_STATS = {
@@ -82,7 +103,7 @@ const moversService = {
     query: MoversListQuery;
     customerId?: string;
   }) => {
-    const filters = toFindMoversFilters(query);
+    const filters = await toFindMoversFilters(query);
     const {
       items: movers,
       hasNextPage,
