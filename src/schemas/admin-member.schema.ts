@@ -1,6 +1,6 @@
 import { UserStatus, UserType } from '@prisma/client';
 import { z } from 'zod';
-import { listQuerySchema } from './admin-list-query.schema';
+import { listQuerySchema, sortDirectionSchema } from './admin-list-query.schema';
 import { adminStatisticsFilterSchema } from './admin-statistics.schema';
 
 /** 관리자 회원 목록 조회 Query 스키마 */
@@ -10,8 +10,8 @@ export const adminMemberListQuerySchema = listQuerySchema
     userType: z.enum(UserType).optional(),
     // UserStatusInfo.status와 동일한 Prisma enum만 허용해 상태 필터 의미를 스키마와 일치시킨다.
     status: z.enum(UserStatus).optional(),
-    // 가입일 정렬은 허용된 두 방향만 받고, 기존 동작과 동일하게 최신순을 기본값으로 둔다.
-    sortOrder: z.enum(['ASC', 'DESC']).optional().default('DESC'),
+    // 미전달 시 DESC. 기존 최신 가입순 목록 호출과 호환된다.
+    sort: sortDirectionSchema.optional(),
   })
   // 가입 기간은 statistics와 동일한 startDate/endDate 검증 정책을 재사용한다.
   .and(adminStatisticsFilterSchema);

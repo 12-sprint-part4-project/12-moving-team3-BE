@@ -117,8 +117,12 @@ export const findAdminReviewsWithCount = async (
     prisma.review.findMany({
       where,
       select: adminReviewListSelect,
-      // createdAt이 같으면 id로 tie-break해 offset 페이지네이션 순서를 안정화한다.
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      // createdAt이 같으면 id desc로 tie-break해 offset 페이지네이션 순서를 안정화한다.
+      // 날짜만 뒤집고 id는 고정해 견적 요청 목록과 같은 보조 정렬을 유지한다.
+      orderBy:
+        params.sort === 'ASC'
+          ? [{ createdAt: 'asc' }, { id: 'desc' }]
+          : [{ createdAt: 'desc' }, { id: 'desc' }],
       skip,
       take: params.pageSize,
     }),
