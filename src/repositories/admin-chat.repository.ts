@@ -120,27 +120,29 @@ export interface AdminChatLastMessageRow {
 
 /**
  * 목록/카운트에 공통으로 쓰는 where.
- * search·roomType만 반영하며, 탈퇴 User·이탈 Participant는 제외하지 않는다.
+ * id·userName·roomType만 반영하며, 탈퇴 User·이탈 Participant는 제외하지 않는다.
  */
 const buildAdminChatListWhere = (
-  params: Pick<AdminChatListQuery, 'search' | 'roomType'>
+  params: Pick<AdminChatListQuery, 'id' | 'userName' | 'roomType'>
 ): Prisma.ChatRoomWhereInput => {
   const where: Prisma.ChatRoomWhereInput = {};
+
+  if (params.id !== undefined) {
+    where.id = params.id;
+  }
 
   if (params.roomType) {
     where.roomType = params.roomType;
   }
 
-  if (params.search) {
-    // 참여자 User의 식별 정보 중 하나라도 맞으면 해당 방을 포함한다.
+  if (params.userName) {
+    // 같은 참여자의 이름 또는 닉네임이 맞아야 해당 방을 포함한다.
     where.participants = {
       some: {
         user: {
           OR: [
-            { name: { contains: params.search, mode: 'insensitive' } },
-            { nickname: { contains: params.search, mode: 'insensitive' } },
-            { email: { contains: params.search, mode: 'insensitive' } },
-            { phoneNumber: { contains: params.search, mode: 'insensitive' } },
+            { name: { contains: params.userName, mode: 'insensitive' } },
+            { nickname: { contains: params.userName, mode: 'insensitive' } },
           ],
         },
       },

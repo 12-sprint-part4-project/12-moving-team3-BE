@@ -304,13 +304,11 @@ const toAdminReportListItem = (
 export const getAdminReportList = async (
   params: AdminReportListQuery
 ): Promise<AdminReportListResultDto> => {
-  // keyword가 있을 때만 targetId 후보를 조회한다. 없으면 undefined로 검색 필터를 끈다.
+  // 대상 사용자 이름이 있을 때만 targetId 후보를 조회한다. 없으면 undefined로 검색 필터를 끈다.
   let targetIds: AdminReportTargetIdsByKeyword | undefined;
 
-  if (params.targetUserKeyword) {
-    targetIds = await findReportTargetIdsByTargetUserKeyword(
-      params.targetUserKeyword
-    );
+  if (params.userName) {
+    targetIds = await findReportTargetIdsByTargetUserKeyword(params.userName);
   }
 
   // reportedFrom/reportedTo는 params에 실려 Repository where builder로 전달된다.

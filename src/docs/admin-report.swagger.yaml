@@ -7,13 +7,14 @@ paths:
         신고 목록을 신고일(createdAt) 기준으로 조회합니다.
         sort로 오름차순(ASC) 또는 최신순(DESC, 기본값)을 선택할 수 있으며,
         동일 신고일은 id desc로 보조 정렬합니다.
-        status·target·targetUserKeyword·신고일(reportedFrom/reportedTo) 필터와 page·pageSize 페이지네이션을 지원합니다.
+        status·target·id·userName·신고일(reportedFrom/reportedTo) 필터와 page·pageSize 페이지네이션을 지원합니다.
         필터가 여러 개면 AND 조건으로 조회합니다.
         응답은 회원 목록과 동일하게 items/pagination 구조입니다.
         각 item에 신고자 요약(reporter)과 신고 대상 요약(targetInfo)을 포함합니다.
         targetInfo는 대상이 삭제되었거나 조회되지 않으면 null입니다.
 
-        targetUserKeyword는 신고 대상 사용자의 이름·닉네임·이메일을 검색합니다.
+        id는 신고 ID 정확 일치입니다.
+        userName은 신고 대상 사용자의 이름 또는 닉네임을 검색합니다.
         target 유형별 검색 기준은 다음과 같습니다.
         - USER: 신고당한 사용자
         - REVIEW: 리뷰 작성자
@@ -45,12 +46,19 @@ paths:
             type: string
             enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
             example: USER
-        - name: targetUserKeyword
+        - name: id
+          in: query
+          required: false
+          description: 신고 ID (1 이상)
+          schema:
+            type: integer
+            minimum: 1
+            example: 26
+        - name: userName
           in: query
           required: false
           description: |
-            신고 대상 사용자 검색어.
-            이름, 닉네임, 이메일 기준(대소문자 비구분).
+            신고 대상 사용자 이름 또는 닉네임 부분 검색 (대소문자 비구분).
           schema:
             type: string
             minLength: 1

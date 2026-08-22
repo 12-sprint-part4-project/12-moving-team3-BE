@@ -1,7 +1,10 @@
 import { UserReportStatus } from '@prisma/client';
 import { z } from 'zod';
 import { SUPPORTED_REPORT_TARGETS } from '../constants/report-target.constants';
-import { listQuerySchema, sortDirectionSchema } from './admin-list-query.schema';
+import {
+  listQuerySchema,
+  sortDirectionSchema,
+} from './admin-list-query.schema';
 
 /**
  * 신고일 필터용 YYYY-MM-DD → UTC 자정 Date 변환.
@@ -22,9 +25,9 @@ export const adminReportListQuerySchema = listQuerySchema
     status: z.enum(UserReportStatus).optional(),
     // Prisma enum 전체가 아니라 앱에서 지원하는 신고 대상만 필터로 받는다.
     target: z.enum(SUPPORTED_REPORT_TARGETS).optional(),
-    // 공백만 있는 검색어는 의미가 없고, listQuerySchema.search와 같이 trim + min(1)로 맞춘다.
-    // (실제 where 적용은 이후 커밋 — 여기서는 요청 계약만 고정한다.)
-    targetUserKeyword: z.string().trim().min(1).optional(),
+    id: z.coerce.number().int().min(1).max(2147483647).optional(),
+    // 신고 대상 사용자 이름 또는 닉네임. 빈 문자열은 조건으로 쓰지 않는다.
+    userName: z.string().trim().min(1).optional(),
     // UserReport.createdAt 범위 필터. optional이라 기존 목록 호출과 호환된다.
     reportedFrom: reportedDateSchema.optional(),
     reportedTo: reportedDateSchema.optional(),

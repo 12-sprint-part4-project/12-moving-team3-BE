@@ -12,6 +12,22 @@ describe('adminReportListQuerySchema', () => {
     assert.equal(result.sort, 'DESC');
   });
 
+  it('id를 숫자로 변환하고 userName을 trim한다', () => {
+    const result = adminReportListQuerySchema.parse({
+      id: '26',
+      userName: '  김민수  ',
+    });
+
+    assert.equal(result.id, 26);
+    assert.equal(result.userName, '김민수');
+  });
+
+  it('userName이 공백만 있으면 검증에 실패한다', () => {
+    const result = adminReportListQuerySchema.safeParse({ userName: '   ' });
+
+    assert.equal(result.success, false);
+  });
+
   it('sort ASC와 DESC를 그대로 보존한다', () => {
     assert.equal(adminReportListQuerySchema.parse({ sort: 'ASC' }).sort, 'ASC');
     assert.equal(

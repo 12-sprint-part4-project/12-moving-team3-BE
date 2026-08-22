@@ -58,13 +58,15 @@ export type AdminReviewListRow = Prisma.ReviewGetPayload<{
   select: typeof adminReviewListSelect;
 }>;
 
-/** User 식별 정보 검색 — 회원/채팅 목록과 동일한 contains + insensitive */
-const buildUserSearchOr = (search: string): Prisma.UserWhereInput['OR'] => [
-  { name: { contains: search, mode: 'insensitive' } },
-  { nickname: { contains: search, mode: 'insensitive' } },
-  { email: { contains: search, mode: 'insensitive' } },
-  { phoneNumber: { contains: search, mode: 'insensitive' } },
-];
+/** 이름 또는 닉네임 부분 일치 — 작성자·기사 검색에 공통으로 쓴다. */
+const buildUserNameOrNicknameWhere = (
+  userName: string
+): Prisma.UserWhereInput => ({
+  OR: [
+    { name: { contains: userName, mode: 'insensitive' } },
+    { nickname: { contains: userName, mode: 'insensitive' } },
+  ],
+});
 
 /**
  * 목록/카운트 공통 where.
@@ -74,13 +76,23 @@ const buildUserSearchOr = (search: string): Prisma.UserWhereInput['OR'] => [
 export const buildAdminReviewListWhere = (
   params: Pick<
     AdminReviewListQuery,
-    'search' | 'rating' | 'deletionStatus' | 'startDate' | 'endDate'
+    | 'id'
+    | 'userName'
+    | 'moverName'
+    | 'rating'
+    | 'deletionStatus'
+    | 'startDate'
+    | 'endDate'
   >
 ): Prisma.ReviewWhereInput => {
   const dateRange = createDateRange(params.startDate, params.endDate);
   const where: Prisma.ReviewWhereInput = {
     ...(dateRange && { createdAt: dateRange }),
   };
+
+  if (params.id !== undefined) {
+    where.id = params.id;
+  }
 
   if (params.rating !== undefined) {
     where.rating = params.rating;
@@ -92,15 +104,14 @@ export const buildAdminReviewListWhere = (
     where.deletedAt = { not: null };
   }
 
-  // search가 있을 때만 OR를 붙인다 — 빈 문자열은 스키마에서 제거된다.
-  if (params.search) {
-    where.OR = [
-      { content: { contains: params.search, mode: 'insensitive' } },
-      // Review.user — 작성자(고객)
-      { user: { OR: buildUserSearchOr(params.search) } },
-      // Review.quote.mover — 기사 (moverId가 null인 견적은 이 분기에 매칭되지 않음)
-      { quote: { mover: { OR: buildUserSearchOr(params.search) } } },
-    ];
+  if (params.userName) {
+    where.user = buildUserNameOrNicknameWhere(params.userName);
+  }
+
+  if (params.moverName) {
+    where.quote = {
+      mover: buildUserNameOrNicknameWhere(params.moverName),
+    };
   }
 
   return where;

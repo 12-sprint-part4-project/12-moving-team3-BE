@@ -72,7 +72,7 @@ export interface AdminReportTargetIdsByKeyword {
 
 type AdminReportListWhereParams = Pick<
   AdminReportListQuery,
-  'status' | 'target' | 'reportedFrom' | 'reportedTo'
+  'id' | 'status' | 'target' | 'reportedFrom' | 'reportedTo'
 > & {
   /**
    * 검색어로 미리 조회한 targetId 묶음.
@@ -126,7 +126,7 @@ const buildTargetIdSearchOrConditions = (
 };
 
 /**
- * status·target·신고일·대상 사용자 검색을 AND로 합친다.
+ * id·status·target·신고일·대상 사용자 검색을 AND로 합친다.
  * target + 검색이 함께 오면 Prisma가 둘 다 만족하는 행만 남긴다
  * (예: target=REVIEW AND OR(... REVIEW targetId ...)).
  */
@@ -139,6 +139,10 @@ const buildAdminReportListWhere = (
   const where: Prisma.UserReportWhereInput = {
     ...(dateRange && { createdAt: dateRange }),
   };
+
+  if (params.id !== undefined) {
+    where.id = params.id;
+  }
 
   if (params.status) {
     where.status = params.status;
@@ -172,6 +176,7 @@ export const findAdminReportsWithCount = async (
   targetIds?: AdminReportTargetIdsByKeyword
 ): Promise<{ items: AdminReportListRow[]; totalCount: number }> => {
   const where = buildAdminReportListWhere({
+    id: params.id,
     status: params.status,
     target: params.target,
     reportedFrom: params.reportedFrom,
@@ -201,7 +206,7 @@ export const findAdminReportsWithCount = async (
 
 /**
  * 신고 대상 사용자 검색 시 사용자 조회 상한.
- * 이름/닉네임/이메일이 흔한 단어도 있어, 무제한 contains는 목록 필터를 과도하게 넓힌다.
+ * 이름/닉네임이 흔한 단어도 있어, 무제한 contains는 목록 필터를 과도하게 넓힌다.
  */
 const REPORT_TARGET_USER_SEARCH_LIMIT = 100;
 
@@ -239,7 +244,6 @@ export const findReportTargetIdsByTargetUserKeyword = async (
       OR: [
         { name: { contains: keyword, mode: 'insensitive' } },
         { nickname: { contains: keyword, mode: 'insensitive' } },
-        { email: { contains: keyword, mode: 'insensitive' } },
       ],
     },
     select: { id: true },

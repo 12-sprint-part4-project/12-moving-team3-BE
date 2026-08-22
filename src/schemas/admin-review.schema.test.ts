@@ -35,4 +35,28 @@ describe('adminReviewListQuerySchema', () => {
       'DELETED'
     );
   });
+
+  it('id를 숫자로 변환하고 userName·moverName을 trim한다', () => {
+    const result = adminReviewListQuerySchema.parse({
+      id: '12',
+      userName: '  홍길동  ',
+      moverName: '  김기사  ',
+    });
+
+    assert.equal(result.id, 12);
+    assert.equal(result.userName, '홍길동');
+    assert.equal(result.moverName, '김기사');
+  });
+
+  it('userName이 공백만 있으면 검증에 실패한다', () => {
+    const result = adminReviewListQuerySchema.safeParse({ userName: '   ' });
+
+    assert.equal(result.success, false);
+  });
+
+  it('moverName이 공백만 있으면 검증에 실패한다', () => {
+    const result = adminReviewListQuerySchema.safeParse({ moverName: '   ' });
+
+    assert.equal(result.success, false);
+  });
 });
