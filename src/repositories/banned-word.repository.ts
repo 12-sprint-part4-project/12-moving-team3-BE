@@ -1,5 +1,6 @@
-import { prisma } from '../lib/prisma';
 import { BANNED_WORD_SIMILARITY_TOP_K } from '../constants/banned-words';
+import { prisma } from '../lib/prisma';
+import { toVectorLiteral } from '../utils/vector.util';
 
 export interface ActiveBannedWord {
   id: number;
@@ -34,18 +35,6 @@ interface SimilarBannedWordRow {
   word: string;
   similarity: unknown;
 }
-
-/** 숫자 배열을 pgvector 리터럴로 만든다. 유한 숫자가 아니면 거부한다. */
-export const toVectorLiteral = (embedding: number[]): string => {
-  if (
-    embedding.length === 0 ||
-    embedding.some((value) => !Number.isFinite(value))
-  ) {
-    throw new Error('Invalid embedding vector');
-  }
-
-  return `[${embedding.join(',')}]`;
-};
 
 /** 활성 금칙어 목록. embedding은 Unsupported 타입이라 조회하지 않는다. */
 export const findActiveBannedWords = async (): Promise<ActiveBannedWord[]> => {
