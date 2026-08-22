@@ -13,9 +13,10 @@
     "admin:create": "ts-node scripts/create-admin.ts",
     "banned-words:seed": "ts-node scripts/seed-banned-words.ts",
     "banned-words:index": "ts-node scripts/index-banned-words.ts",
+    "movers:index-embeddings": "ts-node scripts/index-mover-embeddings.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 5432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'",
+    "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 15432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org irum-0d --project node-express ./dist && sentry-cli sourcemaps upload --org irum-0d --project node-express ./dist"
   },
   "repository": {

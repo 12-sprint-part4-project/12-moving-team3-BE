@@ -6,6 +6,7 @@ import type {
   MoverProfileBody,
 } from '../schemas/mover-profile.schema';
 import { resolvePasswordHashForUpdate } from '../utils/password.util';
+import { reindexMoverProfileEmbedding } from './mover-embedding.service';
 import { deleteImage, toPublicViewUrl } from './s3.service';
 import { AppError } from '../utils/app.error';
 import { toAppErrorFromPrisma } from '../utils/prisma-error.util';
@@ -90,6 +91,8 @@ export const saveMoverProfile = async (input: SaveMoverProfileInput) => {
         // 정리 실패 시에도 프로필 저장 결과는 유지한다.
       }
     }
+    // 프로필 저장 시, 벡터 임베딩 다시 계산
+    await reindexMoverProfileEmbedding(input.userId);
 
     return {
       nickname: profile.nickname,
@@ -159,7 +162,7 @@ export const updateMoverBasicInfo = async (
   });
 
   try {
-    return await moverProfileRepository.updateMoverBasicInfo({
+    const updated = await moverProfileRepository.updateMoverBasicInfo({
       userId: input.userId,
       ...(hasNameChange ? { name: body.name } : {}),
       ...(hasPhoneChange ? { phoneNumber: body.phoneNumber } : {}),
@@ -167,6 +170,12 @@ export const updateMoverBasicInfo = async (
         ? { passwordHash: nextPasswordHash }
         : {}),
     });
+    // 이름 변경 시, 벡터 임베딩 다시 계산
+    if (hasNameChange) {
+      await reindexMoverProfileEmbedding(input.userId);
+    }
+
+    return updated;
   } catch (error) {
     const appError = toAppErrorFromPrisma(error);
 
