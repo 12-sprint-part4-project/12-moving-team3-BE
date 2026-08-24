@@ -3,6 +3,7 @@ import * as adminChatController from '../controllers/admin-chat.controller';
 import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
+  adminChatDetailQuerySchema,
   adminChatListQuerySchema,
   adminChatMessagesQuerySchema,
   adminChatRoomParamsSchema,
@@ -40,6 +41,7 @@ router.get(
   requireAdmin,
   validateRequest({
     params: adminChatRoomParamsSchema,
+    query: adminChatDetailQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminChatController.getAdminChatDetail

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type {
+  AdminChatDetailQuery,
   AdminChatListQuery,
   AdminChatMessagesQuery,
   AdminChatRoomParams,
@@ -32,8 +33,9 @@ export const getAdminChatDetail = async (
 ) => {
   try {
     const { roomId } = getValidated<AdminChatRoomParams>(res, 'params');
+    const query = getValidated<AdminChatDetailQuery>(res, 'query');
 
-    const data = await adminChatService.getAdminChatDetail(roomId);
+    const data = await adminChatService.getAdminChatDetail(roomId, query);
 
     res.status(200).json({ data });
   } catch (error) {
