@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type {
+  AdminReviewDetailQuery,
   AdminReviewListQuery,
   AdminReviewParams,
 } from '../schemas/admin-review.schema';
@@ -36,6 +37,24 @@ export const getAdminReviewList = async (
     const query = getValidated<AdminReviewListQuery>(res, 'query');
 
     const data = await adminReviewService.getAdminReviewList(query);
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** 관리자 리뷰 상세 조회 */
+export const getAdminReviewDetail = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { reviewId } = getValidated<AdminReviewParams>(res, 'params');
+    const query = getValidated<AdminReviewDetailQuery>(res, 'query');
+
+    const data = await adminReviewService.getAdminReviewDetail(reviewId, query);
 
     res.status(200).json({ data });
   } catch (error) {
