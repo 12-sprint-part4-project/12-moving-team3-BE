@@ -6,15 +6,17 @@ import type {
   UserType,
 } from '@prisma/client';
 
+export interface CreateChatRoomData {
+  roomId: number;
+  roomType: ChatRoomType;
+  quoteId: number | null;
+  createdAt?: string;
+  updatedAt: string;
+}
+
 export interface CreateChatRoomResult {
   status: 200 | 201;
-  data: {
-    roomId: number;
-    roomType: ChatRoomType;
-    quoteId: number | null;
-    createdAt?: string;
-    updatedAt: string;
-  };
+  data: CreateChatRoomData;
 }
 
 export interface ChatRoomPartner {
@@ -59,16 +61,18 @@ export interface UnreadCountResult {
   unreadCount: number;
 }
 
+export interface ChatRoomRequestSummary {
+  estimateRequestId: number;
+  moveType: MoveType | null;
+  moveDate: string | null;
+  originAddress: string | null;
+  destinationAddress: string | null;
+}
+
 export interface ChatRoomDetailResult {
   roomType: ChatRoomType;
   partner: ChatRoomPartner;
-  requestSummary: {
-    estimateRequestId: number;
-    moveType: MoveType | null;
-    moveDate: string | null;
-    originAddress: string | null;
-    destinationAddress: string | null;
-  } | null;
+  requestSummary: ChatRoomRequestSummary | null;
   quoteId: number | null;
   /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
   quoteStatus: QuoteStatus | null;
