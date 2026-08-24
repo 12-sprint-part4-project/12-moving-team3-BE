@@ -9,9 +9,11 @@ import {
   runWithManualAudit,
 } from '../lib/audit-context';
 import {
+  buildAdminMemberListWhere,
   countAdminMemberReports,
   countConfirmedQuotesByMoverId,
   findAdminMemberDetail,
+  findAdminMemberFirst,
   findAdminMemberStatus,
   findAdminMembersWithCount,
   lockAdminMemberForStatusChange,
@@ -23,7 +25,11 @@ import {
 } from '../repositories/admin-member.repository';
 import { createHistory } from '../repositories/history.repository';
 import reviewRepository from '../repositories/review.repository';
-import type { AdminMemberListQuery } from '../schemas/admin-member.schema';
+import type { SortDirection } from '../schemas/admin-list-query.schema';
+import type {
+  AdminMemberDetailQuery,
+  AdminMemberListQuery,
+} from '../schemas/admin-member.schema';
 import { AppError } from '../utils/app.error';
 import * as notificationService from './notification.service';
 
@@ -39,6 +45,10 @@ export type AdminMemberDetailResult = AdminMemberDetailRow & {
   averageRating: number | null;
   reviewCount: number;
   confirmedQuoteCount: number;
+  /** 목록 필터·정렬 기준 이전 건. 없으면 null */
+  prevId: string | null;
+  /** 목록 필터·정렬 기준 다음 건. 없으면 null */
+  nextId: string | null;
 };
 
 /**
@@ -95,11 +105,76 @@ export const getAdminMemberList = async (
 };
 
 /**
+ * 목록과 같은 createdAt+id 정렬에서 이전·다음 UUID를 찾는다.
+ * createdAt은 null이 아니므로 견적 요청의 nullable 날짜 분기는 쓰지 않는다.
+ */
+const findAdminMemberNeighborIds = async (
+  listWhere: Prisma.UserWhereInput,
+  current: { id: string; createdAt: Date },
+  sort: SortDirection
+): Promise<{ prevId: string | null; nextId: string | null }> => {
+  const inFilter = await findAdminMemberFirst(
+    { AND: [listWhere, { id: current.id }] },
+    [{ id: 'desc' }]
+  );
+
+  // 현재 회원이 목록 필터 밖이면 잘못된 prev/next를 주지 않는다.
+  if (inFilter == null) {
+    return { prevId: null, nextId: null };
+  }
+
+  const isAsc = sort === 'ASC';
+  const prevWhere: Prisma.UserWhereInput = isAsc
+    ? {
+        OR: [
+          { createdAt: { lt: current.createdAt } },
+          { createdAt: current.createdAt, id: { gt: current.id } },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { gt: current.createdAt } },
+          { createdAt: current.createdAt, id: { gt: current.id } },
+        ],
+      };
+  const nextWhere: Prisma.UserWhereInput = isAsc
+    ? {
+        OR: [
+          { createdAt: { gt: current.createdAt } },
+          { createdAt: current.createdAt, id: { lt: current.id } },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { lt: current.createdAt } },
+          { createdAt: current.createdAt, id: { lt: current.id } },
+        ],
+      };
+  const prevOrderBy: Prisma.UserOrderByWithRelationInput[] = isAsc
+    ? [{ createdAt: 'desc' }, { id: 'asc' }]
+    : [{ createdAt: 'asc' }, { id: 'asc' }];
+  const nextOrderBy: Prisma.UserOrderByWithRelationInput[] = isAsc
+    ? [{ createdAt: 'asc' }, { id: 'desc' }]
+    : [{ createdAt: 'desc' }, { id: 'desc' }];
+
+  const [prev, next] = await Promise.all([
+    findAdminMemberFirst({ AND: [listWhere, prevWhere] }, prevOrderBy),
+    findAdminMemberFirst({ AND: [listWhere, nextWhere] }, nextOrderBy),
+  ]);
+
+  return {
+    prevId: prev?.id ?? null,
+    nextId: next?.id ?? null,
+  };
+};
+
+/**
  * 관리자 회원 상세 조회.
  * movers.service.getMoverDetail와 같이 Repository 조회 후 Service에서 집계를 조합한다.
  */
 export const getAdminMemberDetail = async (
-  memberId: string
+  memberId: string,
+  query: AdminMemberDetailQuery
 ): Promise<AdminMemberDetailResult> => {
   const member = await findAdminMemberDetail(memberId);
 
@@ -118,12 +193,21 @@ export const getAdminMemberDetail = async (
     isMover ? countConfirmedQuotesByMoverId(memberId) : Promise.resolve(0),
   ]);
 
+  const listWhere = buildAdminMemberListWhere(query);
+  const { prevId, nextId } = await findAdminMemberNeighborIds(
+    listWhere,
+    { id: member.id, createdAt: member.createdAt },
+    query.sort ?? 'DESC'
+  );
+
   return {
     ...member,
     reportCount,
     averageRating: reviewStats?.averageRating ?? null,
     reviewCount: reviewStats?.totalCount ?? 0,
     confirmedQuoteCount,
+    prevId,
+    nextId,
   };
 };
 

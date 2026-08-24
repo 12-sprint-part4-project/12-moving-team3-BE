@@ -293,6 +293,10 @@ paths:
         CUSTOMER는 averageRating=null, reviewCount=0, confirmedQuoteCount=0입니다.
         UserStatusInfo가 없으면 userStatus는 null입니다.
         신고가 없으면 reportCount는 0입니다.
+        목록과 동일한 userType, status, userName, email, phoneNumber, startDate, endDate, sort 쿼리를 받으면
+        그 목록 기준으로 이전(prevId)·다음(nextId) 회원 UUID를 함께 반환합니다.
+        userType은 회원/기사 화면 구분을 위해 필수입니다.
+        현재 건이 해당 필터에 없거나 맨 앞·맨 뒤이면 해당 방향은 null입니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
       security:
         - adminBearerAuth: []
@@ -305,6 +309,71 @@ paths:
             type: string
             format: uuid
             example: '550e8400-e29b-41d4-a716-446655440000'
+        - name: userType
+          in: query
+          required: true
+          description: 앞뒤 조회에 사용할 회원 유형 (회원/기사 화면 구분)
+          schema:
+            type: string
+            enum: [CUSTOMER, MOVER]
+            example: CUSTOMER
+        - name: status
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 회원 상태 필터
+          schema:
+            type: string
+            enum: [ACTIVE, SUSPENDED]
+            example: ACTIVE
+        - name: userName
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 이름 또는 닉네임 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: email
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 이메일 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: user@example.com
+        - name: phoneNumber
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 전화번호 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: '010-1234'
+        - name: startDate
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 가입 기간 시작일
+          schema:
+            type: string
+            format: date
+            example: '2026-07-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 가입 기간 종료일 (startDate 없이 단독 전달 불가)
+          schema:
+            type: string
+            format: date
+            example: '2026-07-31'
+        - name: sort
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 가입일 정렬. 미전달 시 DESC
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+            example: DESC
       responses:
         '200':
           description: 회원 상세 조회 성공
@@ -332,6 +401,8 @@ paths:
                       - averageRating
                       - reviewCount
                       - confirmedQuoteCount
+                      - prevId
+                      - nextId
                     properties:
                       id:
                         type: string
@@ -520,6 +591,18 @@ paths:
                         minimum: 0
                         description: MOVER의 CONFIRMED 견적(완료 건) 수. CUSTOMER는 0
                         example: 15
+                      prevId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                        description: 목록 필터·정렬 기준 이전 회원 UUID. 없으면 null
+                        example: '440e8400-e29b-41d4-a716-446655440099'
+                      nextId:
+                        type: string
+                        format: uuid
+                        nullable: true
+                        description: 목록 필터·정렬 기준 다음 회원 UUID. 없으면 null
+                        example: '660e8400-e29b-41d4-a716-446655440111'
               examples:
                 customer:
                   summary: CUSTOMER 회원
@@ -548,6 +631,8 @@ paths:
                       averageRating: null
                       reviewCount: 0
                       confirmedQuoteCount: 0
+                      prevId: '440e8400-e29b-41d4-a716-446655440099'
+                      nextId: '660e8400-e29b-41d4-a716-446655440111'
                 mover:
                   summary: MOVER 회원
                   value:
@@ -577,6 +662,8 @@ paths:
                       averageRating: 4.8
                       reviewCount: 20
                       confirmedQuoteCount: 15
+                      prevId: '550e8400-e29b-41d4-a716-446655440000'
+                      nextId: null
         '400':
           description: Path Parameter(memberId) UUID 형식 검증 실패
           content:

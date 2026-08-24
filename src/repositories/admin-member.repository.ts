@@ -106,7 +106,7 @@ export type AdminMemberDetailRow = Prisma.UserGetPayload<{
  * Service는 관계 부재를 ACTIVE로 정규화하므로,
  * status=ACTIVE 필터도 관계가 없는 회원을 함께 포함해야 목록/필터가 모순되지 않는다.
  */
-const buildAdminMemberListWhere = (
+export const buildAdminMemberListWhere = (
   params: Pick<
     AdminMemberListQuery,
     | 'userType'
@@ -203,6 +203,18 @@ export const findAdminMembersWithCount = async (
   ]);
 
   return { items, totalCount };
+};
+
+/** 목록 필터·정렬 기준 인접 건 조회. id만 필요하므로 select를 최소로 둔다. */
+export const findAdminMemberFirst = async (
+  where: Prisma.UserWhereInput,
+  orderBy: Prisma.UserOrderByWithRelationInput[]
+): Promise<{ id: string } | null> => {
+  return prisma.user.findFirst({
+    where,
+    orderBy,
+    select: { id: true },
+  });
 };
 
 /** 관리자 회원 상세 조회 (삭제되지 않은 회원만) */

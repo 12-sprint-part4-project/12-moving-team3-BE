@@ -4,6 +4,7 @@ import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
   adminMemberDetailParamsSchema,
+  adminMemberDetailQuerySchema,
   adminMemberListQuerySchema,
   adminMemberStatusParamsSchema,
 } from '../schemas/admin-member.schema';
@@ -49,6 +50,7 @@ router.get(
   requireAdmin,
   validateRequest({
     params: adminMemberDetailParamsSchema,
+    query: adminMemberDetailQuerySchema,
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminMemberController.getAdminMemberDetail
