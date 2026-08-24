@@ -22,8 +22,9 @@ import type {
   AdminChatListQuery,
   AdminChatMessagesQuery,
 } from '../schemas/admin-chat.schema';
+import { buildCursorPaginationMeta } from '../utils/cursor-pagination.util';
+import { toAttachmentViewUrls } from '../utils/chat-attachment.util';
 import { AppError } from '../utils/app.error';
-import { createPresignedViewUrl } from './s3.service';
 
 /** 목록·상세가 공유하는 참여자 row (동일 participant select) */
 type AdminChatParticipantRow = AdminChatListRow['participants'][number];
@@ -93,15 +94,6 @@ const toAdminChatListItem = (
   ),
   lastMessage: lastMessage ? toAdminChatLastMessageDto(lastMessage) : null,
 });
-
-/** 첨부 fileKey 목록을 조회용 Presigned URL로 변환한다. */
-const toAttachmentViewUrls = async (
-  attachments: { fileKey: string }[]
-): Promise<string[]> => {
-  return Promise.all(
-    attachments.map((attachment) => createPresignedViewUrl(attachment.fileKey))
-  );
-};
 
 /** Repository sender → 메시지 발신자 DTO */
 const toAdminChatMessageSenderDto = (
@@ -207,9 +199,6 @@ export const getAdminChatMessages = async (
 
   return {
     messages: messageItems,
-    meta: {
-      hasNext,
-      nextCursor: hasNext && oldestMessage ? oldestMessage.id : null,
-    },
+    meta: buildCursorPaginationMeta(hasNext, oldestMessage?.id),
   };
 };

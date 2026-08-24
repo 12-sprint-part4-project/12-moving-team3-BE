@@ -1,10 +1,21 @@
 import type {
   ChatRoomType,
   MessageType,
-  MoveType,
   QuoteStatus,
   UserType,
 } from '@prisma/client';
+import type {
+  ChatMessageItem,
+  ChatMessagesResult,
+  ChatRoomDetailResult,
+  ChatRoomListItem,
+  ChatRoomListResult,
+  ChatRoomPartner,
+  CreateChatRoomResult,
+  LeaveChatRoomResult,
+  MarkChatRoomAsReadResult,
+  UnreadCountResult,
+} from '../dtos/chat.dto';
 import { toDateStringKst } from '../utils/date.util';
 import {
   CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES,
@@ -33,7 +44,14 @@ import type {
   SendChatMessageBody,
 } from '../schemas/chat.schema';
 import { AppError } from '../utils/app.error';
+import {
+  assertActiveChatParticipation,
+  assertChatRoomExists,
+  assertChatRoomWithActiveParticipation,
+} from '../utils/chat-access.util';
+import { toAttachmentViewUrls } from '../utils/chat-attachment.util';
 import { filterChatContent } from '../utils/chat-content-filter.util';
+import { buildCursorPaginationMeta } from '../utils/cursor-pagination.util';
 import {
   compareChatRoomsByLastActivityDesc,
   computeChatRoomLastActivityAt,
@@ -44,124 +62,7 @@ import {
   emitChatRoomRead,
 } from './chat-socket.service';
 import * as notificationService from './notification.service';
-import {
-  createPresignedViewUrl,
-  getObjectMetadata,
-  toPublicViewUrl,
-} from './s3.service';
-
-interface CreateChatRoomResult {
-  status: 200 | 201;
-  data: {
-    roomId: number;
-    roomType: ChatRoomType;
-    quoteId: number | null;
-    createdAt?: string;
-    updatedAt: string;
-  };
-}
-
-interface ChatRoomPartner {
-  id: string;
-  userType: UserType;
-  /** User.name */
-  name: string;
-  /** User.nickname */
-  nickname: string;
-  /** roomType별 표시명. COMMUNITY=닉네임, 견적=이름 (#299) */
-  displayName: string;
-  profileImageUrl: string | null;
-}
-
-interface ChatRoomLastMessage {
-  messageId: number;
-  senderId: string;
-  content: string;
-  messageType: MessageType;
-  createdAt: string;
-}
-
-interface ChatRoomListItem {
-  roomId: number;
-  roomType: ChatRoomType;
-  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
-  quoteStatus: QuoteStatus | null;
-  partner: ChatRoomPartner;
-  lastMessage: ChatRoomLastMessage | null;
-  /** 사용자 관점 마지막 활동 시각(방 생성·재참여·메시지 중 최신, ISO) */
-  lastActivityAt: string;
-  partnerLastReadMessageId: number | null;
-  partnerLastReadAt: string | null;
-  unreadCount: number;
-}
-
-interface ChatRoomListResult {
-  rooms: ChatRoomListItem[];
-}
-
-interface UnreadCountResult {
-  unreadCount: number;
-}
-
-interface ChatRoomDetailResult {
-  roomType: ChatRoomType;
-  partner: ChatRoomPartner;
-  requestSummary: {
-    estimateRequestId: number;
-    moveType: MoveType | null;
-    moveDate: string | null;
-    originAddress: string | null;
-    destinationAddress: string | null;
-  } | null;
-  quoteId: number | null;
-  /** 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null */
-  quoteStatus: QuoteStatus | null;
-  isMessagingAllowed: boolean;
-  /** 상대방이 마지막으로 읽은 메시지 ID. 읽음 기록 없으면 null */
-  partnerLastReadMessageId: number | null;
-  /** 상대방 readAt(ISO). 읽음 기록 없으면 null */
-  partnerLastReadAt: string | null;
-  /** 상대가 방을 나간 상태인지 (#314) */
-  isPartnerLeft: boolean;
-  /** 상대가 나간 시각(ISO). 활성 참여 중이면 null (#314) */
-  partnerLeftAt: string | null;
-  updatedAt: string;
-}
-
-interface ChatMessageItem {
-  messageId: number;
-  senderId: string;
-  senderUserType: UserType;
-  messageType: MessageType;
-  content: string;
-  isFiltered: boolean;
-  attachments: string[];
-  createdAt: string;
-}
-
-interface ChatMessagesData {
-  messages: ChatMessageItem[];
-}
-
-interface ChatMessagesMeta {
-  hasNext: boolean;
-  nextCursor: number | null;
-}
-
-interface ChatMessagesResult {
-  data: ChatMessagesData;
-  meta: ChatMessagesMeta;
-}
-
-interface MarkChatRoomAsReadResult {
-  lastReadMessageId: number;
-  readAt: string;
-}
-
-interface LeaveChatRoomResult {
-  roomId: number;
-  leftAt: string;
-}
+import { getObjectMetadata, toPublicViewUrl } from './s3.service';
 
 /** Date를 ISO 8601 문자열로 변환한다. */
 const toIsoString = (date: Date) => date.toISOString();
@@ -229,15 +130,6 @@ const selectPartnerParticipant = <
 
 /** Date를 KST 기준 YYYY-MM-DD 형식으로 변환한다. */
 const toDateString = (date: Date) => toDateStringKst(date);
-
-/** 첨부 fileKey 목록을 조회용 Presigned URL로 변환한다. */
-const toAttachmentViewUrls = async (
-  attachments: { fileKey: string }[]
-): Promise<string[]> => {
-  return Promise.all(
-    attachments.map((attachment) => createPresignedViewUrl(attachment.fileKey))
-  );
-};
 
 /**
  * 채팅방 참여자 ID 목록을 결정한다.
@@ -988,20 +880,10 @@ export const getChatMessages = async (
   roomId: number,
   query: GetChatMessagesQuery
 ): Promise<ChatMessagesResult> => {
-  const room = await chatRepository.findRoomById(roomId);
-
-  if (!room) {
-    throw new AppError('ROOM_NOT_FOUND');
-  }
-
-  const participation = await chatRepository.findActiveParticipation(
+  const participation = await assertChatRoomWithActiveParticipation(
     roomId,
     authUser.userId
   );
-
-  if (!participation) {
-    throw new AppError('FORBIDDEN');
-  }
 
   const { messages, hasNext } = await chatRepository.findMessagesByRoomCursor({
     roomId,
@@ -1029,10 +911,7 @@ export const getChatMessages = async (
     data: {
       messages: messageItems,
     },
-    meta: {
-      hasNext,
-      nextCursor: hasNext && oldestMessage ? oldestMessage.messageId : null,
-    },
+    meta: buildCursorPaginationMeta(hasNext, oldestMessage?.messageId),
   };
 };
 
@@ -1180,15 +1059,7 @@ const assertCanSendMessage = async (
     throw new AppError('ROOM_NOT_FOUND');
   }
 
-  const participation = await chatRepository.findActiveParticipation(
-    roomId,
-    userId,
-    dbClient
-  );
-
-  if (!participation) {
-    throw new AppError('FORBIDDEN');
-  }
+  await assertActiveChatParticipation(roomId, userId, dbClient);
 
   if (
     !isMessagingAllowedForChatRoom({
@@ -1234,20 +1105,10 @@ export const markChatRoomAsRead = async (
   roomId: number,
   body: MarkChatRoomAsReadBody
 ): Promise<MarkChatRoomAsReadResult> => {
-  const room = await chatRepository.findRoomById(roomId);
-
-  if (!room) {
-    throw new AppError('ROOM_NOT_FOUND');
-  }
-
-  const participation = await chatRepository.findActiveParticipation(
+  const participation = await assertChatRoomWithActiveParticipation(
     roomId,
     authUser.userId
   );
-
-  if (!participation) {
-    throw new AppError('FORBIDDEN');
-  }
 
   const message = await chatRepository.findMessageInRoomAfterJoinedAt({
     roomId,
@@ -1292,11 +1153,7 @@ export const leaveChatRoom = async (
   authUser: AuthenticatedUser,
   roomId: number
 ): Promise<LeaveChatRoomResult> => {
-  const room = await chatRepository.findRoomById(roomId);
-
-  if (!room) {
-    throw new AppError('ROOM_NOT_FOUND');
-  }
+  await assertChatRoomExists(roomId);
 
   const leftAt = new Date();
   const result = await chatRepository.leaveActiveParticipation(
