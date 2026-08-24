@@ -14,35 +14,74 @@ const reportedDateSchema = z.iso
   .date()
   .transform((value) => new Date(`${value}T00:00:00.000Z`));
 
+/** 신고 목록·상세 공통 필터 (page/pageSize 제외) */
+const adminReportFilterObjectSchema = z.object({
+  // UserReport.status와 동일한 Prisma enum만 허용해 잘못된 값이 DB까지 내려가지 않게 한다.
+  status: z.enum(UserReportStatus).optional(),
+  // Prisma enum 전체가 아니라 앱에서 지원하는 신고 대상만 필터로 받는다.
+  target: z.enum(SUPPORTED_REPORT_TARGETS).optional(),
+  id: z.coerce.number().int().min(1).max(2147483647).optional(),
+  // 신고 대상 사용자 이름 또는 닉네임. 빈 문자열은 조건으로 쓰지 않는다.
+  userName: z.string().trim().min(1).optional(),
+  // UserReport.createdAt 범위 필터. optional이라 기존 목록 호출과 호환된다.
+  reportedFrom: reportedDateSchema.optional(),
+  reportedTo: reportedDateSchema.optional(),
+  // 미전달 시 DESC. 기존 최신순 목록 호출과 호환된다.
+  sort: sortDirectionSchema,
+});
+
+const withReportedDateRange = <T extends z.ZodType>(schema: T) =>
+  schema
+    // end만 오면 시작이 모호해지므로 statistics와 같이 from 없는 to를 거부한다.
+    // 키가 없는 경우도 누락으로 본다. `in`으로 건너뛰면 reportedTo-only가 통과한다.
+    .refine((value) => {
+      if (typeof value !== 'object' || value == null) {
+        return true;
+      }
+
+      const reportedTo = 'reportedTo' in value ? value.reportedTo : undefined;
+      const reportedFrom =
+        'reportedFrom' in value ? value.reportedFrom : undefined;
+
+      return !reportedTo || Boolean(reportedFrom);
+    })
+    // from > to 는 빈 결과만 나므로 스키마에서 먼저 막아 잘못된 범위를 DB에 보내지 않는다.
+    .refine((value) => {
+      if (typeof value !== 'object' || value == null) {
+        return true;
+      }
+
+      const reportedFrom =
+        'reportedFrom' in value ? value.reportedFrom : undefined;
+      const reportedTo = 'reportedTo' in value ? value.reportedTo : undefined;
+
+      if (!(reportedFrom instanceof Date) || !(reportedTo instanceof Date)) {
+        return true;
+      }
+
+      return reportedFrom <= reportedTo;
+    });
+
 /** 관리자 신고 목록 조회 Query 스키마 */
-export const adminReportListQuerySchema = listQuerySchema
-  .pick({
-    page: true,
-    pageSize: true,
-  })
-  .extend({
-    // UserReport.status와 동일한 Prisma enum만 허용해 잘못된 값이 DB까지 내려가지 않게 한다.
-    status: z.enum(UserReportStatus).optional(),
-    // Prisma enum 전체가 아니라 앱에서 지원하는 신고 대상만 필터로 받는다.
-    target: z.enum(SUPPORTED_REPORT_TARGETS).optional(),
-    id: z.coerce.number().int().min(1).max(2147483647).optional(),
-    // 신고 대상 사용자 이름 또는 닉네임. 빈 문자열은 조건으로 쓰지 않는다.
-    userName: z.string().trim().min(1).optional(),
-    // UserReport.createdAt 범위 필터. optional이라 기존 목록 호출과 호환된다.
-    reportedFrom: reportedDateSchema.optional(),
-    reportedTo: reportedDateSchema.optional(),
-    // 미전달 시 DESC. 기존 최신순 목록 호출과 호환된다.
-    sort: sortDirectionSchema.optional(),
-  })
-  // end만 오면 시작이 모호해지므로 statistics와 같이 from 없는 to를 거부한다.
-  .refine(({ reportedFrom, reportedTo }) => !(reportedTo && !reportedFrom))
-  // from > to 는 빈 결과만 나므로 스키마에서 먼저 막아 잘못된 범위를 DB에 보내지 않는다.
-  .refine(
-    ({ reportedFrom, reportedTo }) =>
-      !reportedFrom || !reportedTo || reportedFrom <= reportedTo
-  );
+export const adminReportListQuerySchema = withReportedDateRange(
+  listQuerySchema
+    .pick({
+      page: true,
+      pageSize: true,
+    })
+    .extend(adminReportFilterObjectSchema.shape)
+);
 
 export type AdminReportListQuery = z.infer<typeof adminReportListQuerySchema>;
+
+/** GET /api/admin/reports/:reportId query (목록과 동일, page/pageSize 제외) */
+export const adminReportDetailQuerySchema = withReportedDateRange(
+  adminReportFilterObjectSchema
+);
+
+export type AdminReportDetailQuery = z.infer<
+  typeof adminReportDetailQuerySchema
+>;
 
 /** 관리자 신고 상세 조회 Path Params — UserReport.id(Int)와 동일한 양의 정수만 허용 */
 export const adminReportDetailParamsSchema = z.object({

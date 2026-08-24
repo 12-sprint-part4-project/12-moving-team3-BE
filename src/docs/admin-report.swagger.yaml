@@ -483,6 +483,10 @@ paths:
         신고 단건 상세를 조회합니다.
         신고 기본 정보, 신고자, 처리 관리자, 대상 상태(targetInfo), 신고된 콘텐츠(content)를 포함합니다.
         처리 Action용으로 targetUser·reportedContent·availableActions를 추가로 제공합니다.
+        목록과 동일한 status, target, id, userName, reportedFrom, reportedTo, sort 쿼리를 받으면
+        그 목록 기준으로 이전(prevId)·다음(nextId) 신고 ID를 함께 반환합니다.
+        쿼리를 생략하면 전체 목록·신고일 최신순 기준입니다.
+        현재 건이 해당 필터에 없거나 맨 앞·맨 뒤이면 해당 방향은 null입니다.
         targetInfo는 항상 객체로 내려가며 exists/isDeleted로 미존재·삭제 상태를 구분합니다.
         reporter에는 profileImageKey가 포함되며, 이미지가 없으면 null입니다.
         targetUser에는 계정 상태(ACTIVE/SUSPENDED)·정지 시각·전체 신고 누적 횟수(reportCount)가 포함됩니다.
@@ -508,6 +512,64 @@ paths:
             type: integer
             minimum: 1
             example: 1
+        - name: status
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 신고 상태 필터
+          schema:
+            type: string
+            enum: [PENDING, RESOLVED, REJECTED]
+            example: PENDING
+        - name: target
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 신고 대상 유형 필터
+          schema:
+            type: string
+            enum: [USER, REVIEW, MESSAGE, ARTICLE, COMMENT]
+            example: USER
+        - name: id
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 신고 ID 정확 일치
+          schema:
+            type: integer
+            minimum: 1
+            example: 26
+        - name: userName
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 신고 대상 사용자 이름 또는 닉네임 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: 김민수
+        - name: reportedFrom
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 신고일 시작일 (미입력 시 전체 기간)
+          schema:
+            type: string
+            format: date
+            example: '2026-08-01'
+        - name: reportedTo
+          in: query
+          required: false
+          description: |
+            앞뒤 조회에 사용할 신고일 종료일.
+            reportedFrom 없이 reportedTo만 전달하면 400을 반환합니다.
+          schema:
+            type: string
+            format: date
+            example: '2026-08-31'
+        - name: sort
+          in: query
+          required: false
+          description: 앞뒤 조회에 사용할 신고일 정렬 (미입력 시 DESC)
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            example: DESC
       responses:
         '200':
           description: 신고 상세 조회 성공
@@ -534,6 +596,8 @@ paths:
                       - targetUser
                       - reportedContent
                       - availableActions
+                      - prevId
+                      - nextId
                     properties:
                       id:
                         type: integer
@@ -1116,6 +1180,20 @@ paths:
                             description: |
                               REVIEW/ARTICLE/COMMENT이고 아직 삭제되지 않았을 때만 true.
                               USER·MESSAGE는 항상 false.
+                      prevId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          전달한 목록 필터·정렬 기준 이전 신고 ID.
+                          맨 앞이거나 현재 건이 필터에 없으면 null
+                        example: 12
+                      nextId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          전달한 목록 필터·정렬 기준 다음 신고 ID.
+                          맨 뒤이거나 현재 건이 필터에 없으면 null
+                        example: 14
               examples:
                 reviewReport:
                   summary: REVIEW 신고 상세
@@ -1181,6 +1259,8 @@ paths:
                       availableActions:
                         canSuspendUser: true
                         canDeleteContent: true
+                      prevId: 12
+                      nextId: 14
                 userMoverProfileReport:
                   summary: USER 기사 프로필 신고 상세
                   value:

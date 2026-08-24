@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  adminReportDetailQuerySchema,
   adminReportListQuerySchema,
   adminReportProcessBodySchema,
 } from './admin-report.schema';
@@ -34,6 +35,23 @@ describe('adminReportListQuerySchema', () => {
       adminReportListQuerySchema.parse({ sort: 'DESC' }).sort,
       'DESC'
     );
+  });
+});
+
+describe('adminReportDetailQuerySchema', () => {
+  it('page/pageSize 없이 파싱하고 sort 기본값은 DESC다', () => {
+    const result = adminReportDetailQuerySchema.parse({});
+
+    assert.equal(result.sort, 'DESC');
+    assert.equal('page' in result, false);
+  });
+
+  it('reportedTo만 있으면 검증에 실패한다', () => {
+    const result = adminReportDetailQuerySchema.safeParse({
+      reportedTo: '2026-08-31',
+    });
+
+    assert.equal(result.success, false);
   });
 });
 
