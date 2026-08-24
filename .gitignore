@@ -41,5 +41,6 @@ skills-lock.json
 .cursor/rules/fullstack-issue-order.mdc
 .cursor/rules/coderabbit-lessons.mdc
 .cursor/rules/personal-conventions.mdc
+
 # Sentry Config File
 .sentryclirc
