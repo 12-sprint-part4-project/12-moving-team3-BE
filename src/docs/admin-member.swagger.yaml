@@ -665,7 +665,10 @@ paths:
                       prevId: '550e8400-e29b-41d4-a716-446655440000'
                       nextId: null
         '400':
-          description: Path Parameter(memberId) UUID 형식 검증 실패
+          description: |
+            경로·쿼리 파라미터 유효성 검사 실패.
+            memberId UUID 형식 오류, 필수 userType 누락, 잘못된 status·sort,
+            빈 검색 문자열, 잘못된 날짜 형식, endDate만 전달, startDate > endDate 등을 포함합니다.
           content:
             application/json:
               schema:

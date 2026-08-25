@@ -38,6 +38,7 @@ describe('adminMemberDetailQuerySchema', () => {
     assert.equal(result.userType, 'CUSTOMER');
     assert.equal(result.sort, 'DESC');
     assert.equal('page' in result, false);
+    assert.equal('pageSize' in result, false);
   });
 
   it('endDate만 있으면 검증에 실패한다', () => {

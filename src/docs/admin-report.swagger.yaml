@@ -1381,7 +1381,11 @@ paths:
                         canSuspendUser: true
                         canDeleteContent: false
         '400':
-          description: Path Parameter 검증 실패 또는 지원하지 않는 신고 대상
+          description: |
+            경로·쿼리 파라미터 유효성 검사 실패.
+            reportId 형식 오류, 잘못된 status·target·sort, userName 공백,
+            reportedTo만 전달, reportedFrom > reportedTo, 잘못된 id 등을 포함합니다.
+            지원하지 않는 신고 대상이 포함된 경우도 포함할 수 있습니다.
           content:
             application/json:
               schema:
