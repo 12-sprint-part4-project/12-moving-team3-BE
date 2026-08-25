@@ -76,9 +76,11 @@ export const mergeOverlappingRanges = (ranges: TextRange[]): TextRange[] => {
   return merged;
 };
 
+type RangeReplacement = TextRange & { replacement: string };
+
 export const replaceRanges = (
   text: string,
-  replacements: Array<TextRange & { replacement: string }>
+  replacements: RangeReplacement[]
 ): string => {
   if (replacements.length === 0) {
     return text;

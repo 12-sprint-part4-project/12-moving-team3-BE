@@ -32,7 +32,7 @@ export interface FilterUserTextResult {
   decision: FilterDecision;
 }
 
-export type FilterChatContentResult = FilterUserTextResult;
+export interface FilterChatContentResult extends FilterUserTextResult {}
 
 export interface FilterUserTextOptions {
   maskPhone?: boolean;

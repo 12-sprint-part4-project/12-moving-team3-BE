@@ -42,7 +42,7 @@ export { decideFilterAction } from './decide-action.util';
  * 사용자 입력 텍스트 클린 필터.
  * 전화/계좌: 후보 span → digits 정규화(전각·한글 숫자·구분자) → classifier.
  * 욕설: Exact 후 Embedding 유사도. LLM 없음.
- * 문장 안 번호는 span 치환(mask), 번호만·한글 우회 번호는 block.
+ * 문장 안 번호(전각 포함)는 span 치환(mask), 번호만·한글 우회 번호는 block.
  */
 export const filterUserText = async (
   content: string,
