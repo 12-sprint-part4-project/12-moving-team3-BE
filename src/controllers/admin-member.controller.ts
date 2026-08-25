@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type {
   AdminMemberDetailParams,
+  AdminMemberDetailQuery,
   AdminMemberListQuery,
   AdminMemberStatusParams,
 } from '../schemas/admin-member.schema';
@@ -33,8 +34,9 @@ export const getAdminMemberDetail = async (
 ) => {
   try {
     const { memberId } = getValidated<AdminMemberDetailParams>(res, 'params');
+    const query = getValidated<AdminMemberDetailQuery>(res, 'query');
 
-    const data = await adminMemberService.getAdminMemberDetail(memberId);
+    const data = await adminMemberService.getAdminMemberDetail(memberId, query);
 
     res.status(200).json({ data });
   } catch (error) {

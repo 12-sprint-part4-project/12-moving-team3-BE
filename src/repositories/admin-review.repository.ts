@@ -143,6 +143,28 @@ export const findAdminReviewsWithCount = async (
   return { items, totalCount };
 };
 
+/** 리뷰 단건 조회. 없으면 null을 반환하고 404 판단은 Service에서 한다. */
+export const findAdminReviewById = async (
+  reviewId: number
+): Promise<AdminReviewListRow | null> => {
+  return prisma.review.findUnique({
+    where: { id: reviewId },
+    select: adminReviewListSelect,
+  });
+};
+
+/** 목록 필터·정렬 기준 인접 건 조회. id만 필요하므로 select를 최소로 둔다. */
+export const findAdminReviewFirst = async (
+  where: Prisma.ReviewWhereInput,
+  orderBy: Prisma.ReviewOrderByWithRelationInput[]
+): Promise<{ id: number } | null> => {
+  return prisma.review.findFirst({
+    where,
+    orderBy,
+    select: { id: true },
+  });
+};
+
 /**
  * 관리자 리뷰 soft delete 결과.
  * updateMany(count=0)만으로는 미존재/이미 삭제를 구분할 수 없어 실패 시 한 번 더 조회한다.

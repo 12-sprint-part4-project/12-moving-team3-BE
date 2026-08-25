@@ -330,6 +330,235 @@ paths:
                   message: 서버 내부 오류가 발생했습니다.
 
   /api/admin/reviews/{reviewId}:
+    get:
+      tags: [Admin Reviews]
+      summary: 관리자 리뷰 상세 조회
+      description: |
+        특정 리뷰의 상세 정보를 조회합니다.
+        목록과 동일한 id·userName·moverName·rating·deletionStatus·startDate·endDate·sort 필터를 query로 받으며,
+        응답에 prevId/nextId로 필터·정렬(createdAt + id desc tie-break) 기준 이전·다음 리뷰 ID를 포함합니다.
+        page/pageSize는 상세에서 사용하지 않습니다.
+        관리자 Access Token(Bearer) 인증이 필요합니다.
+      security:
+        - adminBearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          description: Review.id (양의 정수)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2147483647
+            example: 1
+        - name: id
+          in: query
+          required: false
+          description: 리뷰 ID 정확 일치. 목록 필터와 동일
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+        - name: userName
+          in: query
+          required: false
+          description: 작성자 이름 또는 닉네임 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: moverName
+          in: query
+          required: false
+          description: 기사 이름 또는 닉네임 부분 검색
+          schema:
+            type: string
+            minLength: 1
+            example: 김기사
+        - name: rating
+          in: query
+          required: false
+          description: 별점 1~5
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            example: 5
+        - name: deletionStatus
+          in: query
+          required: false
+          description: ACTIVE=미삭제, DELETED=삭제됨. 미전달 시 전체
+          schema:
+            type: string
+            enum: [ACTIVE, DELETED]
+            example: ACTIVE
+        - name: startDate
+          in: query
+          required: false
+          description: 작성일 시작 (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+            example: '2026-08-01'
+        - name: endDate
+          in: query
+          required: false
+          description: 작성일 종료 (YYYY-MM-DD). startDate 없이 단독 전달 불가
+          schema:
+            type: string
+            format: date
+            example: '2026-08-31'
+        - name: sort
+          in: query
+          required: false
+          description: 작성일 정렬. 미전달 시 DESC
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+            example: DESC
+      responses:
+        '200':
+          description: 리뷰 상세 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - id
+                      - userId
+                      - quoteId
+                      - rating
+                      - content
+                      - createdAt
+                      - updatedAt
+                      - deletedAt
+                      - author
+                      - mover
+                      - prevId
+                      - nextId
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      userId:
+                        type: string
+                        format: uuid
+                        example: '550e8400-e29b-41d4-a716-446655440000'
+                      quoteId:
+                        type: integer
+                        example: 10
+                      rating:
+                        type: integer
+                        minimum: 1
+                        maximum: 5
+                        example: 5
+                      content:
+                        type: string
+                        example: 친절하고 꼼꼼하게 이사해 주셨어요.
+                      createdAt:
+                        type: string
+                        format: date-time
+                        example: '2026-08-01T00:00:00.000Z'
+                      updatedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: null
+                      deletedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: null
+                      prevId:
+                        type: integer
+                        nullable: true
+                        description: 목록 필터·정렬 기준 이전 리뷰 ID
+                        example: 2
+                      nextId:
+                        type: integer
+                        nullable: true
+                        description: 목록 필터·정렬 기준 다음 리뷰 ID
+                        example: 3
+                      author:
+                        type: object
+                        required: [id, name, nickname, email, userType]
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          nickname:
+                            type: string
+                          email:
+                            type: string
+                            format: email
+                          userType:
+                            type: string
+                            enum: [CUSTOMER, MOVER]
+                      mover:
+                        type: object
+                        nullable: true
+                        required: [id, name, nickname, email, userType]
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          name:
+                            type: string
+                          nickname:
+                            type: string
+                          email:
+                            type: string
+                            format: email
+                          userType:
+                            type: string
+                            enum: [CUSTOMER, MOVER]
+        '400':
+          description: 경로·쿼리 파라미터 유효성 검사 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_INVALID_QUERY_PARAM
+                  message: 조회 조건이 올바르지 않습니다.
+        '401':
+          description: 관리자 Access Token이 없거나 유효하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_UNAUTHORIZED
+                  message: 관리자 인증이 필요합니다.
+        '404':
+          description: 존재하지 않는 리뷰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: ADMIN_REVIEW_NOT_FOUND
+                  message: 존재하지 않는 리뷰입니다.
+        '500':
+          description: 서버 내부 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: INTERNAL_SERVER_ERROR
+                  message: 서버 내부 오류가 발생했습니다.
     delete:
       tags: [Admin Reviews]
       summary: 관리자 리뷰 삭제 (소프트 딜리트)

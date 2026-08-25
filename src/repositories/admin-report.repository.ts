@@ -130,7 +130,7 @@ const buildTargetIdSearchOrConditions = (
  * target + 검색이 함께 오면 Prisma가 둘 다 만족하는 행만 남긴다
  * (예: target=REVIEW AND OR(... REVIEW targetId ...)).
  */
-const buildAdminReportListWhere = (
+export const buildAdminReportListWhere = (
   params: AdminReportListWhereParams
 ): Prisma.UserReportWhereInput => {
   // 회원 목록과 동일: reportedFrom이 없으면 기간 필터를 두지 않는다.
@@ -469,6 +469,18 @@ export const findAdminReportById = async (
   return db.userReport.findUnique({
     where: { id: reportId },
     select: adminReportDetailSelect,
+  });
+};
+
+/** 목록 필터·정렬 기준 인접 건 조회. id만 필요하므로 select를 최소로 둔다. */
+export const findAdminReportFirst = async (
+  where: Prisma.UserReportWhereInput,
+  orderBy: Prisma.UserReportOrderByWithRelationInput[]
+): Promise<{ id: number } | null> => {
+  return prisma.userReport.findFirst({
+    where,
+    orderBy,
+    select: { id: true },
   });
 };
 
