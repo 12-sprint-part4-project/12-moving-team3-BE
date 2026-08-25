@@ -333,6 +333,9 @@ paths:
       summary: 관리자 채팅방 상세 조회
       description: |
         특정 채팅방의 기본 정보와 참여자 목록을 조회합니다.
+        목록과 동일한 id·userName·roomType 필터를 query로 받으며, 응답에 prevId/nextId로
+        필터·정렬(lastMessageAt desc nulls last → updatedAt desc → id desc) 기준 이전·다음 채팅방 ID를 포함합니다.
+        page/pageSize는 상세에서 사용하지 않습니다.
         동일 사용자의 재참여 row가 여러 개면 joinedAt이 가장 최근인 참여자만 포함합니다.
         탈퇴 사용자·이탈 참여자도 목록에 포함되며, 탈퇴 여부는 isDeleted로 표시합니다.
         관리자 Access Token(Bearer) 인증이 필요합니다.
@@ -347,6 +350,32 @@ paths:
             type: integer
             minimum: 1
             example: 1
+        - name: id
+          in: query
+          required: false
+          description: 채팅방 ID (1 이상). 목록 필터와 동일
+          schema:
+            type: integer
+            minimum: 1
+            example: 26
+        - name: userName
+          in: query
+          required: false
+          description: |
+            참여자 이름 또는 닉네임 부분 검색 (대소문자 비구분).
+            목록 필터와 동일합니다.
+          schema:
+            type: string
+            minLength: 1
+            example: 홍길동
+        - name: roomType
+          in: query
+          required: false
+          description: 채팅방 유형 필터. 목록 필터와 동일
+          schema:
+            type: string
+            enum: [GENERAL, DESIGNATED, COMMUNITY]
+            example: GENERAL
       responses:
         '200':
           description: 채팅방 상세 조회 성공
@@ -368,6 +397,8 @@ paths:
                       - lastMessageAt
                       - createdAt
                       - updatedAt
+                      - prevId
+                      - nextId
                       - participants
                     properties:
                       id:
@@ -406,6 +437,20 @@ paths:
                         type: string
                         format: date-time
                         example: '2026-08-08T08:00:00.000Z'
+                      prevId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          목록 필터·정렬 기준 이전 채팅방 ID.
+                          없으면 null입니다.
+                        example: 2
+                      nextId:
+                        type: integer
+                        nullable: true
+                        description: |
+                          목록 필터·정렬 기준 다음 채팅방 ID.
+                          없으면 null입니다.
+                        example: 4
                       participants:
                         type: array
                         items:
@@ -461,6 +506,8 @@ paths:
                   lastMessageAt: '2026-08-08T08:00:00.000Z'
                   createdAt: '2026-08-01T00:00:00.000Z'
                   updatedAt: '2026-08-08T08:00:00.000Z'
+                  prevId: 2
+                  nextId: 4
                   participants:
                     - id: '550e8400-e29b-41d4-a716-446655440000'
                       name: 홍길동
@@ -480,8 +527,8 @@ paths:
                       isDeleted: false
         '400':
           description: |
-            경로 파라미터 유효성 검사 실패.
-            roomId가 양의 정수가 아닌 경우를 포함합니다.
+            경로·쿼리 파라미터 유효성 검사 실패.
+            roomId가 양의 정수가 아니거나, 잘못된 roomType 등을 포함합니다.
           content:
             application/json:
               schema:
