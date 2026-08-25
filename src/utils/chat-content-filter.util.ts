@@ -1,10 +1,12 @@
 /**
- * 채팅 클린봇 필터. 구현은 공통 content-filter 유틸을 재사용한다.
+ * 채팅 클린봇 필터. 구현은 `content-filter/` 모듈을 재사용한다.
  */
 export {
   decideFilterAction,
   filterChatContent,
   filterUserText,
+  containsExactProfanity,
+  collectSimilarityCandidates,
   type FilterAction,
   type FilterChatContentResult,
   type FilterDecision,
@@ -13,4 +15,4 @@ export {
   type FilterReasonCode,
   type FilterUserTextOptions,
   type FilterUserTextResult,
-} from './content-filter.util';
+} from './content-filter';
