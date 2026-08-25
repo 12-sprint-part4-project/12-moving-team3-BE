@@ -9,6 +9,7 @@ import http from 'http';
 import swaggerUi from 'swagger-ui-express';
 import env from './config/env';
 import { swaggerSpec } from './config/swagger';
+import { startCleanupOrphanChatAttachmentsCron } from './jobs/cleanup-orphan-chat-attachments.job';
 import { startCleanupOrphanPostImagesCron } from './jobs/cleanup-orphan-post-images.job';
 import { startEstimateRequestStatusChangeCron } from './jobs/estimate-request-status-change.job';
 import { startMoveDayReminderCron } from './jobs/move-day-reminder.job';
@@ -154,6 +155,8 @@ httpServer.listen(env.port, () => {
   startEstimateRequestStatusChangeCron();
   // posts/ prefix 고아 이미지 정리 (매일 03:00 Asia/Seoul)
   startCleanupOrphanPostImagesCron();
+  // chat-attachments/ prefix 고아 이미지 정리 (매일 03:10 Asia/Seoul) #414
+  startCleanupOrphanChatAttachmentsCron();
   // 대량 알림 Outbox 워커 (매분 Asia/Seoul + boot catch-up)
   startNotificationOutboxCron();
 });

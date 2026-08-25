@@ -368,3 +368,19 @@ export const findMessageInRoomAfterJoinedAt = async (
     },
   });
 };
+
+/** chat_attachments에 참조 중인 fileKey만 반환한다. */
+export const findReferencedChatAttachmentKeys = async (
+  fileKeys: string[]
+): Promise<string[]> => {
+  if (fileKeys.length === 0) {
+    return [];
+  }
+
+  const rows = await prisma.chatAttachment.findMany({
+    where: { fileKey: { in: fileKeys } },
+    select: { fileKey: true },
+  });
+
+  return rows.map((row) => row.fileKey);
+};
