@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/app.ts",
     "build": "tsc && npm run sentry:sourcemaps",
-    "test": "npm run build && node --test dist/controllers/admin-auth.controller.test.js dist/repositories/admin-review.repository.test.js dist/schemas/admin-report.schema.test.js dist/schemas/admin-review.schema.test.js dist/services/admin-auth.service.test.js dist/services/admin-review.service.test.js dist/utils/admin-date-sort.util.test.js",
+    "test": "npm run build && node --test dist/controllers/admin-auth.controller.test.js dist/repositories/admin-review.repository.test.js dist/schemas/admin-report.schema.test.js dist/schemas/admin-review.schema.test.js dist/services/admin-auth.service.test.js dist/services/admin-review.service.test.js dist/utils/admin-date-range.util.test.js dist/utils/admin-date-sort.util.test.js",
     "start": "node dist/app.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
