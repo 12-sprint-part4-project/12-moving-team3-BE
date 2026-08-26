@@ -40,9 +40,13 @@ describe('presigned-url.controller', () => {
         body = payload;
         return this;
       },
-    } as Response;
+    } as unknown as Response;
 
-    await getPresignedUploadUrl({} as Request, res, (() => undefined) as NextFunction);
+    await getPresignedUploadUrl(
+      {} as Request,
+      res,
+      (() => undefined) as NextFunction
+    );
 
     assert.equal(statusCode, 200);
     assert.deepEqual(body, {
@@ -71,11 +75,15 @@ describe('presigned-url.controller', () => {
           },
         },
       },
-    } as Response;
+    } as unknown as Response;
 
-    await getPresignedUploadUrl({} as Request, res, ((error?: unknown) => {
-      passedError = error;
-    }) as NextFunction);
+    await getPresignedUploadUrl(
+      {} as Request,
+      res,
+      ((error?: unknown) => {
+        passedError = error;
+      }) as NextFunction
+    );
 
     assert.ok(passedError instanceof Error);
   });

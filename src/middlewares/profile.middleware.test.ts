@@ -75,7 +75,7 @@ describe('requireCompletedProfileForChatAttachment', () => {
           },
         },
       },
-    } as Response;
+    } as unknown as Response;
 
     await runMiddleware(req, res);
     assert.equal(queried, false);
@@ -98,7 +98,7 @@ describe('requireCompletedProfileForChatAttachment', () => {
           },
         },
       },
-    } as Response;
+    } as unknown as Response;
 
     await assertRejectsWithCode(
       () => runMiddleware(req, res),
@@ -123,7 +123,7 @@ describe('requireCompletedProfileForChatAttachment', () => {
           },
         },
       },
-    } as Response;
+    } as unknown as Response;
 
     await runMiddleware(req, res);
   });
