@@ -37,6 +37,11 @@ export {
   containsExactProfanity,
 } from './profanity-filter';
 export { decideFilterAction } from './decide-action.util';
+export {
+  ALLOW_PUBLIC_FILTER_FIELDS,
+  toPublicFilterFields,
+  type PublicFilterFields,
+} from './public-filter.util';
 
 /**
  * 사용자 입력 텍스트 클린 필터.
