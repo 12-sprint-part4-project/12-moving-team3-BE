@@ -6,6 +6,11 @@ import type {
   UserType,
 } from '@prisma/client';
 
+import type {
+  FilterAction,
+  FilterReasonCode,
+} from '../utils/content-filter/types';
+
 export interface CreateChatRoomData {
   roomId: number;
   roomType: ChatRoomType;
@@ -88,6 +93,10 @@ export interface ChatRoomDetailResult {
   updatedAt: string;
 }
 
+export type ChatFilterAction = FilterAction;
+
+export type ChatFilterReasonCode = FilterReasonCode;
+
 export interface ChatMessageItem {
   messageId: number;
   senderId: string;
@@ -95,6 +104,13 @@ export interface ChatMessageItem {
   messageType: MessageType;
   content: string;
   isFiltered: boolean;
+  /**
+   * 필터 판별 action. 전송·소켓에만 포함 (#432).
+   * 이력 GET은 DB 미저장으로 생략 — FE는 content fallback.
+   */
+  filterAction?: ChatFilterAction;
+  /** 필터 reason code 목록. allow면 []. 전송·소켓에만 포함 (#432). */
+  filterReasonCodes?: ChatFilterReasonCode[];
   attachments: string[];
   createdAt: string;
 }

@@ -25,6 +25,11 @@ import {
 } from '../utils/chat-access.util';
 import { toAttachmentViewUrls } from '../utils/chat-attachment.util';
 import { filterChatContent } from '../utils/chat-content-filter.util';
+import {
+  ALLOW_PUBLIC_FILTER_FIELDS,
+  toPublicFilterFields,
+} from '../utils/content-filter/public-filter.util';
+import type { PublicFilterFields } from '../utils/content-filter/public-filter.util';
 import { buildCursorPaginationMeta } from '../utils/cursor-pagination.util';
 import {
   emitChatMessageCreated,
@@ -107,7 +112,7 @@ const sendTextMessage = async (
   roomId: number,
   content: string
 ): Promise<ChatMessageItem> => {
-  const { maskedContent, isFiltered, rawContent } =
+  const { maskedContent, isFiltered, rawContent, decision } =
     await filterChatContent(content);
 
   const message = await prisma.$transaction(async (tx) => {
@@ -122,7 +127,10 @@ const sendTextMessage = async (
     });
   });
 
-  const item = await toChatMessageItem(message);
+  const item = await toChatMessageItem(
+    message,
+    toPublicFilterFields(decision)
+  );
   await emitChatMessageCreated({
     roomId,
     senderId: authUser.userId,
@@ -199,7 +207,7 @@ const sendImageMessage = async (
     });
   });
 
-  const item = await toChatMessageItem(message);
+  const item = await toChatMessageItem(message, ALLOW_PUBLIC_FILTER_FIELDS);
   await emitChatMessageCreated({
     roomId,
     senderId: authUser.userId,
@@ -234,16 +242,19 @@ const assertCanSendMessage = async (
 };
 
 /** 저장 메시지를 API 응답 DTO로 변환한다. attachments는 조회용 Presigned URL. */
-const toChatMessageItem = async (message: {
-  id: number;
-  senderId: string;
-  sender: { userType: UserType };
-  messageType: MessageType;
-  content: string;
-  isFiltered: boolean;
-  attachments: { fileKey: string }[];
-  createdAt: Date;
-}): Promise<ChatMessageItem> => {
+const toChatMessageItem = async (
+  message: {
+    id: number;
+    senderId: string;
+    sender: { userType: UserType };
+    messageType: MessageType;
+    content: string;
+    isFiltered: boolean;
+    attachments: { fileKey: string }[];
+    createdAt: Date;
+  },
+  filter?: PublicFilterFields
+): Promise<ChatMessageItem> => {
   return {
     messageId: message.id,
     senderId: message.senderId,
@@ -251,6 +262,10 @@ const toChatMessageItem = async (message: {
     messageType: message.messageType,
     content: message.content,
     isFiltered: message.isFiltered,
+    ...(filter && {
+      filterAction: filter.filterAction,
+      filterReasonCodes: filter.filterReasonCodes,
+    }),
     attachments: await toAttachmentViewUrls(message.attachments),
     createdAt: toIsoString(message.createdAt),
   };
