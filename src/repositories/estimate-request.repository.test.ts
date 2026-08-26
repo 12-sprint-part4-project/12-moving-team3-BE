@@ -9,8 +9,20 @@ import {
 import { startOfDay } from '../utils/date.util';
 import {
   buildEstimateRequestListWhere,
+  updateEstimateRequestDraft,
   type EstimateRequestFilterParams,
+  type CustomerEstimateRequestRow,
 } from './estimate-request.repository';
+
+interface FakeEstimateRequestDb {
+  estimateRequest: {
+    updateMany: (args: unknown) => Promise<{ count: number }>;
+    findUnique: (args: unknown) => Promise<CustomerEstimateRequestRow | null>;
+  };
+}
+
+const asDbClient = (fakeDb: FakeEstimateRequestDb): Prisma.TransactionClient =>
+  fakeDb as unknown as Prisma.TransactionClient;
 
 const NOW = new Date('2026-08-15T12:00:00.000Z');
 const MOVER_ID = '11111111-1111-4111-8111-111111111111';
@@ -111,5 +123,61 @@ describe('buildEstimateRequestListWhere', () => {
     );
 
     assert.deepEqual(and[1], { id: { in: [] } });
+  });
+});
+
+describe('updateEstimateRequestDraft', () => {
+  it('갱신된 행이 없으면 재조회 없이 null을 반환한다', async () => {
+    let findUniqueCalled = false;
+    const fakeDb: FakeEstimateRequestDb = {
+      estimateRequest: {
+        updateMany: async () => ({ count: 0 }),
+        findUnique: async () => {
+          findUniqueCalled = true;
+          return null;
+        },
+      },
+    };
+
+    const result = await updateEstimateRequestDraft(
+      1,
+      'user-1',
+      { moveType: MoveType.HOME },
+      asDbClient(fakeDb)
+    );
+
+    assert.equal(result, null);
+    assert.equal(findUniqueCalled, false);
+  });
+
+  it('갱신된 행이 있으면 id·userId·DRAFT 조건으로 updateMany 후 최신 행을 재조회한다', async () => {
+    const updatedRow = {
+      id: 1,
+      status: EstimateRequestStatus.DRAFT,
+    } as unknown as CustomerEstimateRequestRow;
+    let updateManyArgs: unknown;
+
+    const fakeDb: FakeEstimateRequestDb = {
+      estimateRequest: {
+        updateMany: async (args) => {
+          updateManyArgs = args;
+          return { count: 1 };
+        },
+        findUnique: async () => updatedRow,
+      },
+    };
+
+    const result = await updateEstimateRequestDraft(
+      1,
+      'user-1',
+      { moveType: MoveType.HOME },
+      asDbClient(fakeDb)
+    );
+
+    assert.deepEqual(updateManyArgs, {
+      where: { id: 1, userId: 'user-1', status: EstimateRequestStatus.DRAFT },
+      data: { moveType: MoveType.HOME },
+    });
+    assert.equal(result, updatedRow);
   });
 });
