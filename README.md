@@ -22,6 +22,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=flat-square&logo=prisma&logoColor=white)
 ![Socket.IO](https://img.shields.io/badge/Socket.io-010101?style=flat-square&logo=socketdotio&logoColor=white)
+<br/>
 ![AWS S3](https://img.shields.io/badge/AWS%20S3-569A31?style=flat-square&logo=amazons3&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white)
 ![Kakao](https://img.shields.io/badge/Kakao-FFCD00?style=flat-square&logo=kakao&logoColor=black)
@@ -47,7 +48,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-기본 포트는 `8080`입니다. (`PORT` 환경변수로 변경 가능)
+기본 포트는 `8000`입니다. (`PORT` 환경변수로 변경 가능)
 
 환경변수 항목은 `.env.example`을 참고하세요.
 
