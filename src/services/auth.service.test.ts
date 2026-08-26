@@ -59,6 +59,40 @@ interface MutableAuthRepository {
     userType: UserType;
     passwordHash: string;
   }) => Promise<AuthUser & { name: string; createdAt: Date }>;
+  findUserByKakaoProviderAccountId: (
+    providerAccountId: string
+  ) => Promise<AuthUser | null>;
+  findUserWithKakaoAuthByEmail: (email: string) => Promise<
+    | (AuthUser & {
+        authAccounts: { providerAccountId: string }[];
+      })
+    | null
+  >;
+  createUserWithKakaoAuth: (input: {
+    name: string;
+    nickname: string;
+    email: string;
+    userType: UserType;
+    providerAccountId: string;
+  }) => Promise<AuthUser>;
+  linkKakaoAuthToUser: (
+    userId: string,
+    providerAccountId: string
+  ) => Promise<void>;
+}
+
+interface MutableKakaoOAuth {
+  exchangeKakaoAuthorizationCode: (code: string) => Promise<{
+    accessToken: string;
+    tokenType: string;
+    expiresIn: number;
+  }>;
+  fetchKakaoUserInfo: (accessToken: string) => Promise<{
+    id: string;
+    email?: string;
+    isEmailVerified: boolean;
+    nickname?: string;
+  }>;
 }
 
 interface MutableAuditContext {
@@ -92,6 +126,16 @@ interface AuthService {
     refreshTokenMaxAgeMs: number;
   }>;
   logout: (refreshToken: string | undefined) => Promise<void>;
+  kakaoLogin: (input: {
+    code: string;
+    userType: 'CUSTOMER' | 'MOVER';
+    device: DeviceType;
+  }) => Promise<{
+    user: { id: string };
+    accessToken: string;
+    refreshToken: string;
+    isNewUser: boolean;
+  }>;
 }
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -100,6 +144,7 @@ const refreshRecords = new Map<string, RefreshTokenRecord>();
 let passwordHash = '';
 let authService: AuthService;
 let authRepository: MutableAuthRepository;
+let kakaoOAuth: MutableKakaoOAuth;
 let auditContext: MutableAuditContext;
 let originalRunAuditedTransaction: MutableAuditContext['runAuditedTransaction'];
 let originals: {
@@ -112,6 +157,19 @@ let originals: {
   deleteRefreshTokensByUserId: MutableAuthRepository['deleteRefreshTokensByUserId'];
   createRefreshTokenRecord: MutableAuthRepository['createRefreshTokenRecord'];
   createUserWithLocalAuth: MutableAuthRepository['createUserWithLocalAuth'];
+  findUserByKakaoProviderAccountId: MutableAuthRepository['findUserByKakaoProviderAccountId'];
+  findUserWithKakaoAuthByEmail: MutableAuthRepository['findUserWithKakaoAuthByEmail'];
+  createUserWithKakaoAuth: MutableAuthRepository['createUserWithKakaoAuth'];
+  linkKakaoAuthToUser: MutableAuthRepository['linkKakaoAuthToUser'];
+  exchangeKakaoAuthorizationCode: MutableKakaoOAuth['exchangeKakaoAuthorizationCode'];
+  fetchKakaoUserInfo: MutableKakaoOAuth['fetchKakaoUserInfo'];
+};
+
+const defaultKakaoUser = {
+  id: 'kakao-123',
+  email: 'kakao@example.com',
+  isEmailVerified: true,
+  nickname: '카카오닉',
 };
 
 const assertRejectsWithCode = async (
@@ -164,6 +222,7 @@ describe('auth.service', () => {
 
     passwordHash = await hashAuthPassword('ValidPass1!');
     authRepository = require('../repositories/auth.repository');
+    kakaoOAuth = require('../utils/kakao-oauth.util');
     auditContext = require('../lib/audit-context');
 
     originals = {
@@ -176,6 +235,14 @@ describe('auth.service', () => {
       deleteRefreshTokensByUserId: authRepository.deleteRefreshTokensByUserId,
       createRefreshTokenRecord: authRepository.createRefreshTokenRecord,
       createUserWithLocalAuth: authRepository.createUserWithLocalAuth,
+      findUserByKakaoProviderAccountId:
+        authRepository.findUserByKakaoProviderAccountId,
+      findUserWithKakaoAuthByEmail: authRepository.findUserWithKakaoAuthByEmail,
+      createUserWithKakaoAuth: authRepository.createUserWithKakaoAuth,
+      linkKakaoAuthToUser: authRepository.linkKakaoAuthToUser,
+      exchangeKakaoAuthorizationCode:
+        kakaoOAuth.exchangeKakaoAuthorizationCode,
+      fetchKakaoUserInfo: kakaoOAuth.fetchKakaoUserInfo,
     };
     originalRunAuditedTransaction = auditContext.runAuditedTransaction;
 
@@ -216,6 +283,25 @@ describe('auth.service', () => {
     authRepository.findUserByEmail = async () => null;
     authRepository.findUserByNickname = async () => null;
     authRepository.findUserForAuthById = async () => null;
+    authRepository.findUserByKakaoProviderAccountId = async () => null;
+    authRepository.findUserWithKakaoAuthByEmail = async () => null;
+    authRepository.linkKakaoAuthToUser = async () => undefined;
+    authRepository.createUserWithKakaoAuth = async (input) => ({
+      id: 'kakao-user',
+      userType: input.userType,
+      nickname: input.nickname,
+      email: input.email,
+      phoneNumber: null,
+      customerProfile: { id: 1, service: [] },
+      moverProfile: null,
+      userStatus: null,
+    });
+    kakaoOAuth.exchangeKakaoAuthorizationCode = async () => ({
+      accessToken: 'kakao-access-token',
+      tokenType: 'bearer',
+      expiresIn: 3600,
+    });
+    kakaoOAuth.fetchKakaoUserInfo = async () => defaultKakaoUser;
     authRepository.createUserWithLocalAuth = async (input) => ({
       id: 'new-user',
       userType: input.userType,
@@ -244,6 +330,15 @@ describe('auth.service', () => {
     authRepository.createRefreshTokenRecord =
       originals.createRefreshTokenRecord;
     authRepository.createUserWithLocalAuth = originals.createUserWithLocalAuth;
+    authRepository.findUserByKakaoProviderAccountId =
+      originals.findUserByKakaoProviderAccountId;
+    authRepository.findUserWithKakaoAuthByEmail =
+      originals.findUserWithKakaoAuthByEmail;
+    authRepository.createUserWithKakaoAuth = originals.createUserWithKakaoAuth;
+    authRepository.linkKakaoAuthToUser = originals.linkKakaoAuthToUser;
+    kakaoOAuth.exchangeKakaoAuthorizationCode =
+      originals.exchangeKakaoAuthorizationCode;
+    kakaoOAuth.fetchKakaoUserInfo = originals.fetchKakaoUserInfo;
     auditContext.runAuditedTransaction = originalRunAuditedTransaction;
   });
 
@@ -452,6 +547,108 @@ describe('auth.service', () => {
       await authService.logout(token);
 
       assert.equal(refreshRecords.has(tokenHash), false);
+    });
+  });
+
+  describe('kakaoLogin', () => {
+    const kakaoInput = {
+      code: 'auth-code',
+      userType: 'CUSTOMER' as const,
+      device: 'DESKTOP' as const,
+    };
+
+    it('이미 연동된 카카오 계정이면 isNewUser false로 로그인한다', async () => {
+      authRepository.findUserByKakaoProviderAccountId = async () =>
+        createAuthUser();
+
+      const result = await authService.kakaoLogin(kakaoInput);
+
+      assert.equal(result.isNewUser, false);
+      assert.equal(result.user.id, USER_ID);
+      assert.equal(verifyAccessToken(result.accessToken).sub, USER_ID);
+    });
+
+    it('연동된 계정의 userType이 다르면 USER_TYPE_MISMATCH를 던진다', async () => {
+      authRepository.findUserByKakaoProviderAccountId = async () =>
+        createAuthUser({ userType: UserType.MOVER });
+
+      await assertRejectsWithCode(
+        () => authService.kakaoLogin(kakaoInput),
+        'USER_TYPE_MISMATCH'
+      );
+    });
+
+    it('카카오 이메일이 없으면 KAKAO_EMAIL_REQUIRED를 던진다', async () => {
+      kakaoOAuth.fetchKakaoUserInfo = async () => ({
+        ...defaultKakaoUser,
+        email: undefined,
+      });
+
+      await assertRejectsWithCode(
+        () => authService.kakaoLogin(kakaoInput),
+        'KAKAO_EMAIL_REQUIRED'
+      );
+    });
+
+    it('카카오 이메일이 미인증이면 KAKAO_EMAIL_NOT_VERIFIED를 던진다', async () => {
+      kakaoOAuth.fetchKakaoUserInfo = async () => ({
+        ...defaultKakaoUser,
+        isEmailVerified: false,
+      });
+
+      await assertRejectsWithCode(
+        () => authService.kakaoLogin(kakaoInput),
+        'KAKAO_EMAIL_NOT_VERIFIED'
+      );
+    });
+
+    it('같은 이메일의 기존 계정 유형이 다르면 USER_TYPE_MISMATCH를 던진다', async () => {
+      authRepository.findUserWithKakaoAuthByEmail = async () => ({
+        ...createAuthUser({ userType: UserType.MOVER }),
+        authAccounts: [],
+      });
+
+      await assertRejectsWithCode(
+        () => authService.kakaoLogin(kakaoInput),
+        'USER_TYPE_MISMATCH'
+      );
+    });
+
+    it('같은 이메일에 다른 카카오 계정이 연결되어 있으면 EMAIL_ALREADY_EXISTS를 던진다', async () => {
+      authRepository.findUserWithKakaoAuthByEmail = async () => ({
+        ...createAuthUser(),
+        authAccounts: [{ providerAccountId: 'other-kakao' }],
+      });
+
+      await assertRejectsWithCode(
+        () => authService.kakaoLogin(kakaoInput),
+        'EMAIL_ALREADY_EXISTS'
+      );
+    });
+
+    it('같은 이메일의 기존 계정에 카카오를 연결하고 isNewUser false로 로그인한다', async () => {
+      let linkedTo: { userId: string; kakaoId: string } | undefined;
+      authRepository.findUserWithKakaoAuthByEmail = async () => ({
+        ...createAuthUser(),
+        authAccounts: [],
+      });
+      authRepository.linkKakaoAuthToUser = async (userId, providerAccountId) => {
+        linkedTo = { userId, kakaoId: providerAccountId };
+      };
+
+      const result = await authService.kakaoLogin(kakaoInput);
+
+      assert.equal(result.isNewUser, false);
+      assert.equal(result.user.id, USER_ID);
+      assert.deepEqual(linkedTo, { userId: USER_ID, kakaoId: 'kakao-123' });
+    });
+
+    it('신규 카카오 계정이면 가입 후 isNewUser true로 로그인한다', async () => {
+      const result = await authService.kakaoLogin(kakaoInput);
+
+      assert.equal(result.isNewUser, true);
+      assert.equal(result.user.id, 'kakao-user');
+      assert.equal(verifyAccessToken(result.accessToken).role, 'CUSTOMER');
     });
   });
 });

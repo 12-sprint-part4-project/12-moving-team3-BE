@@ -191,6 +191,54 @@ describe('customer-profile.service', () => {
         'PROFILE_NOT_FOUND'
       );
     });
+
+    it('service가 비어 있으면 PROFILE_NOT_FOUND를 던진다', async () => {
+      stubDefaults();
+      customerProfileRepository.findCustomerProfileDetailByUserId = async () => ({
+        ...emptyProfile(),
+        createdAt: NOW,
+        updatedAt: NOW,
+        user: { ...emptyProfile().user, id: USER_ID },
+      });
+
+      await assertRejectsWithCode(
+        () => getCustomerProfile(USER_ID),
+        'PROFILE_NOT_FOUND'
+      );
+    });
+
+    it('등록된 프로필과 hasPassword·이미지 URL을 반환한다', async () => {
+      stubDefaults();
+      customerProfileRepository.findCustomerProfileDetailByUserId = async () => ({
+        id: 1,
+        region: Region.SEOUL,
+        service: [MoveType.SMALL],
+        createdAt: NOW,
+        updatedAt: NOW,
+        user: {
+          id: USER_ID,
+          name: '홍길동',
+          nickname: '길동',
+          email: 'user@example.com',
+          phoneNumber: '01012345678',
+          profileImageKey: 'profile-images/me.png',
+        },
+      });
+      authRepository.findLocalPasswordHashByUserId = async () => ({
+        passwordHash: 'hashed',
+      });
+
+      const result = await getCustomerProfile(USER_ID);
+
+      assert.equal(result.profileId, 1);
+      assert.equal(result.userId, USER_ID);
+      assert.equal(result.hasPassword, true);
+      assert.equal(
+        result.profileImageUrl,
+        'https://cdn.example.com/profile-images/me.png'
+      );
+      assert.deepEqual(result.service, [MoveType.SMALL]);
+    });
   });
 
   describe('registerCustomerProfile 등록', () => {

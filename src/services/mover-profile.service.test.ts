@@ -5,6 +5,7 @@ import type { ErrorCode } from '../constants/error.codes';
 import type { MoverProfileBody } from '../schemas/mover-profile.schema';
 import { AppError } from '../utils/app.error';
 import {
+  getMoverProfile,
   saveMoverProfile,
   updateMoverBasicInfo,
 } from './mover-profile.service';
@@ -30,8 +31,30 @@ interface SaveMoverProfileResult {
   updatedAt: Date;
 }
 
+interface MoverProfileDetailRow {
+  id: number;
+  service: MoveType[];
+  career: number | null;
+  shortDescription: string | null;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  serviceRegions: { region: Region }[];
+  user: {
+    id: string;
+    name: string;
+    nickname: string;
+    email: string;
+    phoneNumber: string | null;
+    profileImageKey: string | null;
+  };
+}
+
 interface MutableMoverProfileRepository {
   findMoverProfileByUserId: (userId: string) => Promise<MoverProfileRow | null>;
+  findMoverProfileDetailByUserId: (
+    userId: string
+  ) => Promise<MoverProfileDetailRow | null>;
   saveMoverProfile: (input: unknown) => Promise<SaveMoverProfileResult>;
   updateMoverBasicInfo: (input: unknown) => Promise<{
     name: string;
@@ -45,6 +68,13 @@ interface MutableAuthRepository {
   findUserByPhoneNumber: (
     phoneNumber: string
   ) => Promise<{ id: string } | null>;
+  findLocalPasswordHashByUserId: (
+    userId: string
+  ) => Promise<{ passwordHash: string | null } | null>;
+}
+
+interface MutableQuoteRepository {
+  countConfirmedQuotesByMoverId: (moverId: string) => Promise<number>;
 }
 
 interface MutableS3Service {
@@ -63,15 +93,21 @@ const moverProfileRepository =
   require('../repositories/mover-profile.repository') as MutableMoverProfileRepository;
 const authRepository =
   require('../repositories/auth.repository') as MutableAuthRepository;
+const quoteRepository =
+  require('../repositories/quote.repository') as MutableQuoteRepository;
 const s3Service = require('./s3.service') as MutableS3Service;
 const moverEmbeddingService =
   require('./mover-embedding.service') as MutableMoverEmbeddingService;
 
 const originals = {
   findMoverProfileByUserId: moverProfileRepository.findMoverProfileByUserId,
+  findMoverProfileDetailByUserId:
+    moverProfileRepository.findMoverProfileDetailByUserId,
   saveMoverProfile: moverProfileRepository.saveMoverProfile,
   updateMoverBasicInfo: moverProfileRepository.updateMoverBasicInfo,
   findUserByPhoneNumber: authRepository.findUserByPhoneNumber,
+  findLocalPasswordHashByUserId: authRepository.findLocalPasswordHashByUserId,
+  countConfirmedQuotesByMoverId: quoteRepository.countConfirmedQuotesByMoverId,
   deleteImage: s3Service.deleteImage,
   reindexMoverProfileEmbedding:
     moverEmbeddingService.reindexMoverProfileEmbedding,
@@ -123,10 +159,16 @@ describe('mover-profile.service', () => {
   after(() => {
     moverProfileRepository.findMoverProfileByUserId =
       originals.findMoverProfileByUserId;
+    moverProfileRepository.findMoverProfileDetailByUserId =
+      originals.findMoverProfileDetailByUserId;
     moverProfileRepository.saveMoverProfile = originals.saveMoverProfile;
     moverProfileRepository.updateMoverBasicInfo =
       originals.updateMoverBasicInfo;
     authRepository.findUserByPhoneNumber = originals.findUserByPhoneNumber;
+    authRepository.findLocalPasswordHashByUserId =
+      originals.findLocalPasswordHashByUserId;
+    quoteRepository.countConfirmedQuotesByMoverId =
+      originals.countConfirmedQuotesByMoverId;
     s3Service.deleteImage = originals.deleteImage;
     moverEmbeddingService.reindexMoverProfileEmbedding =
       originals.reindexMoverProfileEmbedding;
@@ -135,6 +177,7 @@ describe('mover-profile.service', () => {
   const stubDefaults = () => {
     moverProfileRepository.findMoverProfileByUserId = async () =>
       existingProfile();
+    moverProfileRepository.findMoverProfileDetailByUserId = async () => null;
     moverProfileRepository.saveMoverProfile = async () => ({
       nickname: '김기사',
       career: 5,
@@ -152,6 +195,8 @@ describe('mover-profile.service', () => {
       updatedAt: NOW,
     });
     authRepository.findUserByPhoneNumber = async () => null;
+    authRepository.findLocalPasswordHashByUserId = async () => null;
+    quoteRepository.countConfirmedQuotesByMoverId = async () => 0;
     s3Service.deleteImage = async (key) => {
       deletedKeys.push(key);
     };
@@ -159,6 +204,55 @@ describe('mover-profile.service', () => {
       reindexedUserIds.push(userId);
     };
   };
+
+  describe('getMoverProfile', () => {
+    it('프로필이 없거나 미등록이면 PROFILE_NOT_FOUND를 던진다', async () => {
+      stubDefaults();
+
+      await assertRejectsWithCode(
+        () => getMoverProfile(USER_ID),
+        'PROFILE_NOT_FOUND'
+      );
+    });
+
+    it('등록된 프로필과 confirmedCount·hasPassword를 반환한다', async () => {
+      stubDefaults();
+      moverProfileRepository.findMoverProfileDetailByUserId = async () => ({
+        id: 1,
+        service: [MoveType.HOME],
+        career: 5,
+        shortDescription: '안전 이사',
+        description: '경력을 바탕으로 이사합니다.',
+        createdAt: NOW,
+        updatedAt: NOW,
+        serviceRegions: [{ region: Region.SEOUL }, { region: Region.GYEONGGI }],
+        user: {
+          id: USER_ID,
+          name: '김기사',
+          nickname: '김기사',
+          email: 'mover@example.com',
+          phoneNumber: '01011112222',
+          profileImageKey: 'profile-images/mover.png',
+        },
+      });
+      quoteRepository.countConfirmedQuotesByMoverId = async () => 3;
+      authRepository.findLocalPasswordHashByUserId = async () => ({
+        passwordHash: 'hashed',
+      });
+
+      const result = await getMoverProfile(USER_ID);
+
+      assert.equal(result.profileId, 1);
+      assert.equal(result.userId, USER_ID);
+      assert.equal(result.confirmedCount, 3);
+      assert.equal(result.hasPassword, true);
+      assert.deepEqual(result.serviceRegions, [Region.SEOUL, Region.GYEONGGI]);
+      assert.equal(
+        result.profileImageUrl,
+        'https://cdn.example.com/profile-images/mover.png'
+      );
+    });
+  });
 
   describe('saveMoverProfile', () => {
     it('프로필 행이 없으면 PROFILE_NOT_FOUND를 던진다', async () => {
