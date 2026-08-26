@@ -48,7 +48,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-기본 포트는 `8080`입니다. (`PORT` 환경변수로 변경 가능)
+기본 포트는 `8000`입니다. (`PORT` 환경변수로 변경 가능)
 
 환경변수 항목은 `.env.example`을 참고하세요.
 
