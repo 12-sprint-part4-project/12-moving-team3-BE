@@ -211,7 +211,7 @@ const buildKeywordCondition = (
  *   이 기사님이 이미 견적을 제출/반려(Quote 존재)한 요청은 항상 제외
  * - keyword/moveType/designated/serviceArea 는 값이 주어졌을 때만 조건에 추가되는 동적 필터
  */
-const buildWhere = (
+export const buildEstimateRequestListWhere = (
   params: EstimateRequestFilterParams,
   now: Date
 ): Prisma.EstimateRequestWhereInput => {
@@ -329,7 +329,7 @@ export const findEstimateRequests = async (
   db: DbClient = prisma
 ): Promise<{ items: EstimateRequestListRow[]; hasNextPage: boolean }> => {
   const now = new Date();
-  const baseWhere = buildWhere(params, now);
+  const baseWhere = buildEstimateRequestListWhere(params, now);
   const where: Prisma.EstimateRequestWhereInput = params.cursor
     ? { AND: [baseWhere, buildCursorCondition(params.sort, params.cursor)] }
     : baseWhere;
@@ -376,7 +376,7 @@ export const countEstimateRequests = async (
   db: DbClient = prisma
 ): Promise<number> => {
   return db.estimateRequest.count({
-    where: buildWhere(params, new Date()),
+    where: buildEstimateRequestListWhere(params, new Date()),
   });
 };
 
@@ -387,7 +387,7 @@ export const countEstimateRequestsByMoveType = async (
   params: Omit<EstimateRequestFilterParams, 'moveTypes'>,
   db: DbClient = prisma
 ): Promise<Record<MoveType, number>> => {
-  const where = buildWhere({ ...params, moveTypes: undefined }, new Date());
+  const where = buildEstimateRequestListWhere({ ...params, moveTypes: undefined }, new Date());
 
   const grouped = await db.estimateRequest.groupBy({
     by: ['moveType'],
@@ -415,7 +415,7 @@ export const countDesignatedEstimateRequests = async (
   params: Omit<EstimateRequestFilterParams, 'designated'>,
   db: DbClient = prisma
 ): Promise<number> => {
-  const where = buildWhere(
+  const where = buildEstimateRequestListWhere(
     { ...params, designated: true, serviceArea: undefined },
     new Date()
   );
@@ -429,7 +429,7 @@ export const countServiceAreaEstimateRequests = async (
   params: Omit<EstimateRequestFilterParams, 'serviceArea'>,
   db: DbClient = prisma
 ): Promise<number> => {
-  const where = buildWhere(
+  const where = buildEstimateRequestListWhere(
     { ...params, serviceArea: true, designated: undefined },
     new Date()
   );
