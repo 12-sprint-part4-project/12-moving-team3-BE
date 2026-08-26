@@ -6,15 +6,13 @@
 
 ## Team
 
-| [추명곤](https://github.com/hogu-giriboy) | [강정민](https://github.com/jeongmin00) | [박소정](https://github.com/sojeong0302) | [김나린](https://github.com/narin116) |
-| :---: | :---: | :---: | :---: |
-| <img src="https://github.com/hogu-giriboy.png" width="80"/> | <img src="https://github.com/jeongmin00.png" width="80"/> | <img src="https://github.com/sojeong0302.png" width="80"/> | <img src="https://github.com/narin116.png" width="80"/> |
-| **관리자 인증**<br/>**운영 관리** | **채팅**<br/>**Socket.IO** | **인증/인가**<br/>**S3** | **기사님 조회**<br/>**리뷰** |
-
-| [최혜성](https://github.com/gptjd0204) | [한고은](https://github.com/NAYA3) | [김남진](https://github.com/knj980425) | [김상우](https://github.com/codribble) |
-| :---: | :---: | :---: | :---: |
-| <img src="https://github.com/gptjd0204.png" width="80"/> | <img src="https://github.com/NAYA3.png" width="80"/> | <img src="https://github.com/knj980425.png" width="80"/> | <img src="https://github.com/codribble.png" width="80"/> |
-| **고객/기사님**<br/>**견적 관리** | **커뮤니티**<br/>**tiptap 에디터** | **관리자 통계**<br/>**서비스 관리** | **견적요청**<br/>**알림** |
+|          [추명곤](https://github.com/hogu-giriboy)          |          [강정민](https://github.com/jeongmin00)          |          [박소정](https://github.com/sojeong0302)          |          [김나린](https://github.com/narin116)           |
+| :---------------------------------------------------------: | :-------------------------------------------------------: | :--------------------------------------------------------: | :------------------------------------------------------: |
+| <img src="https://github.com/hogu-giriboy.png" width="80"/> | <img src="https://github.com/jeongmin00.png" width="80"/> | <img src="https://github.com/sojeong0302.png" width="80"/> | <img src="https://github.com/narin116.png" width="80"/>  |
+|              **관리자 인증**<br/>**운영 관리**              |                **채팅**<br/>**Socket.IO**                 |                  **인증/인가**<br/>**S3**                  |               **기사님 조회**<br/>**리뷰**               |
+|           [최혜성](https://github.com/gptjd0204)            |            [한고은](https://github.com/NAYA3)             |           [김남진](https://github.com/knj980425)           |          [김상우](https://github.com/codribble)          |
+|  <img src="https://github.com/gptjd0204.png" width="80"/>   |   <img src="https://github.com/NAYA3.png" width="80"/>    |  <img src="https://github.com/knj980425.png" width="80"/>  | <img src="https://github.com/codribble.png" width="80"/> |
+|              **고객/기사님**<br/>**견적 관리**              |            **커뮤니티**<br/>**tiptap 에디터**             |            **관리자 통계**<br/>**서비스 관리**             |                **견적요청**<br/>**알림**                 |
 
 ## Tech Stack
 
