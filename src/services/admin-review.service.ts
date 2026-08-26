@@ -1,5 +1,6 @@
 import { HistoryAction, Prisma, type UserType } from '@prisma/client';
 import type {
+  AdminReviewDetailDto,
   AdminReviewListItemDto,
   AdminReviewListResultDto,
   AdminReviewUserSummaryDto,
@@ -9,6 +10,9 @@ import {
   runWithManualAudit,
 } from '../lib/audit-context';
 import {
+  buildAdminReviewListWhere,
+  findAdminReviewById,
+  findAdminReviewFirst,
   findAdminReviewsWithCount,
   getAverageReviewScore,
   getReviewCount,
@@ -16,7 +20,11 @@ import {
   type AdminReviewListRow,
 } from '../repositories/admin-review.repository';
 import { createHistory } from '../repositories/history.repository';
-import type { AdminReviewListQuery } from '../schemas/admin-review.schema';
+import type {
+  AdminReviewDetailQuery,
+  AdminReviewListQuery,
+} from '../schemas/admin-review.schema';
+import type { SortDirection } from '../schemas/admin-list-query.schema';
 import type { AdminStatisticsFilter } from '../schemas/admin-statistics.schema';
 import { AppError } from '../utils/app.error';
 import { createDateRange } from '../utils/admin-date-range.util';
@@ -98,6 +106,95 @@ export const getAdminReviewList = async (
       totalCount,
       totalPages: Math.ceil(totalCount / params.pageSize),
     },
+  };
+};
+
+/**
+ * 목록과 같은 createdAt+id 정렬에서 이전·다음 ID를 찾는다.
+ * createdAt은 null이 아니므로 견적 요청의 nullable 날짜 분기는 쓰지 않는다.
+ */
+const findAdminReviewNeighborIds = async (
+  listWhere: Prisma.ReviewWhereInput,
+  current: { id: number; createdAt: Date },
+  sort: SortDirection
+): Promise<{ prevId: number | null; nextId: number | null }> => {
+  const inFilter = await findAdminReviewFirst(
+    { AND: [listWhere, { id: current.id }] },
+    [{ id: 'desc' }]
+  );
+
+  // 현재 리뷰가 목록 필터 밖이면 잘못된 prev/next를 주지 않는다.
+  if (inFilter == null) {
+    return { prevId: null, nextId: null };
+  }
+
+  const isAsc = sort === 'ASC';
+  const prevWhere: Prisma.ReviewWhereInput = isAsc
+    ? {
+        OR: [
+          { createdAt: { lt: current.createdAt } },
+          { createdAt: current.createdAt, id: { gt: current.id } },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { gt: current.createdAt } },
+          { createdAt: current.createdAt, id: { gt: current.id } },
+        ],
+      };
+  const nextWhere: Prisma.ReviewWhereInput = isAsc
+    ? {
+        OR: [
+          { createdAt: { gt: current.createdAt } },
+          { createdAt: current.createdAt, id: { lt: current.id } },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { lt: current.createdAt } },
+          { createdAt: current.createdAt, id: { lt: current.id } },
+        ],
+      };
+  const prevOrderBy: Prisma.ReviewOrderByWithRelationInput[] = isAsc
+    ? [{ createdAt: 'desc' }, { id: 'asc' }]
+    : [{ createdAt: 'asc' }, { id: 'asc' }];
+  const nextOrderBy: Prisma.ReviewOrderByWithRelationInput[] = isAsc
+    ? [{ createdAt: 'asc' }, { id: 'desc' }]
+    : [{ createdAt: 'desc' }, { id: 'desc' }];
+
+  const [prev, next] = await Promise.all([
+    findAdminReviewFirst({ AND: [listWhere, prevWhere] }, prevOrderBy),
+    findAdminReviewFirst({ AND: [listWhere, nextWhere] }, nextOrderBy),
+  ]);
+
+  return {
+    prevId: prev?.id ?? null,
+    nextId: next?.id ?? null,
+  };
+};
+
+/** 관리자 리뷰 상세 조회 */
+export const getAdminReviewDetail = async (
+  reviewId: number,
+  query: AdminReviewDetailQuery
+): Promise<AdminReviewDetailDto> => {
+  const review = await findAdminReviewById(reviewId);
+
+  if (!review) {
+    throw new AppError('ADMIN_REVIEW_NOT_FOUND');
+  }
+
+  const listWhere = buildAdminReviewListWhere(query);
+  const { prevId, nextId } = await findAdminReviewNeighborIds(
+    listWhere,
+    { id: review.id, createdAt: review.createdAt },
+    query.sort ?? 'DESC'
+  );
+
+  return {
+    ...toAdminReviewListItem(review),
+    prevId,
+    nextId,
   };
 };
 

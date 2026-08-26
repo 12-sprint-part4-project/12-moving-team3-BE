@@ -1,10 +1,11 @@
+import { getObjectMetadata } from '../services/s3.service';
+import { deleteS3KeysSafely } from '../services/orphan-s3-cleanup.service';
 import {
   POST_IMAGE_ALLOWED_CONTENT_TYPES,
   POST_IMAGE_MAX_SIZE,
   isValidPostImageKey,
 } from '../constants/post-image.constants';
 import * as postRepository from '../repositories/post.repository';
-import { deleteImage, getObjectMetadata } from '../services/s3.service';
 import { AppError } from './app.error';
 
 /** 게시글 imageKeys — S3 존재·prefix·MIME·용량 검증 */
@@ -87,17 +88,5 @@ export const deleteUnreferencedPostImageKeys = async (
 export const deletePostImageKeysSafely = async (
   imageKeys: string[]
 ): Promise<void> => {
-  if (imageKeys.length === 0) {
-    return;
-  }
-
-  await Promise.all(
-    imageKeys.map(async (imageKey) => {
-      try {
-        await deleteImage(imageKey);
-      } catch {
-        // orphan 정리 실패는 요청 처리 결과에 영향을 주지 않는다.
-      }
-    })
-  );
+  await deleteS3KeysSafely(imageKeys);
 };

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type {
   AdminChatDetailDto,
   AdminChatLastMessageDto,
@@ -9,6 +10,8 @@ import type {
   AdminChatParticipantDto,
 } from '../dtos/admin-chat.dto';
 import {
+  buildAdminChatListWhere,
+  findAdminChatFirst,
   findAdminChatLastMessagesByRoomIds,
   findAdminChatMessagesByCursor,
   findAdminChatRoomDetail,
@@ -19,11 +22,13 @@ import {
   type AdminChatMessageRow,
 } from '../repositories/admin-chat.repository';
 import type {
+  AdminChatDetailQuery,
   AdminChatListQuery,
   AdminChatMessagesQuery,
 } from '../schemas/admin-chat.schema';
+import { buildCursorPaginationMeta } from '../utils/cursor-pagination.util';
+import { toAttachmentViewUrls } from '../utils/chat-attachment.util';
 import { AppError } from '../utils/app.error';
-import { createPresignedViewUrl } from './s3.service';
 
 /** 목록·상세가 공유하는 참여자 row (동일 participant select) */
 type AdminChatParticipantRow = AdminChatListRow['participants'][number];
@@ -94,15 +99,6 @@ const toAdminChatListItem = (
   lastMessage: lastMessage ? toAdminChatLastMessageDto(lastMessage) : null,
 });
 
-/** 첨부 fileKey 목록을 조회용 Presigned URL로 변환한다. */
-const toAttachmentViewUrls = async (
-  attachments: { fileKey: string }[]
-): Promise<string[]> => {
-  return Promise.all(
-    attachments.map((attachment) => createPresignedViewUrl(attachment.fileKey))
-  );
-};
-
 /** Repository sender → 메시지 발신자 DTO */
 const toAdminChatMessageSenderDto = (
   sender: AdminChatMessageRow['sender']
@@ -154,15 +150,115 @@ export const getAdminChatList = async (
   };
 };
 
+/** 목록과 동일한 3키 정렬 (lastMessageAt desc nulls last → updatedAt → id) */
+const adminChatListOrderBy: Prisma.ChatRoomOrderByWithRelationInput[] = [
+  { lastMessageAt: { sort: 'desc', nulls: 'last' } },
+  { updatedAt: 'desc' },
+  { id: 'desc' },
+];
+
+/** prev는 목록 정렬의 역순에서 첫 건을 고른다. */
+const adminChatPrevOrderBy: Prisma.ChatRoomOrderByWithRelationInput[] = [
+  { lastMessageAt: { sort: 'asc', nulls: 'first' } },
+  { updatedAt: 'asc' },
+  { id: 'asc' },
+];
+
+const createAdminChatNeighborWhere = (current: {
+  id: number;
+  lastMessageAt: Date | null;
+  updatedAt: Date;
+}): {
+  prevWhere: Prisma.ChatRoomWhereInput;
+  nextWhere: Prisma.ChatRoomWhereInput;
+} => {
+  const { id: currentId, lastMessageAt, updatedAt } = current;
+
+  if (lastMessageAt != null) {
+    return {
+      prevWhere: {
+        OR: [
+          { lastMessageAt: { gt: lastMessageAt } },
+          { lastMessageAt, updatedAt: { gt: updatedAt } },
+          { lastMessageAt, updatedAt, id: { gt: currentId } },
+        ],
+      },
+      nextWhere: {
+        OR: [
+          { lastMessageAt: { lt: lastMessageAt } },
+          { lastMessageAt, updatedAt: { lt: updatedAt } },
+          { lastMessageAt, updatedAt, id: { lt: currentId } },
+          { lastMessageAt: null },
+        ],
+      },
+    };
+  }
+
+  return {
+    prevWhere: {
+      OR: [
+        { lastMessageAt: { not: null } },
+        { lastMessageAt: null, updatedAt: { gt: updatedAt } },
+        { lastMessageAt: null, updatedAt, id: { gt: currentId } },
+      ],
+    },
+    nextWhere: {
+      OR: [
+        { lastMessageAt: null, updatedAt: { lt: updatedAt } },
+        { lastMessageAt: null, updatedAt, id: { lt: currentId } },
+      ],
+    },
+  };
+};
+
+/**
+ * 목록과 같은 3키 정렬에서 이전·다음 ID를 찾는다.
+ * lastMessageAt이 null인 방은 목록 하단(nulls last)에 묶여 처리한다.
+ */
+const findAdminChatNeighborIds = async (
+  listWhere: Prisma.ChatRoomWhereInput,
+  current: { id: number; lastMessageAt: Date | null; updatedAt: Date }
+): Promise<{ prevId: number | null; nextId: number | null }> => {
+  const inFilter = await findAdminChatFirst(
+    { AND: [listWhere, { id: current.id }] },
+    [{ id: 'desc' }]
+  );
+
+  // 현재 방이 목록 필터 밖이면 잘못된 prev/next를 주지 않는다.
+  if (inFilter == null) {
+    return { prevId: null, nextId: null };
+  }
+
+  const { prevWhere, nextWhere } = createAdminChatNeighborWhere(current);
+
+  const [prev, next] = await Promise.all([
+    findAdminChatFirst({ AND: [listWhere, prevWhere] }, adminChatPrevOrderBy),
+    findAdminChatFirst({ AND: [listWhere, nextWhere] }, adminChatListOrderBy),
+  ]);
+
+  return {
+    prevId: prev?.id ?? null,
+    nextId: next?.id ?? null,
+  };
+};
+
 /** 관리자 채팅방 상세 조회 */
 export const getAdminChatDetail = async (
-  roomId: number
+  roomId: number,
+  query: AdminChatDetailQuery
 ): Promise<AdminChatDetailDto> => {
   const room = await findAdminChatRoomDetail(roomId);
 
   if (!room) {
     throw new AppError('ADMIN_CHAT_ROOM_NOT_FOUND');
   }
+
+  const listWhere = buildAdminChatListWhere(query);
+  const { prevId, nextId } = await findAdminChatNeighborIds(listWhere, {
+    id: room.id,
+    lastMessageAt: room.lastMessageAt,
+    updatedAt: room.updatedAt,
+  });
 
   return {
     id: room.id,
@@ -174,6 +270,8 @@ export const getAdminChatDetail = async (
     lastMessageAt: room.lastMessageAt,
     createdAt: room.createdAt,
     updatedAt: room.updatedAt,
+    prevId,
+    nextId,
     participants: pickLatestParticipantsByUser(room.participants).map(
       toAdminChatParticipantDto
     ),
@@ -207,9 +305,6 @@ export const getAdminChatMessages = async (
 
   return {
     messages: messageItems,
-    meta: {
-      hasNext,
-      nextCursor: hasNext && oldestMessage ? oldestMessage.id : null,
-    },
+    meta: buildCursorPaginationMeta(hasNext, oldestMessage?.id),
   };
 };

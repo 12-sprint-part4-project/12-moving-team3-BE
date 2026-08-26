@@ -3,6 +3,7 @@ import * as adminReviewController from '../controllers/admin-review.controller';
 import { requireAdmin } from '../middlewares/auth.middleware';
 import { validateRequest } from '../middlewares/validate.middleware';
 import {
+  adminReviewDetailQuerySchema,
   adminReviewListQuerySchema,
   adminReviewParamsSchema,
 } from '../schemas/admin-review.schema';
@@ -30,6 +31,18 @@ router.get(
     errorCode: 'ADMIN_INVALID_QUERY_PARAM',
   }),
   adminReviewController.getReviewStatistics
+);
+
+// 리뷰 상세 조회 — statistics 뒤, delete와 같은 :reviewId 경로
+router.get(
+  '/:reviewId',
+  requireAdmin,
+  validateRequest({
+    params: adminReviewParamsSchema,
+    query: adminReviewDetailQuerySchema,
+    errorCode: 'ADMIN_INVALID_QUERY_PARAM',
+  }),
+  adminReviewController.getAdminReviewDetail
 );
 
 // 리뷰 soft delete — `/:reviewId`가 statistics 등으로 잡히지 않게 통계 라우트 뒤에 둔다

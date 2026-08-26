@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { adminReviewListQuerySchema } from './admin-review.schema';
+import {
+  adminReviewDetailQuerySchema,
+  adminReviewListQuerySchema,
+} from './admin-review.schema';
 
 describe('adminReviewListQuerySchema', () => {
   it('deletionStatus가 없으면 전체 조회를 위해 undefined로 유지한다', () => {
@@ -56,6 +59,24 @@ describe('adminReviewListQuerySchema', () => {
 
   it('moverName이 공백만 있으면 검증에 실패한다', () => {
     const result = adminReviewListQuerySchema.safeParse({ moverName: '   ' });
+
+    assert.equal(result.success, false);
+  });
+});
+
+describe('adminReviewDetailQuerySchema', () => {
+  it('page/pageSize 없이 파싱하고 sort 기본값은 DESC다', () => {
+    const result = adminReviewDetailQuerySchema.parse({});
+
+    assert.equal(result.sort, 'DESC');
+    assert.equal('page' in result, false);
+    assert.equal('pageSize' in result, false);
+  });
+
+  it('endDate만 있으면 검증에 실패한다', () => {
+    const result = adminReviewDetailQuerySchema.safeParse({
+      endDate: '2026-08-31',
+    });
 
     assert.equal(result.success, false);
   });

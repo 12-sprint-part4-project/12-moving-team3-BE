@@ -71,7 +71,10 @@ export interface AdminChatDetailDto {
   lastMessageAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  /** 목록과 동일 참여자 DTO. 재참여 중복 정규화는 Service에서 처리한다. */
+  /** 목록 필터·정렬 기준 이전 건. 없으면 null */
+  prevId: number | null;
+  /** 목록 필터·정렬 기준 다음 건. 없으면 null */
+  nextId: number | null;
   participants: AdminChatParticipantDto[];
 }
 

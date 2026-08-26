@@ -4,7 +4,7 @@ import { chatMessagesQuerySchema } from './chat-messages-query.schema';
 
 /** POST /api/chat/rooms — 견적(GENERAL·DESIGNATED) 채팅방 생성 body */
 const createEstimateChatRoomBodySchema = z.object({
-  moverId: z.string(), // 테스트 후 UUID로 변경 필요
+  moverId: z.uuid(),
   estimateRequestId: z.number().int().positive().optional(),
   designatedMoverId: z.number().int().positive().optional(),
   quoteId: z.number().int().positive().optional(),

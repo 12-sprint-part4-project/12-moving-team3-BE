@@ -1,4 +1,5 @@
 import type { MessageType, UserType } from '@prisma/client';
+import type { ChatFilterAction, ChatFilterReasonCode } from '../dtos/chat.dto';
 import type { Server, Socket } from 'socket.io';
 import type { ApiUserType } from '../schemas/auth.schema';
 
@@ -42,6 +43,9 @@ export interface ChatMessagePayload {
     messageType: MessageType;
     content: string;
     isFiltered: boolean;
+    /** 전송 직후 payload에만 포함 (#432). 이력 조회 소켓 replay 없음 */
+    filterAction?: ChatFilterAction;
+    filterReasonCodes?: ChatFilterReasonCode[];
     attachments: string[];
     createdAt: string;
   };

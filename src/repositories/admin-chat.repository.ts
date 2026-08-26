@@ -122,7 +122,7 @@ export interface AdminChatLastMessageRow {
  * 목록/카운트에 공통으로 쓰는 where.
  * id·userName·roomType만 반영하며, 탈퇴 User·이탈 Participant는 제외하지 않는다.
  */
-const buildAdminChatListWhere = (
+export const buildAdminChatListWhere = (
   params: Pick<AdminChatListQuery, 'id' | 'userName' | 'roomType'>
 ): Prisma.ChatRoomWhereInput => {
   const where: Prisma.ChatRoomWhereInput = {};
@@ -176,6 +176,18 @@ export const findAdminChatRoomsWithCount = async (
   ]);
 
   return { items, totalCount };
+};
+
+/** 목록 필터·정렬 기준 인접 건 조회. id만 필요하므로 select를 최소로 둔다. */
+export const findAdminChatFirst = async (
+  where: Prisma.ChatRoomWhereInput,
+  orderBy: Prisma.ChatRoomOrderByWithRelationInput[]
+): Promise<{ id: number } | null> => {
+  return prisma.chatRoom.findFirst({
+    where,
+    orderBy,
+    select: { id: true },
+  });
 };
 
 /**

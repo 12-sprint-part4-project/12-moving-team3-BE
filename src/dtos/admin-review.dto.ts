@@ -38,3 +38,11 @@ export interface AdminReviewListResultDto {
   items: AdminReviewListItemDto[];
   pagination: PaginationDto;
 }
+
+/** 관리자 리뷰 상세 조회 응답 DTO */
+export interface AdminReviewDetailDto extends AdminReviewListItemDto {
+  /** 목록 필터·정렬 기준 이전 건. 없으면 null */
+  prevId: number | null;
+  /** 목록 필터·정렬 기준 다음 건. 없으면 null */
+  nextId: number | null;
+}

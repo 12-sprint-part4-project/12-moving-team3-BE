@@ -33,7 +33,9 @@ import {
   runWithManualAudit,
 } from '../lib/audit-context';
 import {
+  buildAdminReportListWhere,
   findAdminReportById,
+  findAdminReportFirst,
   findAdminReportsWithCount,
   findReportDetailTargetArticleById,
   findReportDetailTargetCommentById,
@@ -73,7 +75,9 @@ import {
 } from '../repositories/admin-member.repository';
 import { createHistory } from '../repositories/history.repository';
 import { upsertSuspendedUserStatus } from '../repositories/user-status.repository';
+import type { SortDirection } from '../schemas/admin-list-query.schema';
 import type {
+  AdminReportDetailQuery,
   AdminReportListQuery,
   AdminReportProcessAction,
 } from '../schemas/admin-report.schema';
@@ -866,11 +870,93 @@ const toAvailableActions = (
 };
 
 /**
+ * 목록과 같은 createdAt+id 정렬에서 이전·다음 ID를 찾는다.
+ * createdAt은 null이 아니므로 견적 요청의 nullable 날짜 분기는 쓰지 않는다.
+ */
+const findAdminReportNeighborIds = async (
+  listWhere: Prisma.UserReportWhereInput,
+  current: { id: number; createdAt: Date },
+  sort: SortDirection
+): Promise<{ prevId: number | null; nextId: number | null }> => {
+  const inFilter = await findAdminReportFirst(
+    { AND: [listWhere, { id: current.id }] },
+    [{ id: 'desc' }]
+  );
+
+  if (inFilter == null) {
+    return { prevId: null, nextId: null };
+  }
+
+  const isAsc = sort === 'ASC';
+  const prevWhere: Prisma.UserReportWhereInput = isAsc
+    ? {
+        OR: [
+          { createdAt: { lt: current.createdAt } },
+          { createdAt: current.createdAt, id: { gt: current.id } },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { gt: current.createdAt } },
+          { createdAt: current.createdAt, id: { gt: current.id } },
+        ],
+      };
+  const nextWhere: Prisma.UserReportWhereInput = isAsc
+    ? {
+        OR: [
+          { createdAt: { gt: current.createdAt } },
+          { createdAt: current.createdAt, id: { lt: current.id } },
+        ],
+      }
+    : {
+        OR: [
+          { createdAt: { lt: current.createdAt } },
+          { createdAt: current.createdAt, id: { lt: current.id } },
+        ],
+      };
+  const prevOrderBy: Prisma.UserReportOrderByWithRelationInput[] = isAsc
+    ? [{ createdAt: 'desc' }, { id: 'asc' }]
+    : [{ createdAt: 'asc' }, { id: 'asc' }];
+  const nextOrderBy: Prisma.UserReportOrderByWithRelationInput[] = isAsc
+    ? [{ createdAt: 'asc' }, { id: 'desc' }]
+    : [{ createdAt: 'desc' }, { id: 'desc' }];
+
+  const [prev, next] = await Promise.all([
+    findAdminReportFirst({ AND: [listWhere, prevWhere] }, prevOrderBy),
+    findAdminReportFirst({ AND: [listWhere, nextWhere] }, nextOrderBy),
+  ]);
+
+  return {
+    prevId: prev?.id ?? null,
+    nextId: next?.id ?? null,
+  };
+};
+
+const resolveAdminReportListWhere = async (query: AdminReportDetailQuery) => {
+  let targetIds: AdminReportTargetIdsByKeyword | undefined;
+
+  if (query.userName) {
+    targetIds = await findReportTargetIdsByTargetUserKeyword(query.userName);
+  }
+
+  return buildAdminReportListWhere({
+    id: query.id,
+    status: query.status,
+    target: query.target,
+    reportedFrom: query.reportedFrom,
+    reportedTo: query.reportedTo,
+    targetIds,
+  });
+};
+
+/**
  * 관리자 신고 상세 조회.
  * 기존 targetInfo/content는 유지하고, 처리 Action용 targetUser·reportedContent를 추가한다.
+ * query는 목록과 같은 필터·정렬로 prevId/nextId를 계산한다.
  */
 export const getAdminReportDetail = async (
-  reportId: number
+  reportId: number,
+  query: AdminReportDetailQuery
 ): Promise<AdminReportDetailDto> => {
   const report = await findAdminReportById(reportId);
 
@@ -913,6 +999,13 @@ export const getAdminReportDetail = async (
       ? reportedLoad.result
       : { kind: 'no_content' };
 
+  const listWhere = await resolveAdminReportListWhere(query);
+  const { prevId, nextId } = await findAdminReportNeighborIds(
+    listWhere,
+    { id: report.id, createdAt: report.createdAt },
+    query.sort ?? 'DESC'
+  );
+
   return {
     id: report.id,
     target: report.target,
@@ -939,6 +1032,8 @@ export const getAdminReportDetail = async (
       sanctionUserResult,
       contentResultForActions
     ),
+    prevId,
+    nextId,
   };
 };
 

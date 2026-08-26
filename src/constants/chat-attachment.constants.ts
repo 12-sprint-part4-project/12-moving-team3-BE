@@ -26,6 +26,9 @@ const CHAT_ATTACHMENT_KEY_PATTERN = new RegExp(
   'i'
 );
 
+/** 업로드만 하고 메시지에 연결되지 않은 S3 객체 정리 대기 시간 */
+export const CHAT_ATTACHMENT_ORPHAN_MIN_AGE_MS = 24 * 60 * 60 * 1000;
+
 /** IMAGE 메시지 attachments에 넣을 s3Key 형식이 유효한지 확인한다. */
 export const isValidChatAttachmentKey = (fileKey: string): boolean => {
   return CHAT_ATTACHMENT_KEY_PATTERN.test(fileKey);
