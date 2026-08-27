@@ -14,6 +14,7 @@
  *   SEED_COMMUNITY_BOARD_COUNT=50      일반 게시판 글 수 (MOVING_TIP/QUESTION/REVIEW/ETC 합계)
  *   SEED_COMMUNITY_FURNITURE_COUNT=50  가구나눔(FURNITURE_SHARE) 글 수
  *   SEED_COMMUNITY_RESET=1             시작 시 커뮤니티 4테이블 + COMMUNITY 채팅 전체 삭제 (0=삭제 없이 append)
+ *   SEED_COMMUNITY_WITH_IMAGES=1       picsum.photos 더미 이미지를 S3(posts/)에 업로드 (0=이미지 생략)
  *   SEED_COMMUNITY_SEED=20260827       유사난수(PRNG) 시작값 — 같으면 항상 동일 데이터
  *
  * 재실행: RESET=1이면 커뮤니티/COMMUNITY 채팅 데이터를 매번 싹 비우고 다시 만든다.
@@ -21,15 +22,18 @@
  * ── Sprint 진행 상황 ──
  *   [x] Sprint 1  스크립트 뼈대 · 초기화 · 작성자 조회 · 게시글 생성
  *   [x] Sprint 2  댓글 · 대댓글 · 좋아요 + 카운터(commentCount/likeCount/viewCount) 동기화
- *   [ ] Sprint 3  게시글 이미지 (picsum → S3 업로드)
+ *   [x] Sprint 3  게시글 이미지 (picsum.photos → S3 posts/ 업로드, manifest 기록)
  */
 import 'dotenv/config';
 
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { PostsCategory, Region } from '@prisma/client';
 
+import { s3Client } from '../src/config/s3';
 import { runWithManualAudit } from '../src/lib/audit-context';
 import { prisma } from '../src/lib/prisma';
 import { deleteS3KeysSafely } from '../src/services/orphan-s3-cleanup.service';
@@ -50,8 +54,12 @@ const FURNITURE_COUNT = parseCount(
   50
 );
 const RESET = (process.env.SEED_COMMUNITY_RESET ?? '1') !== '0';
+const WITH_IMAGES = (process.env.SEED_COMMUNITY_WITH_IMAGES ?? '1') !== '0';
 const PRNG_SEED =
   Number(process.env.SEED_COMMUNITY_SEED ?? 20260827) || 20260827;
+
+/** 게시판 글이 이미지를 가질 확률 (가구나눔은 항상 1~4장) */
+const BOARD_IMAGE_RATE = 0.35;
 
 /** 게시글 createdAt 을 흩뿌릴 최근 구간(일) */
 const DAYS_BACK = 180;
@@ -810,6 +818,7 @@ const resetCommunityDb = async (): Promise<ResetResult> => {
 interface CreatedPost {
   id: number;
   authorId: string;
+  category: PostsCategory;
   createdAt: Date;
 }
 
@@ -860,7 +869,12 @@ const createPosts = async (
       },
       select: { id: true },
     });
-    created.push({ id: row.id, authorId: author.id, createdAt });
+    created.push({
+      id: row.id,
+      authorId: author.id,
+      category: spec.category,
+      createdAt,
+    });
   }
 
   return created;
@@ -968,6 +982,83 @@ const createEngagement = async (
   return totals;
 };
 
+/* ─────────────────────────── 게시글 이미지 ─────────────────────────── */
+
+interface ImageTotals {
+  uploaded: number;
+  failed: number;
+  s3Keys: string[];
+}
+
+const PICSUM_W = 800;
+const PICSUM_H = 600;
+
+/** picsum.photos 에서 더미 JPEG 를 받아 Buffer 로 반환 (리다이렉트 자동 추적) */
+const fetchPicsum = async (seedStr: string): Promise<Buffer> => {
+  const url = `https://picsum.photos/seed/${encodeURIComponent(
+    seedStr
+  )}/${PICSUM_W}/${PICSUM_H}`;
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) {
+    throw new Error(`picsum ${res.status}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+};
+
+/**
+ * 게시글 이미지: picsum 더미 → S3(posts/) 업로드 → post_images INSERT.
+ * - 가구나눔: 전부 1~4장 필수 / 게시판: BOARD_IMAGE_RATE 확률로 1~4장
+ * - key: posts/{uuidv4}_seed-{postId}-{i}.jpg  (POST_IMAGE_S3_KEY_PATTERN 충족)
+ * - 실패(네트워크/S3) 시 해당 이미지만 건너뛰고 경고, 게시글은 유지
+ * - 업로드한 key 는 manifest.s3Keys 로 반환 → 다음 실행의 RESET 이 정리
+ */
+const createImages = async (
+  posts: CreatedPost[],
+  prng: Prng
+): Promise<ImageTotals> => {
+  const bucket = process.env.AWS_S3_BUCKET_NAME;
+  if (!bucket) {
+    throw new Error('AWS_S3_BUCKET_NAME 이 없습니다 (.env 확인)');
+  }
+
+  const result: ImageTotals = { uploaded: 0, failed: 0, s3Keys: [] };
+
+  for (const post of posts) {
+    const isFurniture = post.category === 'FURNITURE_SHARE';
+    const count =
+      isFurniture || prng.chance(BOARD_IMAGE_RATE) ? prng.int(1, 4) : 0;
+
+    for (let i = 0; i < count; i += 1) {
+      const key = `posts/${randomUUID()}_seed-${post.id}-${i}.jpg`;
+      try {
+        const body = await fetchPicsum(`moving-${post.id}-${i}`);
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            ContentType: 'image/jpeg',
+          })
+        );
+        await prisma.postImage.create({
+          data: { postId: post.id, imageKey: key, createdAt: post.createdAt },
+        });
+        result.s3Keys.push(key);
+        result.uploaded += 1;
+      } catch (error) {
+        result.failed += 1;
+        console.warn(
+          `[image] post ${post.id} #${i} 실패: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
+    }
+  }
+
+  return result;
+};
+
 /* ────────────────────────────── main ────────────────────────────── */
 
 const main = async (): Promise<void> => {
@@ -1050,10 +1141,21 @@ const main = async (): Promise<void> => {
     }
   }
 
+  // 이미지 (picsum → S3) — 네트워크·S3 호출이라 audit 스코프 밖에서, post_images 는 트리거 없음
+  let images: ImageTotals = { uploaded: 0, failed: 0, s3Keys: [] };
+  if (WITH_IMAGES) {
+    logStep('이미지 업로드 중 (picsum.photos → S3 posts/)...');
+    images = await createImages(createdPosts, prng);
+    logStep(`이미지 완료: 업로드 ${images.uploaded}, 실패 ${images.failed}`);
+  } else {
+    logStep('이미지 생략 (SEED_COMMUNITY_WITH_IMAGES=0)');
+  }
+
   saveManifest({
     createdAt: new Date().toISOString(),
     postIds,
-    s3Keys: [], // Sprint 3 에서 업로드한 이미지 key 채움
+    // RESET=1 이면 이전 key 는 이미 S3에서 정리됨 → 이번 것만. RESET=0(append)이면 추적 유지 위해 합침
+    s3Keys: RESET ? images.s3Keys : [...prevManifest.s3Keys, ...images.s3Keys],
   });
 
   // 요약
@@ -1071,9 +1173,9 @@ const main = async (): Promise<void> => {
     comments: engagement.comments,
     replies: engagement.replies,
     likes: engagement.likes,
+    images: { uploaded: images.uploaded, failed: images.failed },
     reset: RESET ? resetResult : 'skipped',
     manifest: MANIFEST_PATH,
-    note: '이미지는 Sprint 3에서 추가됩니다.',
   });
 };
 
