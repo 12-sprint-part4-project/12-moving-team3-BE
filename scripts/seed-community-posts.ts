@@ -20,7 +20,7 @@
  *
  * ── Sprint 진행 상황 ──
  *   [x] Sprint 1  스크립트 뼈대 · 초기화 · 작성자 조회 · 게시글 생성
- *   [ ] Sprint 2  댓글 · 대댓글 · 좋아요 + 카운터 동기화
+ *   [x] Sprint 2  댓글 · 대댓글 · 좋아요 + 카운터(commentCount/likeCount/viewCount) 동기화
  *   [ ] Sprint 3  게시글 이미지 (picsum → S3 업로드)
  */
 import 'dotenv/config';
@@ -69,6 +69,13 @@ const daysAgo = (days: number): Date => {
   return date;
 };
 
+/** start ~ end 사이 임의 시각 (start < end 보장) */
+const randomBetween = (start: Date, end: Date, prng: Prng): Date => {
+  const from = start.getTime();
+  const to = Math.max(from + 1000, end.getTime());
+  return new Date(from + Math.floor(prng.float() * (to - from)));
+};
+
 /**
  * 시드값 기반 결정적 유사난수 생성기(mulberry32).
  * 같은 seed → 항상 같은 난수열 → 항상 같은 시드 데이터.
@@ -84,6 +91,8 @@ const makePrng = (seed: number) => {
   };
 
   return {
+    /** [0, 1) 실수 */
+    float: (): number => next(),
     /** [min, max] 정수 (양끝 포함) */
     int: (min: number, max: number): number =>
       min + Math.floor(next() * (max - min + 1)),
@@ -517,6 +526,56 @@ const FURNITURE_TITLE_TEMPLATES = [
   '{item} 가져가실 분 구해요',
 ] as const;
 
+/* ────────────────────── 콘텐츠 풀 (댓글/대댓글) ───────────────────── */
+
+/** 최상위 댓글 */
+const COMMENT_POOL = [
+  '좋은 정보 감사합니다!',
+  '저도 곧 이사라 참고할게요.',
+  '혹시 비용은 어느 정도 나왔나요?',
+  '사진 보니 상태 괜찮아 보여요.',
+  '아직 나눔 가능한가요?',
+  '직접 수거 가능합니다.',
+  '시간대는 주말이 편해요.',
+  '저도 비슷한 경험 있었어요.',
+  '도움 많이 됐습니다 :)',
+  '이 부분 저도 궁금했는데 덕분에 해결됐네요.',
+  '견적 받을 때 이 항목 꼭 확인해야겠어요.',
+  '후기 잘 봤습니다. 저도 여기 알아봐야겠어요.',
+  '혹시 어느 지역이었나요?',
+  '포장 상태가 꼼꼼해 보이네요.',
+  '저는 반포장으로 했는데 만족했어요.',
+  '댓글 남겨주시면 연락드릴게요.',
+  '정리가 잘 되어 있어서 읽기 편했어요.',
+  '같은 고민 중이었는데 방향 잡혔습니다.',
+  '업체 이름도 공유 가능할까요?',
+  '저장해두고 이사 전에 다시 볼게요.',
+  '생각보다 챙길 게 많네요. 감사합니다.',
+  '혹시 엘리베이터는 있나요?',
+  '수고 많으셨어요!',
+  '좋은 하루 되세요.',
+] as const;
+
+/** 대댓글(답글) — 원 댓글에 답하는 말투 */
+const REPLY_POOL = [
+  '네 아직 가능합니다!',
+  '확인했습니다, 감사합니다.',
+  '내일 오후에 방문 가능하실까요?',
+  '쪽지 드렸어요.',
+  '지역은 근처예요. 상세는 쪽지로 드릴게요.',
+  '비용은 대략 그 정도였어요.',
+  '맞아요, 저도 그렇게 하니 편하더라고요.',
+  '추가 사진은 이따 올려둘게요.',
+  '엘리베이터 있습니다.',
+  '주말 오전이면 저도 괜찮아요.',
+  '좋게 봐주셔서 감사합니다 :)',
+  '그 부분은 업체마다 다르더라고요.',
+  '네, 반포장 추천드려요.',
+  '연락처는 쪽지로 남겨주세요.',
+  '도움이 됐다니 다행이네요!',
+  '가져가실 분 계시면 우선 연락 주세요.',
+] as const;
+
 /* ─────────────────────────── 게시글 스펙 ─────────────────────────── */
 
 interface PostSpec {
@@ -748,16 +807,23 @@ const resetCommunityDb = async (): Promise<ResetResult> => {
 
 /* ─────────────────────────── 게시글 생성 ─────────────────────────── */
 
+interface CreatedPost {
+  id: number;
+  authorId: string;
+  createdAt: Date;
+}
+
 /**
  * 스펙들에 createdAt/updatedAt 을 부여하고 오래된 순으로 INSERT 한다.
  * - createdAt: 최근 DAYS_BACK 일 구간에 흩뿌림(오래된 순으로 id 증가 → 커서 페이지네이션 현실적)
  * - updatedAt: 대부분 createdAt 과 동일, 일부만 이후(수정된 글처럼)
+ * 반환: 이어지는 댓글/좋아요 생성에서 쓸 { id, authorId, createdAt }
  */
 const createPosts = async (
   specs: PostSpec[],
   authors: SeedAuthor[],
   prng: Prng
-): Promise<number[]> => {
+): Promise<CreatedPost[]> => {
   const total = specs.length;
   const now = Date.now();
 
@@ -775,10 +841,10 @@ const createPosts = async (
 
   dated.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-  const postIds: number[] = [];
+  const created: CreatedPost[] = [];
   for (const { spec, createdAt, updatedAt } of dated) {
     const author = prng.pick(authors);
-    const created = await prisma.post.create({
+    const row = await prisma.post.create({
       data: {
         userId: author.id,
         category: spec.category,
@@ -788,16 +854,118 @@ const createPosts = async (
         latitude: spec.latitude,
         longitude: spec.longitude,
         isCompleted: spec.isCompleted,
-        // 카운터(viewCount/likeCount/commentCount)는 기본값 0 — Sprint 2 에서 동기화
+        // 카운터(viewCount/likeCount/commentCount)는 기본값 0 — createEngagement 에서 동기화
         createdAt,
         updatedAt,
       },
       select: { id: true },
     });
-    postIds.push(created.id);
+    created.push({ id: row.id, authorId: author.id, createdAt });
   }
 
-  return postIds;
+  return created;
+};
+
+/* ──────────────────── 댓글 · 대댓글 · 좋아요 ──────────────────── */
+
+interface EngagementTotals {
+  comments: number;
+  replies: number;
+  likes: number;
+}
+
+/**
+ * 게시글별로 댓글/대댓글/좋아요를 생성하고, 비정규화 카운터를 직접 맞춘다.
+ * (댓글 생성 시 commentCount 를 올려주는 건 앱 서비스 로직이지 DB 트리거가 아니므로 여기서 직접 update)
+ * - 최상위 댓글: ~30% 는 0개, 나머지 1~6개. 각 댓글 40% 확률로 대댓글 1~3개 (depth 1)
+ * - 좋아요: 0 ~ min(pool-1, 25)명, 중복 없는 유저 (@@unique[postId,userId] 충돌 방지)
+ * - commentCount = 최상위 + 대댓글 총합 / likeCount = 좋아요 수 / viewCount = 좋아요·댓글 + 랜덤
+ * - 자식 createdAt 은 항상 글 createdAt 이후
+ */
+const createEngagement = async (
+  posts: CreatedPost[],
+  authors: SeedAuthor[],
+  prng: Prng
+): Promise<EngagementTotals> => {
+  const now = new Date();
+  const totals: EngagementTotals = { comments: 0, replies: 0, likes: 0 };
+
+  /** excludeId 와 다른 작성자 우선 (pool 이 1명뿐이면 그대로) */
+  const pickOther = (excludeId: string): SeedAuthor => {
+    if (authors.length === 1) {
+      return authors[0];
+    }
+    let picked = prng.pick(authors);
+    for (let guard = 0; picked.id === excludeId && guard < 6; guard += 1) {
+      picked = prng.pick(authors);
+    }
+    return picked;
+  };
+
+  for (const post of posts) {
+    let postCommentCount = 0;
+
+    // ── 댓글 / 대댓글 ──
+    const topCount = prng.chance(0.3) ? 0 : prng.int(1, 6);
+    for (let t = 0; t < topCount; t += 1) {
+      const commentAuthor = pickOther(post.authorId);
+      const commentCreatedAt = randomBetween(post.createdAt, now, prng);
+      const comment = await prisma.comment.create({
+        data: {
+          postId: post.id,
+          userId: commentAuthor.id,
+          parentId: null,
+          content: prng.pick(COMMENT_POOL),
+          createdAt: commentCreatedAt,
+        },
+        select: { id: true },
+      });
+      postCommentCount += 1;
+      totals.comments += 1;
+
+      if (prng.chance(0.4)) {
+        const replyCount = prng.int(1, 3);
+        const replyRows = Array.from({ length: replyCount }, () => ({
+          postId: post.id,
+          userId: pickOther(commentAuthor.id).id,
+          parentId: comment.id,
+          content: prng.pick(REPLY_POOL),
+          createdAt: randomBetween(commentCreatedAt, now, prng),
+        }));
+        await prisma.comment.createMany({ data: replyRows });
+        postCommentCount += replyCount;
+        totals.replies += replyCount;
+      }
+    }
+
+    // ── 좋아요 (유저 중복 없음 → @@unique[postId,userId] 안전) ──
+    const likeCount = prng.int(0, Math.min(authors.length - 1, 25));
+    const likers = prng.pickN(authors, likeCount);
+    if (likers.length > 0) {
+      await prisma.postLike.createMany({
+        data: likers.map((liker) => ({
+          postId: post.id,
+          userId: liker.id,
+          createdAt: randomBetween(post.createdAt, now, prng),
+        })),
+      });
+    }
+    totals.likes += likers.length;
+
+    // ── 카운터 동기화 ──
+    const viewCount =
+      likers.length * 7 + postCommentCount * 3 + prng.int(10, 400);
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        commentCount: postCommentCount,
+        likeCount: likers.length,
+        viewCount,
+      },
+    });
+  }
+
+  return totals;
 };
 
 /* ────────────────────────────── main ────────────────────────────── */
@@ -833,27 +1001,39 @@ const main = async (): Promise<void> => {
   const prevManifest = loadManifest();
 
   // 삭제·삽입을 한 audit 스킵 스코프로 감싼다 (posts/comments/chat_* 트리거 억제)
-  const { resetResult, postIds } = await runWithManualAudit(async () => {
-    let reset: ResetResult | null = null;
+  const { resetResult, createdPosts, engagement } = await runWithManualAudit(
+    async () => {
+      let reset: ResetResult | null = null;
 
-    if (RESET) {
-      logStep('RESET: 커뮤니티 + COMMUNITY 채팅 데이터 삭제 중...');
-      reset = await resetCommunityDb();
+      if (RESET) {
+        logStep('RESET: 커뮤니티 + COMMUNITY 채팅 데이터 삭제 중...');
+        reset = await resetCommunityDb();
+        logStep(
+          `RESET 완료: chatRooms=${reset.chatRooms}, chatMessages=${reset.chatMessages}, ` +
+            `chatAttachments=${reset.chatAttachments}, posts=${reset.posts}, ` +
+            `comments=${reset.comments}, postLikes=${reset.postLikes}, postImages=${reset.postImages}`
+        );
+      } else {
+        logStep(
+          'RESET 생략 (SEED_COMMUNITY_RESET=0) — 기존 데이터 위에 append'
+        );
+      }
+
+      logStep(`게시글 ${allSpecs.length}건 생성 중...`);
+      const posts = await createPosts(allSpecs, authors, prng);
+      logStep(`게시글 ${posts.length}건 생성 완료`);
+
+      logStep('댓글·대댓글·좋아요 생성 + 카운터 동기화 중...');
+      const totals = await createEngagement(posts, authors, prng);
       logStep(
-        `RESET 완료: chatRooms=${reset.chatRooms}, chatMessages=${reset.chatMessages}, ` +
-          `chatAttachments=${reset.chatAttachments}, posts=${reset.posts}, ` +
-          `comments=${reset.comments}, postLikes=${reset.postLikes}, postImages=${reset.postImages}`
+        `완료: 댓글 ${totals.comments}, 대댓글 ${totals.replies}, 좋아요 ${totals.likes}`
       );
-    } else {
-      logStep('RESET 생략 (SEED_COMMUNITY_RESET=0) — 기존 데이터 위에 append');
+
+      return { resetResult: reset, createdPosts: posts, engagement: totals };
     }
+  );
 
-    logStep(`게시글 ${allSpecs.length}건 생성 중...`);
-    const ids = await createPosts(allSpecs, authors, prng);
-    logStep(`게시글 ${ids.length}건 생성 완료`);
-
-    return { resetResult: reset, postIds: ids };
-  });
+  const postIds = createdPosts.map((post) => post.id);
 
   // S3 best-effort 정리 (DB 무관 — audit 스코프 밖에서)
   if (RESET) {
@@ -888,9 +1068,12 @@ const main = async (): Promise<void> => {
     byCategory: Object.fromEntries(byCategory),
     board: boardSpecs.length,
     furniture: furnitureSpecs.length,
+    comments: engagement.comments,
+    replies: engagement.replies,
+    likes: engagement.likes,
     reset: RESET ? resetResult : 'skipped',
     manifest: MANIFEST_PATH,
-    note: '댓글·대댓글·좋아요·이미지는 Sprint 2~3에서 추가됩니다.',
+    note: '이미지는 Sprint 3에서 추가됩니다.',
   });
 };
 
