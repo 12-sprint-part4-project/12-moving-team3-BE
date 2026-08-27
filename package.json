@@ -15,6 +15,7 @@
     "banned-words:index": "ts-node scripts/index-banned-words.ts",
     "movers:index-embeddings": "ts-node scripts/index-mover-embeddings.ts",
     "movers:seed-demo-vector": "ts-node scripts/seed-demo-vector-movers.ts",
+    "reviews:seed-demo-writable": "ts-node scripts/seed-demo-customer-writable-reviews.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "ssh": "dotenv -- bash -c 'ssh -i \"$SSH_KEY_PATH\" -L 15432:$DB_HOST:5432 $EC2_USER@$EC2_HOST'",
