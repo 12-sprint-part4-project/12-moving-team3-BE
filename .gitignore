@@ -26,6 +26,9 @@ Thumbs.db
 generated/
 /src/generated/prisma
 
+# seed scripts runtime state
+scripts/.seed-community-manifest.json
+
 # archives
 *.zip
 
