@@ -15,9 +15,11 @@
  *   SEED_COMMUNITY_FURNITURE_COUNT=50  가구나눔(FURNITURE_SHARE) 글 수
  *   SEED_COMMUNITY_RESET=1             시작 시 커뮤니티 4테이블 + COMMUNITY 채팅 + ARTICLE/COMMENT 신고 전체 삭제 (0=삭제 없이 append)
  *   SEED_COMMUNITY_WITH_IMAGES=1       picsum.photos 더미 이미지를 S3(posts/)에 업로드 (0=이미지 생략)
+ *   SEED_COMMUNITY_DRY_RUN=1           DB/S3 안 건드리고 생성될 콘텐츠 샘플만 출력 (미리보기)
  *   SEED_COMMUNITY_SEED=20260827       유사난수(PRNG) 시작값 — 같으면 항상 동일 데이터
  *
  * 재실행: RESET=1이면 커뮤니티/COMMUNITY 채팅 데이터를 매번 싹 비우고 다시 만든다.
+ * 미리보기: SEED_COMMUNITY_DRY_RUN=1 npx ts-node scripts/seed-community-posts.ts
  *
  * ── Sprint 진행 상황 ──
  *   [x] Sprint 1  스크립트 뼈대 · 초기화 · 작성자 조회 · 게시글 생성
@@ -55,6 +57,8 @@ const FURNITURE_COUNT = parseCount(
 );
 const RESET = (process.env.SEED_COMMUNITY_RESET ?? '1') !== '0';
 const WITH_IMAGES = (process.env.SEED_COMMUNITY_WITH_IMAGES ?? '1') !== '0';
+/** DB/S3 를 전혀 건드리지 않고 생성될 콘텐츠 샘플만 출력 */
+const DRY_RUN = process.env.SEED_COMMUNITY_DRY_RUN === '1';
 const PRNG_SEED =
   Number(process.env.SEED_COMMUNITY_SEED ?? 20260827) || 20260827;
 
@@ -328,6 +332,16 @@ const BOARD_TOPICS = [
   '대형폐기물 처리',
   '이사 박스 구하기',
   '반려동물 이사',
+  '피아노 운반',
+  '가전 재설치',
+  '보증금 반환',
+  '벽지·바닥 원상복구',
+  '짐 보관 서비스',
+  '층간소음 인사',
+  '이사 비용 절약',
+  '주말 이사 예약',
+  '신축 입주 청소',
+  '이사 짐 정리 대행',
 ] as const;
 
 const BOARD_TITLE_TEMPLATES: Record<
@@ -339,18 +353,29 @@ const BOARD_TITLE_TEMPLATES: Record<
     '{topic} 관련해서 조언 구합니다',
     '{topic}, 다들 어떻게 하시나요?',
     '{topic} 처음이라 막막해요',
+    '{topic} 이거 정상인가요?',
+    '{topic} 비용 얼마나 드나요?',
   ],
   REVIEW: [
     '{topic} 후기 남깁니다',
     '{topic} 이용 후기 (전반적으로 만족)',
     '{topic} 진행하고 왔어요',
+    '{topic} solo로 해본 후기',
+    '{topic} 업체 통해 해결한 후기',
   ],
   MOVING_TIP: [
     '{topic} 팁 공유해요',
     '{topic} 이렇게 하니 편하더라고요',
     '{topic} 노하우 정리',
+    '{topic} 체크리스트 만들어봤어요',
+    '{topic}, 이것만 알아도 반은 성공',
   ],
-  ETC: ['{topic} 관련 잡담', '{topic} 이야기 나눠요', '{topic} 경험담 공유'],
+  ETC: [
+    '{topic} 관련 잡담',
+    '{topic} 이야기 나눠요',
+    '{topic} 경험담 공유',
+    '{topic} 하다가 있었던 일',
+  ],
 };
 
 const BOARD_BODY_SENTENCES = [
@@ -364,6 +389,12 @@ const BOARD_BODY_SENTENCES = [
   '관리사무소에 엘리베이터와 주차 협조를 미리 요청해두세요.',
   '포장재는 생각보다 많이 쓰이니 넉넉히 준비하는 게 마음 편합니다.',
   '비슷한 상황이신 분들 경험도 댓글로 나눠주시면 좋겠어요.',
+  '결국 사람이 하는 일이라 소통이 잘 되는 곳이 제일 편했어요.',
+  '현관 폭이랑 엘리베이터 크기를 미리 재두니 당일에 훨씬 수월했습니다.',
+  '냉장고·세탁기는 물빼기와 성에 제거를 전날 해두는 게 좋아요.',
+  '계약서에 파손 보상 기준이 있는지 꼭 확인하세요.',
+  '작은 짐은 미리 옮겨두면 당일 인건비를 아낄 수 있습니다.',
+  '입주 청소를 먼저 하고 짐을 들이는 순서가 편하더라고요.',
 ] as const;
 
 const BOARD_CATEGORY_WEIGHTS: readonly (readonly [
@@ -503,6 +534,16 @@ const FURNITURE_ITEMS = [
   '싱글 매트리스',
   '사무용 의자',
   '공기청정기',
+  '3단 이동식 서랍',
+  '수납 스툴',
+  '접이식 밥상',
+  '주방 수납 선반',
+  '벽걸이 옷걸이',
+  '아기 침대',
+  '유아용 식탁 의자',
+  '원목 화분 받침',
+  '거실 러그',
+  '스탠드형 옷걸이',
 ] as const;
 
 const FURNITURE_CONDITIONS = [
@@ -514,6 +555,10 @@ const FURNITURE_CONDITIONS = [
   '생활 스크래치 정도 있습니다.',
   '거의 새것 상태입니다.',
   '분해해서 드릴 수 있어요.',
+  '냄새나 얼룩 없이 깨끗합니다.',
+  '한 번도 야외에서 쓴 적 없어요.',
+  '다리 흔들림 없이 안정적입니다.',
+  '색상은 화이트/우드톤입니다.',
 ] as const;
 
 const FURNITURE_PICKUPS = [
@@ -524,6 +569,19 @@ const FURNITURE_PICKUPS = [
   '평일 저녁이나 주말에 픽업 가능해요.',
   '미리 연락 주시면 시간 맞춰볼게요.',
   '선착순으로 나눔합니다.',
+  '이번 주 안에 가져가실 분이면 좋겠어요.',
+  '문 앞까지는 빼드릴 수 있습니다.',
+  '성인 2분이 오시는 걸 추천드려요.',
+  '치수는 댓글로 문의 주세요.',
+] as const;
+
+/** 가구나눔 본문 뒤에 가끔 덧붙는 한 줄 */
+const FURNITURE_EXTRAS = [
+  '사진 추가로 필요하시면 말씀해 주세요.',
+  '멀쩡한데 버리기 아까워서 올립니다.',
+  '좋은 분께 갔으면 좋겠네요.',
+  '연락 없이 예약만 하고 안 오시는 경우가 많아 부탁드려요.',
+  '반려동물 있는 집에서 사용했습니다.',
 ] as const;
 
 const FURNITURE_TITLE_TEMPLATES = [
@@ -532,6 +590,8 @@ const FURNITURE_TITLE_TEMPLATES = [
   '{item} 필요하신 분 계신가요',
   '{region} {item} 나눔',
   '{item} 가져가실 분 구해요',
+  '{region} {item} 무료 나눔 (직접 수거)',
+  '{item} 나눔 — 오늘/내일 픽업 가능',
 ] as const;
 
 /* ────────────────────── 콘텐츠 풀 (댓글/대댓글) ───────────────────── */
@@ -562,6 +622,12 @@ const COMMENT_POOL = [
   '혹시 엘리베이터는 있나요?',
   '수고 많으셨어요!',
   '좋은 하루 되세요.',
+  '치수 정보도 같이 적어주시면 좋을 것 같아요.',
+  '저도 지난달에 여기 이용했는데 공감됩니다.',
+  '이 글 덕분에 헷갈리던 게 정리됐어요.',
+  '아직이면 제가 가져가고 싶은데 가능할까요?',
+  '주말에 방문 가능하면 연락 주세요.',
+  '경험 공유 감사합니다. 도움 많이 됐어요.',
 ] as const;
 
 /** 대댓글(답글) — 원 댓글에 답하는 말투 */
@@ -582,6 +648,10 @@ const REPLY_POOL = [
   '연락처는 쪽지로 남겨주세요.',
   '도움이 됐다니 다행이네요!',
   '가져가실 분 계시면 우선 연락 주세요.',
+  '치수는 가로 120 세로 60 정도예요.',
+  '오늘 저녁까지 답 없으면 다음 분께 넘길게요.',
+  '지금 예약하시면 내일 픽업 가능합니다.',
+  '아쉽지만 방금 다른 분이 가져가셨어요.',
 ] as const;
 
 /* ─────────────────────────── 게시글 스펙 ─────────────────────────── */
@@ -662,9 +732,12 @@ const buildFurnitureSpecs = (count: number, prng: Prng): PostSpec[] => {
       .pick(FURNITURE_TITLE_TEMPLATES)
       .replace('{item}', item)
       .replace('{region}', REGION_META[region].label);
-    const content = `${prng.pick(FURNITURE_CONDITIONS)} ${prng.pick(
+    const base = `${prng.pick(FURNITURE_CONDITIONS)} ${prng.pick(
       FURNITURE_PICKUPS
     )}`;
+    const content = prng.chance(0.5)
+      ? `${base}\n\n${prng.pick(FURNITURE_EXTRAS)}`
+      : base;
 
     specs.push(toSpec(region, title, content));
   }
@@ -1086,12 +1159,52 @@ const createImages = async (
   return result;
 };
 
+/* ───────────────────────────── dry-run ───────────────────────────── */
+
+/** DB/S3 를 건드리지 않고 생성될 콘텐츠 분포·샘플만 출력한다 */
+const printDryRun = (
+  boardSpecs: PostSpec[],
+  furnitureSpecs: PostSpec[],
+  authorCount: number
+): void => {
+  const all = [...boardSpecs, ...furnitureSpecs];
+  const byCategory = new Map<PostsCategory, number>();
+  for (const spec of all) {
+    byCategory.set(spec.category, (byCategory.get(spec.category) ?? 0) + 1);
+  }
+
+  console.log('\n===== DRY RUN (DB/S3 변경 없음) =====');
+  console.log(
+    `작성자 pool ${authorCount}명 / 게시판 ${boardSpecs.length} + 가구나눔 ${furnitureSpecs.length} = ${all.length}건`
+  );
+  console.log('카테고리 분포:', Object.fromEntries(byCategory));
+
+  const sample = (label: string, specs: PostSpec[]): void => {
+    // 앞쪽(손으로 쓴 showcase) 3개 + 뒤쪽(템플릿 filler) 3개
+    const picks = [...specs.slice(0, 3), ...specs.slice(-3)];
+    console.log(`\n── ${label} 샘플 (showcase 3 + filler 3) ──`);
+    for (const spec of picks) {
+      const meta =
+        spec.category === 'FURNITURE_SHARE'
+          ? ` [${spec.region}, isCompleted=${spec.isCompleted}]`
+          : '';
+      console.log(`• (${spec.category}${meta}) ${spec.title}`);
+      console.log(`  ${spec.content.replace(/\n+/g, ' / ')}`);
+    }
+  };
+
+  sample('게시판', boardSpecs);
+  sample('가구나눔', furnitureSpecs);
+  console.log('\n(실제 실행하려면 SEED_COMMUNITY_DRY_RUN 없이 다시 실행)');
+};
+
 /* ────────────────────────────── main ────────────────────────────── */
 
 const main = async (): Promise<void> => {
   logStep('커뮤니티 시드 시작');
   logStep(
-    `설정: board=${BOARD_COUNT}, furniture=${FURNITURE_COUNT}, reset=${RESET}, seed=${PRNG_SEED}`
+    `설정: board=${BOARD_COUNT}, furniture=${FURNITURE_COUNT}, reset=${RESET}, ` +
+      `images=${WITH_IMAGES}, dryRun=${DRY_RUN}, seed=${PRNG_SEED}`
   );
 
   logStep('DB 연결 확인 (SELECT 1) — 실패하면 SSH 터널(npm run ssh) 확인');
@@ -1115,6 +1228,11 @@ const main = async (): Promise<void> => {
   const boardSpecs = buildBoardSpecs(BOARD_COUNT, prng);
   const furnitureSpecs = buildFurnitureSpecs(FURNITURE_COUNT, prng);
   const allSpecs = [...boardSpecs, ...furnitureSpecs];
+
+  if (DRY_RUN) {
+    printDryRun(boardSpecs, furnitureSpecs, authors.length);
+    return;
+  }
 
   const prevManifest = loadManifest();
 
