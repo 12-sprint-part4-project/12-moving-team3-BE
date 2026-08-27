@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { UserReportStatus, UserReportTarget } from '@prisma/client';
 import {
+  adminReportDetailParamsSchema,
   adminReportDetailQuerySchema,
   adminReportListQuerySchema,
   adminReportProcessBodySchema,
@@ -36,6 +38,37 @@ describe('adminReportListQuerySchema', () => {
       'DESC'
     );
   });
+
+  it('status와 target enum만 허용한다', () => {
+    assert.equal(
+      adminReportListQuerySchema.parse({ status: 'PENDING' }).status,
+      UserReportStatus.PENDING
+    );
+    assert.equal(
+      adminReportListQuerySchema.parse({ target: 'REVIEW' }).target,
+      UserReportTarget.REVIEW
+    );
+    assert.equal(
+      adminReportListQuerySchema.safeParse({ status: 'INVALID' }).success,
+      false
+    );
+  });
+
+  it('page와 pageSize 경계값을 검증한다', () => {
+    assert.equal(adminReportListQuerySchema.parse({ page: '1' }).page, 1);
+    assert.equal(
+      adminReportListQuerySchema.parse({ pageSize: '50' }).pageSize,
+      50
+    );
+    assert.equal(
+      adminReportListQuerySchema.safeParse({ page: '0' }).success,
+      false
+    );
+    assert.equal(
+      adminReportListQuerySchema.safeParse({ pageSize: '51' }).success,
+      false
+    );
+  });
 });
 
 describe('adminReportDetailQuerySchema', () => {
@@ -53,6 +86,25 @@ describe('adminReportDetailQuerySchema', () => {
     });
 
     assert.equal(result.success, false);
+  });
+});
+
+describe('adminReportDetailParamsSchema', () => {
+  it('reportId 문자열을 양의 정수로 변환한다', () => {
+    const result = adminReportDetailParamsSchema.parse({ reportId: '26' });
+
+    assert.equal(result.reportId, 26);
+  });
+
+  it('reportId가 0이거나 음수이면 검증에 실패한다', () => {
+    assert.equal(
+      adminReportDetailParamsSchema.safeParse({ reportId: '0' }).success,
+      false
+    );
+    assert.equal(
+      adminReportDetailParamsSchema.safeParse({ reportId: '-1' }).success,
+      false
+    );
   });
 });
 
