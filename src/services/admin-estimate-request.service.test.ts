@@ -15,7 +15,8 @@ import {
 
 const START_DATE = new Date('2026-08-01T00:00:00.000Z');
 const END_DATE = new Date('2026-08-26T00:00:00.000Z');
-const RANGE_LT = new Date('2026-08-27T00:00:00.000Z');
+const DATETIME_GTE = new Date('2026-07-31T15:00:00.000Z');
+const DATETIME_LT = new Date('2026-08-26T15:00:00.000Z');
 const SUBMITTED_AT = new Date('2026-08-15T00:00:00.000Z');
 
 const defaultListQuery: AdminEstimateRequestListQuery = {
@@ -166,8 +167,8 @@ describe('getEstimateRequestList', () => {
     });
 
     assert.deepEqual(receivedWhere?.submittedAt, {
-      gte: START_DATE,
-      lt: RANGE_LT,
+      gte: DATETIME_GTE,
+      lt: DATETIME_LT,
     });
   });
 

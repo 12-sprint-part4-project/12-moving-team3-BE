@@ -22,6 +22,8 @@ import {
 const START_DATE = new Date('2026-08-01T00:00:00.000Z');
 const END_DATE = new Date('2026-08-26T00:00:00.000Z');
 const RANGE_LT = new Date('2026-08-27T00:00:00.000Z');
+const DATETIME_GTE = new Date('2026-07-31T15:00:00.000Z');
+const DATETIME_LT = new Date('2026-08-26T15:00:00.000Z');
 const CHART_START = new Date('2026-08-20T00:00:00.000Z');
 const CHART_END = new Date('2026-08-26T03:00:00.000Z');
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,16 +79,16 @@ describe('getStatistics', () => {
 
     assert.deepEqual(userWhere, {
       deletedAt: null,
-      createdAt: { gte: START_DATE, lt: RANGE_LT },
+      createdAt: { gte: DATETIME_GTE, lt: DATETIME_LT },
     });
     assert.deepEqual(requestWheres[0], {
       status: { not: EstimateRequestStatus.DRAFT },
-      submittedAt: { gte: START_DATE, lt: RANGE_LT },
+      submittedAt: { gte: DATETIME_GTE, lt: DATETIME_LT },
     });
     assert.deepEqual(quoteWhere, {
       status: { not: QuoteStatus.REJECTED },
       deletedAt: null,
-      createdAt: { gte: START_DATE, lt: RANGE_LT },
+      createdAt: { gte: DATETIME_GTE, lt: DATETIME_LT },
     });
     assert.deepEqual(requestWheres[1], {
       status: EstimateRequestStatus.COMPLETED,
@@ -94,7 +96,7 @@ describe('getStatistics', () => {
     });
     assert.deepEqual(reportWhere, {
       status: UserReportStatus.PENDING,
-      createdAt: { gte: START_DATE, lt: RANGE_LT },
+      createdAt: { gte: DATETIME_GTE, lt: DATETIME_LT },
     });
     assert.deepEqual(result, {
       userCount: 10,
