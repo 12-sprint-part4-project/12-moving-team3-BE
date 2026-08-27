@@ -13,7 +13,7 @@
  * 옵션(env):
  *   SEED_COMMUNITY_BOARD_COUNT=50      일반 게시판 글 수 (MOVING_TIP/QUESTION/REVIEW/ETC 합계)
  *   SEED_COMMUNITY_FURNITURE_COUNT=50  가구나눔(FURNITURE_SHARE) 글 수
- *   SEED_COMMUNITY_RESET=1             시작 시 커뮤니티 4테이블 + COMMUNITY 채팅 전체 삭제 (0=삭제 없이 append)
+ *   SEED_COMMUNITY_RESET=1             시작 시 커뮤니티 4테이블 + COMMUNITY 채팅 + ARTICLE/COMMENT 신고 전체 삭제 (0=삭제 없이 append)
  *   SEED_COMMUNITY_WITH_IMAGES=1       picsum.photos 더미 이미지를 S3(posts/)에 업로드 (0=이미지 생략)
  *   SEED_COMMUNITY_SEED=20260827       유사난수(PRNG) 시작값 — 같으면 항상 동일 데이터
  *
@@ -711,6 +711,8 @@ interface ResetResult {
   chatRooms: number;
   chatMessages: number;
   chatAttachments: number;
+  contentReports: number;
+  reportNotifications: number;
   postLikes: number;
   comments: number;
   postImages: number;
@@ -720,8 +722,8 @@ interface ResetResult {
 }
 
 /**
- * 커뮤니티 + COMMUNITY 채팅 데이터를 FK 역순으로 전체 하드 삭제한다.
- * GENERAL/DESIGNATED(견적) 채팅방과 notifications 는 건드리지 않는다.
+ * 커뮤니티 + COMMUNITY 채팅 + ARTICLE/COMMENT 신고 데이터를 FK 역순으로 전체 하드 삭제한다.
+ * GENERAL/DESIGNATED(견적) 채팅방·USER/REVIEW/MESSAGE 신고·그 외 notifications 는 건드리지 않는다.
  * 호출부에서 runWithManualAudit 로 감싸 audit 트리거(histories 적재)를 끈다.
  */
 const resetCommunityDb = async (): Promise<ResetResult> => {
@@ -794,7 +796,30 @@ const resetCommunityDb = async (): Promise<ResetResult> => {
     );
   }
 
-  // 4) 커뮤니티 게시글 삭제 (자식 → 부모)
+  // 4) ARTICLE/COMMENT 신고 삭제
+  //    user_reports.target_id 는 폴리모픽·FK 없음 → 게시글/댓글 삭제를 막지는 않지만,
+  //    대상 없는 신고가 남지 않게 함께 제거한다. Notification.userReportId FK(cascade 없음)를 먼저 정리.
+  const contentReportRows = await prisma.userReport.findMany({
+    where: { target: { in: ['ARTICLE', 'COMMENT'] } },
+    select: { id: true },
+  });
+  const reportIds = contentReportRows.map((row) => row.id);
+
+  let reportNotifications = 0;
+  if (reportIds.length > 0) {
+    reportNotifications = (
+      await prisma.notification.deleteMany({
+        where: { userReportId: { in: reportIds } },
+      })
+    ).count;
+  }
+  const contentReports = (
+    await prisma.userReport.deleteMany({
+      where: { target: { in: ['ARTICLE', 'COMMENT'] } },
+    })
+  ).count;
+
+  // 5) 커뮤니티 게시글 삭제 (자식 → 부모)
   const postLikes = (await prisma.postLike.deleteMany({})).count;
   // comments 는 parent_id self-FK 지만 전체 삭제라 statement 종료 시점에 위배 없음
   const comments = (await prisma.comment.deleteMany({})).count;
@@ -805,6 +830,8 @@ const resetCommunityDb = async (): Promise<ResetResult> => {
     chatRooms: roomIds.length,
     chatMessages: chatMessageCount,
     chatAttachments: chatAttachmentCount,
+    contentReports,
+    reportNotifications,
     postLikes,
     comments,
     postImages,
@@ -1101,7 +1128,8 @@ const main = async (): Promise<void> => {
         reset = await resetCommunityDb();
         logStep(
           `RESET 완료: chatRooms=${reset.chatRooms}, chatMessages=${reset.chatMessages}, ` +
-            `chatAttachments=${reset.chatAttachments}, posts=${reset.posts}, ` +
+            `chatAttachments=${reset.chatAttachments}, contentReports=${reset.contentReports}, ` +
+            `reportNotifications=${reset.reportNotifications}, posts=${reset.posts}, ` +
             `comments=${reset.comments}, postLikes=${reset.postLikes}, postImages=${reset.postImages}`
         );
       } else {
