@@ -52,6 +52,11 @@ components:
           nullable: true
           enum: [PENDING, CONFIRMED, REJECTED]
           description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
+        estimateRequestStatus:
+          type: string
+          nullable: true
+          enum: [SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+          description: 연결된 견적 요청 상태. 견적 요청 없거나 커뮤니티 방이면 null
         partner:
           $ref: '#/components/schemas/ChatRoomPartner'
         lastMessage:
@@ -346,6 +351,11 @@ paths:
                         nullable: true
                         enum: [PENDING, CONFIRMED, REJECTED]
                         description: 연결된 견적 상태. 견적 없거나 커뮤니티 방이면 null
+                      estimateRequestStatus:
+                        type: string
+                        nullable: true
+                        enum: [SUBMITTED, CONFIRMED, COMPLETED, EXPIRED, CANCELED]
+                        description: 연결된 견적 요청 상태. 견적 요청 없거나 커뮤니티 방이면 null
                       isMessagingAllowed:
                         type: boolean
                         description: |

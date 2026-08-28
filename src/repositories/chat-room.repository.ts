@@ -415,6 +415,11 @@ export const findActiveRoomsByUserId = async (userId: string) => {
           status: true,
         },
       },
+      estimateRequest: {
+        select: {
+          status: true,
+        },
+      },
       participants: {
         orderBy: { joinedAt: 'desc' },
         select: {
