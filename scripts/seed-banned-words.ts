@@ -4,6 +4,7 @@ import {
   BANNED_WORD_CATEGORY_PROFANITY,
   DEFAULT_BANNED_WORDS,
 } from '../src/constants/banned-words';
+import { indexBannedWords } from './index-banned-words';
 import { prisma } from '../src/lib/prisma';
 import { upsertBannedWord } from '../src/repositories/banned-word.repository';
 import { normalizeBannedText } from '../src/utils/text-normalize.util';
@@ -18,6 +19,13 @@ const main = async () => {
   }
 
   console.log(`Banned words seeded: ${DEFAULT_BANNED_WORDS.length}`);
+
+  if (process.argv.includes('--skip-index')) {
+    console.log('Skipped banned word indexing (--skip-index)');
+    return;
+  }
+
+  await indexBannedWords();
 };
 
 main()

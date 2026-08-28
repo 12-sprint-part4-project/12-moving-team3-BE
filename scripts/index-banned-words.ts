@@ -8,7 +8,8 @@ import {
 } from '../src/repositories/banned-word.repository';
 import { embed } from '../src/utils/embeddings.util';
 
-const main = async () => {
+/** embedding이 NULL인 활성 금칙어만 배치로 백필한다. */
+export const indexBannedWords = async (): Promise<void> => {
   const rows = await findBannedWordsMissingEmbedding();
   if (rows.length === 0) {
     console.log('No banned words missing embeddings');
@@ -40,6 +41,10 @@ const main = async () => {
       `Indexed ${Math.min(index + BANNED_WORD_EMBED_BATCH_SIZE, rows.length)}/${rows.length}`
     );
   }
+};
+
+const main = async () => {
+  await indexBannedWords();
 };
 
 main()
