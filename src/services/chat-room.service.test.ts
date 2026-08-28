@@ -7,6 +7,7 @@ import { AppError } from '../utils/app.error';
 const chatRoomRepository = require('../repositories/chat-room.repository') as {
   findRoomDetailById: (roomId: number) => Promise<unknown | null>;
   findRoomById: (roomId: number) => Promise<{ id: number } | null>;
+  findActiveRoomsByUserId: (userId: string) => Promise<unknown[]>;
   leaveActiveParticipation: (
     roomId: number,
     userId: string,
@@ -18,11 +19,24 @@ const chatRoomRepository = require('../repositories/chat-room.repository') as {
   ) => Promise<{ leftAt: Date } | null>;
 };
 
+const chatMessageRepository = require('../repositories/chat-message.repository') as {
+  findLastMessagesByRooms: (
+    roomFilters: unknown[]
+  ) => Promise<Map<number, unknown>>;
+};
+
 const chatReadRepository = require('../repositories/chat-read.repository') as {
   findPartnerReadStatus: (
     roomId: number,
     partnerId: string
   ) => Promise<unknown | null>;
+  findUnreadCountsByRooms: (
+    userId: string,
+    roomFilters: unknown[]
+  ) => Promise<Map<number, number>>;
+  findPartnerReadStatusesByRooms: (
+    partnerRoomFilters: unknown[]
+  ) => Promise<Map<number, unknown>>;
 };
 
 const chatSocketService = require('./chat-socket.service') as {
@@ -31,16 +45,22 @@ const chatSocketService = require('./chat-socket.service') as {
 
 const {
   getChatRoomDetail,
+  getChatRoomList,
   leaveChatRoom,
 } = require('./chat-room.service') as {
   getChatRoomDetail: typeof import('./chat-room.service').getChatRoomDetail;
+  getChatRoomList: typeof import('./chat-room.service').getChatRoomList;
   leaveChatRoom: typeof import('./chat-room.service').leaveChatRoom;
 };
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const PARTNER_ID = '22222222-2222-4222-8222-222222222222';
 const ROOM_ID = 1;
+const COMMUNITY_ROOM_ID = 2;
+const NO_REQUEST_ROOM_ID = 3;
 const UPDATED_AT = new Date('2026-08-20T00:00:00.000Z');
+const CREATED_AT = new Date('2026-08-19T00:00:00.000Z');
+const JOINED_AT = new Date('2026-08-20T00:00:00.000Z');
 const LEFT_AT = new Date('2026-08-21T00:00:00.000Z');
 
 const authUser = (): AuthenticatedUser => ({
@@ -98,10 +118,57 @@ const buildDetailRoom = (overrides: DetailRoomOverrides = {}) => ({
   ],
 });
 
+interface ListRoomOverrides {
+  roomId?: number;
+  roomType?: ChatRoomType;
+  estimateRequest?: { status: 'SUBMITTED' | 'EXPIRED' } | null;
+}
+
+const buildListParticipants = () => [
+  {
+    participantId: USER_ID,
+    joinedAt: JOINED_AT,
+    leftAt: null,
+    user: {
+      id: USER_ID,
+      userType: UserType.CUSTOMER,
+      name: '홍길동',
+      nickname: '길동',
+      profileImageKey: null,
+    },
+  },
+  {
+    participantId: PARTNER_ID,
+    joinedAt: JOINED_AT,
+    leftAt: null,
+    user: buildPartnerUser(),
+  },
+];
+
+const buildListRoom = (overrides: ListRoomOverrides = {}) => {
+  const estimateRequest =
+    'estimateRequest' in overrides
+      ? overrides.estimateRequest
+      : { status: 'SUBMITTED' as const };
+
+  return {
+    id: overrides.roomId ?? ROOM_ID,
+    createdAt: CREATED_AT,
+    roomType: overrides.roomType ?? ChatRoomType.GENERAL,
+    quote: null,
+    estimateRequest,
+    participants: buildListParticipants(),
+  };
+};
+
 const originals = {
   findRoomDetailById: chatRoomRepository.findRoomDetailById,
   findRoomById: chatRoomRepository.findRoomById,
+  findActiveRoomsByUserId: chatRoomRepository.findActiveRoomsByUserId,
+  findLastMessagesByRooms: chatMessageRepository.findLastMessagesByRooms,
   findPartnerReadStatus: chatReadRepository.findPartnerReadStatus,
+  findUnreadCountsByRooms: chatReadRepository.findUnreadCountsByRooms,
+  findPartnerReadStatusesByRooms: chatReadRepository.findPartnerReadStatusesByRooms,
   leaveActiveParticipation: chatRoomRepository.leaveActiveParticipation,
   findAnyParticipation: chatRoomRepository.findAnyParticipation,
   emitChatPartnerLeft: chatSocketService.emitChatPartnerLeft,
@@ -110,10 +177,22 @@ const originals = {
 const restoreMocks = () => {
   chatRoomRepository.findRoomDetailById = originals.findRoomDetailById;
   chatRoomRepository.findRoomById = originals.findRoomById;
+  chatRoomRepository.findActiveRoomsByUserId = originals.findActiveRoomsByUserId;
+  chatMessageRepository.findLastMessagesByRooms =
+    originals.findLastMessagesByRooms;
   chatReadRepository.findPartnerReadStatus = originals.findPartnerReadStatus;
+  chatReadRepository.findUnreadCountsByRooms = originals.findUnreadCountsByRooms;
+  chatReadRepository.findPartnerReadStatusesByRooms =
+    originals.findPartnerReadStatusesByRooms;
   chatRoomRepository.leaveActiveParticipation = originals.leaveActiveParticipation;
   chatRoomRepository.findAnyParticipation = originals.findAnyParticipation;
   chatSocketService.emitChatPartnerLeft = originals.emitChatPartnerLeft;
+};
+
+const stubChatRoomListDependencies = () => {
+  chatMessageRepository.findLastMessagesByRooms = async () => new Map();
+  chatReadRepository.findUnreadCountsByRooms = async () => new Map();
+  chatReadRepository.findPartnerReadStatusesByRooms = async () => new Map();
 };
 
 const assertRejectsWithCode = async (
@@ -152,7 +231,7 @@ describe('getChatRoomDetail', () => {
     );
   });
 
-  it('종료 견적이면 isMessagingAllowed=false', async () => {
+  it('종료 견적이면 isMessagingAllowed=false이고 estimateRequestStatus=EXPIRED', async () => {
     chatRoomRepository.findRoomDetailById = async () =>
       buildDetailRoom({ estimateStatus: 'EXPIRED' });
     chatReadRepository.findPartnerReadStatus = async () => null;
@@ -160,7 +239,17 @@ describe('getChatRoomDetail', () => {
     const result = await getChatRoomDetail(authUser(), ROOM_ID);
 
     assert.equal(result.isMessagingAllowed, false);
+    assert.equal(result.estimateRequestStatus, 'EXPIRED');
     assert.equal(result.partner.displayName, '김기사');
+  });
+
+  it('SUBMITTED 견적 요청이면 estimateRequestStatus=SUBMITTED', async () => {
+    chatRoomRepository.findRoomDetailById = async () => buildDetailRoom();
+    chatReadRepository.findPartnerReadStatus = async () => null;
+
+    const result = await getChatRoomDetail(authUser(), ROOM_ID);
+
+    assert.equal(result.estimateRequestStatus, 'SUBMITTED');
   });
 
   it('상대가 나갔으면 isPartnerLeft=true', async () => {
@@ -172,6 +261,42 @@ describe('getChatRoomDetail', () => {
 
     assert.equal(result.isPartnerLeft, true);
     assert.equal(result.partnerLeftAt, LEFT_AT.toISOString());
+  });
+});
+
+describe('getChatRoomList', () => {
+  afterEach(() => restoreMocks());
+
+  it('COMMUNITY 방은 estimateRequestStatus=null', async () => {
+    chatRoomRepository.findActiveRoomsByUserId = async () => [
+      buildListRoom({
+        roomId: COMMUNITY_ROOM_ID,
+        roomType: ChatRoomType.COMMUNITY,
+        estimateRequest: { status: 'SUBMITTED' },
+      }),
+    ];
+    stubChatRoomListDependencies();
+
+    const result = await getChatRoomList(authUser());
+
+    assert.equal(result.rooms.length, 1);
+    assert.equal(result.rooms[0]?.estimateRequestStatus, null);
+  });
+
+  it('estimateRequest 미연결 방은 estimateRequestStatus=null', async () => {
+    chatRoomRepository.findActiveRoomsByUserId = async () => [
+      buildListRoom({
+        roomId: NO_REQUEST_ROOM_ID,
+        roomType: ChatRoomType.GENERAL,
+        estimateRequest: null,
+      }),
+    ];
+    stubChatRoomListDependencies();
+
+    const result = await getChatRoomList(authUser());
+
+    assert.equal(result.rooms.length, 1);
+    assert.equal(result.rooms[0]?.estimateRequestStatus, null);
   });
 });
 

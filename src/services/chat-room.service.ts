@@ -1,5 +1,6 @@
 import type {
   ChatRoomType,
+  EstimateRequestStatus,
   QuoteStatus,
   UserType,
 } from '@prisma/client';
@@ -57,6 +58,21 @@ const toQuoteStatus = (
   }
 
   return quote?.status ?? null;
+};
+
+/**
+ * 채팅 응답용 estimateRequestStatus.
+ * COMMUNITY는 견적과 무관하므로 항상 null.
+ */
+const toEstimateRequestStatus = (
+  roomType: ChatRoomType,
+  estimateRequest: { status: EstimateRequestStatus } | null | undefined
+): EstimateRequestStatus | null => {
+  if (roomType === 'COMMUNITY') {
+    return null;
+  }
+
+  return estimateRequest?.status ?? null;
 };
 
 interface ChatRoomPartnerSource {
@@ -719,6 +735,10 @@ export const getChatRoomList = async (
             roomId: room.id,
             roomType: room.roomType,
             quoteStatus: toQuoteStatus(room.roomType, room.quote),
+            estimateRequestStatus: toEstimateRequestStatus(
+              room.roomType,
+              room.estimateRequest
+            ),
             partner: toChatRoomPartner(partner, room.roomType),
             lastMessage: lastMessage
               ? {
@@ -829,6 +849,10 @@ export const getChatRoomDetail = async (
       : null,
     quoteId: room.quoteId,
     quoteStatus: toQuoteStatus(room.roomType, room.quote),
+    estimateRequestStatus: toEstimateRequestStatus(
+      room.roomType,
+      room.estimateRequest
+    ),
     isMessagingAllowed: isMessagingAllowedForChatRoom({
       estimateRequestStatus: room.estimateRequest?.status,
       quoteStatus: room.quote?.status,
