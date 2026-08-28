@@ -13,6 +13,7 @@
     "admin:create": "ts-node scripts/create-admin.ts",
     "banned-words:seed": "ts-node scripts/seed-banned-words.ts",
     "banned-words:index": "ts-node scripts/index-banned-words.ts",
+    "banned-words:setup": "npm run banned-words:seed",
     "movers:index-embeddings": "ts-node scripts/index-mover-embeddings.ts",
     "movers:seed-demo-vector": "ts-node scripts/seed-demo-vector-movers.ts",
     "reviews:seed-demo-writable": "ts-node scripts/seed-demo-customer-writable-reviews.ts",
