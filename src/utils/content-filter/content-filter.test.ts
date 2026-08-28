@@ -88,4 +88,15 @@ describe('collectPersonalInfoHits', () => {
     assert.equal(hits.length, 1);
     assert.equal(hits[0]?.code, 'PERSONAL_INFO_PHONE');
   });
+
+  it('계좌 후보 연속 숫자는 PERSONAL_INFO_ACCOUNT', () => {
+    const hits = collectPersonalInfoHits({
+      text: '12345678901234',
+      maskPhone: true,
+      maskAccount: true,
+    });
+
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0]?.code, 'PERSONAL_INFO_ACCOUNT');
+  });
 });
