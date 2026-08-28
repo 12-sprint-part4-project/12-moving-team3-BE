@@ -4,7 +4,7 @@ import { MessageType, UserType } from '@prisma/client';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware';
 import { AppError } from '../utils/app.error';
 
-const chatRoomRepository = require('../repositories/chat-room.repository') as {
+interface ChatRoomRepositoryMock {
   findRoomById: (roomId: number) => Promise<{ id: number } | null>;
   findActiveParticipation: (
     roomId: number,
@@ -18,38 +18,63 @@ const chatRoomRepository = require('../repositories/chat-room.repository') as {
     estimateRequest: { status: string } | null;
     quote: { status: string } | null;
   } | null>;
-};
+}
 
-const chatMessageRepository = require('../repositories/chat-message.repository') as {
-  findMessagesByRoomCursor: (params: unknown) => Promise<{
+interface ChatMessageRepositoryMock {
+  findMessagesByRoomCursor: (params: {
+    roomId: number;
+    joinedAt: Date;
+    before?: number;
+    limit: number;
+  }) => Promise<{
     messages: unknown[];
     hasNext: boolean;
   }>;
   createTextMessage: (tx: unknown, data: unknown) => Promise<unknown>;
-};
+}
 
-const chatAttachmentUtil = require('../utils/chat-attachment.util') as {
+interface ChatAttachmentUtilMock {
   toAttachmentViewUrls: (attachments: unknown[]) => Promise<string[]>;
-};
+}
 
-const contentFilter = require('../utils/content-filter') as {
+interface ContentFilterMock {
   filterChatContent: (content: string) => Promise<unknown>;
-};
+}
 
-const prismaModule = require('../lib/prisma') as {
-  prisma: { $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown> };
-};
+interface PrismaModuleMock {
+  prisma: {
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+  };
+}
 
-const chatSocketService = require('./chat-socket.service') as {
+interface ChatSocketServiceMock {
   emitChatMessageCreated: (payload: unknown) => Promise<void>;
-};
+}
 
-const s3Service = require('./s3.service') as {
+interface S3ServiceMock {
   getObjectMetadata: (fileKey: string) => Promise<{
     contentLength: number;
     contentType: string;
   } | null>;
-};
+}
+
+const chatRoomRepository: ChatRoomRepositoryMock =
+  require('../repositories/chat-room.repository');
+
+const chatMessageRepository: ChatMessageRepositoryMock =
+  require('../repositories/chat-message.repository');
+
+const chatAttachmentUtil: ChatAttachmentUtilMock =
+  require('../utils/chat-attachment.util');
+
+const contentFilter: ContentFilterMock = require('../utils/content-filter');
+
+const prismaModule: PrismaModuleMock = require('../lib/prisma');
+
+const chatSocketService: ChatSocketServiceMock =
+  require('./chat-socket.service');
+
+const s3Service: S3ServiceMock = require('./s3.service');
 
 const {
   getChatMessages,
@@ -128,25 +153,42 @@ describe('getChatMessages', () => {
     chatRoomRepository.findActiveParticipation = async () => ({
       joinedAt: JOINED_AT,
     });
-    chatMessageRepository.findMessagesByRoomCursor = async () => ({
-      messages: [
-        {
-          id: 100,
-          senderId: USER_ID,
-          sender: { userType: UserType.CUSTOMER },
-          messageType: MessageType.TEXT,
-          content: '안녕',
-          isFiltered: false,
-          attachments: [],
-          createdAt: CREATED_AT,
-        },
-      ],
-      hasNext: true,
-    });
+    let receivedParams:
+      | {
+          roomId: number;
+          joinedAt: Date;
+          before?: number;
+          limit: number;
+        }
+      | undefined;
+    chatMessageRepository.findMessagesByRoomCursor = async (params) => {
+      receivedParams = params;
+      return {
+        messages: [
+          {
+            id: 100,
+            senderId: USER_ID,
+            sender: { userType: UserType.CUSTOMER },
+            messageType: MessageType.TEXT,
+            content: '안녕',
+            isFiltered: false,
+            attachments: [],
+            createdAt: CREATED_AT,
+          },
+        ],
+        hasNext: true,
+      };
+    };
     chatAttachmentUtil.toAttachmentViewUrls = async () => [];
 
     const result = await getChatMessages(authUser(), ROOM_ID, { limit: 30 });
 
+    assert.deepEqual(receivedParams, {
+      roomId: ROOM_ID,
+      joinedAt: JOINED_AT,
+      before: undefined,
+      limit: 30,
+    });
     assert.equal(result.data.messages.length, 1);
     assert.equal(result.data.messages[0].messageId, 100);
     assert.equal(result.data.messages[0].content, '안녕');
@@ -297,6 +339,29 @@ describe('sendChatMessage', () => {
           attachments: [VALID_ATTACHMENT_KEY],
         }),
       'IMAGE_SIZE_EXCEEDED'
+    );
+  });
+
+  it('IMAGE MIME 불허면 INVALID_IMAGE_FORMAT', async () => {
+    chatRoomRepository.findRoomForMessaging = async () => ({
+      estimateRequest: { status: 'SUBMITTED' },
+      quote: null,
+    });
+    chatRoomRepository.findActiveParticipation = async () => ({
+      joinedAt: JOINED_AT,
+    });
+    s3Service.getObjectMetadata = async () => ({
+      contentLength: 1024,
+      contentType: 'application/pdf',
+    });
+
+    await assertRejectsWithCode(
+      () =>
+        sendChatMessage(authUser(), ROOM_ID, {
+          messageType: 'IMAGE',
+          attachments: [VALID_ATTACHMENT_KEY],
+        }),
+      'INVALID_IMAGE_FORMAT'
     );
   });
 });

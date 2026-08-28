@@ -28,6 +28,16 @@ describe('chatMessagesQuerySchema', () => {
     );
   });
 
+  it('before와 limit의 포함 경계값을 파싱한다', () => {
+    assert.deepEqual(
+      chatMessagesQuerySchema.parse({ before: '1', limit: '1' }),
+      { before: 1, limit: 1 }
+    );
+    assert.deepEqual(chatMessagesQuerySchema.parse({ limit: '100' }), {
+      limit: 100,
+    });
+  });
+
   it('1e3·0x64 등 비10진 표기는 거부한다', () => {
     assert.equal(
       chatMessagesQuerySchema.safeParse({ before: '1e3' }).success,

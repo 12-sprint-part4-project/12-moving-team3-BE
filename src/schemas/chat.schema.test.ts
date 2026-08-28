@@ -125,7 +125,24 @@ describe('sendChatMessageBodySchema', () => {
     );
   });
 
-  it('IMAGE attachments 1~5개를 허용한다', () => {
+  it('TEXT 2000자와 IMAGE 첨부 1개를 허용한다', () => {
+    assert.equal(
+      sendChatMessageBodySchema.safeParse({
+        messageType: 'TEXT',
+        content: 'a'.repeat(2000),
+      }).success,
+      true
+    );
+    assert.equal(
+      sendChatMessageBodySchema.safeParse({
+        messageType: 'IMAGE',
+        attachments: ['key-0'],
+      }).success,
+      true
+    );
+  });
+
+  it('IMAGE attachments 1~5개 전체 범위를 허용한다', () => {
     const keys = Array.from({ length: 5 }, (_, index) => `key-${index}`);
     assert.deepEqual(
       sendChatMessageBodySchema.parse({

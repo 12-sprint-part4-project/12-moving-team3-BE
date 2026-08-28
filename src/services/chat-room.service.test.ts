@@ -56,13 +56,13 @@ const buildPartnerUser = () => ({
   profileImageKey: null,
 });
 
-const buildDetailRoom = (
-  overrides: {
-    estimateStatus?: 'SUBMITTED' | 'EXPIRED';
-    quoteStatus?: 'REJECTED' | 'PENDING';
-    partnerLeftAt?: Date | null;
-  } = {}
-) => ({
+interface DetailRoomOverrides {
+  estimateStatus?: 'SUBMITTED' | 'EXPIRED';
+  quoteStatus?: 'REJECTED' | 'PENDING';
+  partnerLeftAt?: Date | null;
+}
+
+const buildDetailRoom = (overrides: DetailRoomOverrides = {}) => ({
   id: ROOM_ID,
   roomType: ChatRoomType.GENERAL,
   quoteId: 10,
