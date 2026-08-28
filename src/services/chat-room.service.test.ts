@@ -152,7 +152,7 @@ describe('getChatRoomDetail', () => {
     );
   });
 
-  it('종료 견적이면 isMessagingAllowed=false', async () => {
+  it('종료 견적이면 isMessagingAllowed=false이고 estimateRequestStatus=EXPIRED', async () => {
     chatRoomRepository.findRoomDetailById = async () =>
       buildDetailRoom({ estimateStatus: 'EXPIRED' });
     chatReadRepository.findPartnerReadStatus = async () => null;
@@ -160,7 +160,17 @@ describe('getChatRoomDetail', () => {
     const result = await getChatRoomDetail(authUser(), ROOM_ID);
 
     assert.equal(result.isMessagingAllowed, false);
+    assert.equal(result.estimateRequestStatus, 'EXPIRED');
     assert.equal(result.partner.displayName, '김기사');
+  });
+
+  it('SUBMITTED 견적 요청이면 estimateRequestStatus=SUBMITTED', async () => {
+    chatRoomRepository.findRoomDetailById = async () => buildDetailRoom();
+    chatReadRepository.findPartnerReadStatus = async () => null;
+
+    const result = await getChatRoomDetail(authUser(), ROOM_ID);
+
+    assert.equal(result.estimateRequestStatus, 'SUBMITTED');
   });
 
   it('상대가 나갔으면 isPartnerLeft=true', async () => {
